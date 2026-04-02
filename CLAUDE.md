@@ -48,6 +48,12 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Never use bare `except:` or `except Exception:` as a catch-all.
 - Let errors propagate naturally — don't swallow them.
 
+### Code Comments
+- Write brief comments on non-trivial blocks explaining **what** the block does and **why** this approach was chosen.
+- Target audience: the user and future AI assistants reading the code.
+- Key things to call out: design trade-offs, platform-specific behavior, non-obvious constraints, and links to related modules.
+- Do NOT comment obvious code. `# increment counter` above `counter += 1` is noise.
+
 ### General
 - No unnecessary abstractions. Three similar lines > premature abstraction.
 - No speculative features or "just in case" code.
