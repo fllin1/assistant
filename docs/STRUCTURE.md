@@ -1,7 +1,7 @@
 # Codebase Structure
 
 > This document is kept up-to-date whenever the project structure changes.
-> Last updated: 2026-03-29
+> Last updated: 2026-04-02
 
 ## Directory Layout
 
@@ -11,6 +11,7 @@ assistant/
 ├── pyproject.toml                   # Project config, dependencies, ruff & pytest settings
 ├── CLAUDE.md                        # Claude rules for this project
 ├── docs/
+│   ├── CONVENTIONS.md               # How we work — style, git, testing, deps
 │   └── STRUCTURE.md                 # This file — living codebase map
 ├── scripts/
 │   └── ruff_hook.sh                 # PostToolUse hook — runs ruff on .py edits
