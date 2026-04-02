@@ -11,6 +11,7 @@ assistant/
 ├── pyproject.toml                   # Project config, dependencies, ruff & pytest settings
 ├── CLAUDE.md                        # Claude rules for this project
 ├── docs/
+│   ├── BRAINSTORMING.md              # Architecture decisions, feature vision, open questions
 │   ├── CONVENTIONS.md               # How we work — style, git, testing, deps
 │   └── STRUCTURE.md                 # This file — living codebase map
 ├── scripts/
