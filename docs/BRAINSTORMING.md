@@ -26,7 +26,7 @@ Even automations should be bounded. "Run forever" is never the default.
 
 ### Tool Registry
 
-Modules (screen, input, browser, vision) shouldn't just be importable functions — they should register as **tools** with metadata. This lets the vision model know what actions are available when reasoning.
+Modules (screen, input, vision) shouldn't just be importable functions — they should register as **tools** with metadata. This lets the vision model know what actions are available when reasoning.
 
 ```python
 @dataclass(frozen=True)
@@ -49,8 +49,6 @@ SCREEN_TOOLS = [
     ),
 ]
 ```
-
-When the vision model reasons about what to do, it receives the list of available tools with descriptions. This is the bridge between "library of functions" and "agent that picks actions."
 
 **Not built yet** — implement when we have 3+ action modules. For now, modules are plain functions.
 
@@ -78,18 +76,129 @@ class Session:
 
 Sessions persist as JSON in `~/.assistant/sessions/`. The schema lives in the repo; the data does not.
 
+### How AI Interacts with the Screen
+
+**Focus: desktop apps** (not browser). The challenge is precision — how does the model know exactly where to click?
+
+#### Approaches Researched
+
+| Approach | How it works | Precision | Complexity |
+|----------|-------------|-----------|------------|
+| **Claude Computer Use** | Built-in API tool, model outputs `{action: "left_click", coordinate: [x, y]}` | Good at 1024x768, degrades at higher res | Low — just API calls |
+| **Grid overlay** | Draw labeled grid on screenshot, model says "click B3" | High — grid cells are unambiguous | Low — just PIL drawing |
+| **Adaptive zoom** | Coarse grid → model picks cell → zoom in → finer grid | Very high — two passes | Medium — two API calls |
+| **SoM (Set-of-Mark)** | Detect UI elements, overlay numbered labels, model says "click #7" | High — elements are pre-identified | High — needs ML detection (OmniParser, SAM) |
+| **Accessibility APIs** | Read element tree from OS (AT-SPI on Linux, UI Automation on Windows) | Pixel-perfect | Medium — only works when apps support it |
+
+#### Our Approach: Grid Overlay + Claude Computer Use
+
+**Two-tier strategy optimized for token efficiency and speed:**
+
+**Tier 1 — Grid overlay (default, fast, cheap):**
+1. Capture screenshot at 1024x768
+2. Overlay a labeled grid (e.g., 10x8 grid → ~100x96px cells, labeled A1-J8)
+3. Send to vision model: "What's on screen? Where should I click to [task]?"
+4. Model responds with grid reference: "Click B3 to open the file menu"
+5. Calculate center of cell B3, execute click
+
+**Tier 2 — Adaptive refinement (when precision matters):**
+1. Same as Tier 1, but after model picks a cell...
+2. Capture just that region at full resolution
+3. Overlay a finer sub-grid on the zoomed region
+4. Model picks the sub-cell → precise coordinates
+5. Two API calls, but sub-pixel precision
+
+**Why this over Claude Computer Use raw coordinates:**
+- Grid references are unambiguous — "B3" can't drift by 50px
+- Works with any vision model (Gemini, Claude, local models), not locked to Claude API
+- Fewer tokens — grid labels are concise vs the model reasoning about exact pixel positions
+- Adaptive zoom only needed for dense UIs
+
+**Claude Computer Use** remains available as an alternative backend — its structured action format (`left_click`, `type`, `key`, `scroll`) is the action vocabulary we adopt regardless of which approach identifies the target.
+
+#### Action Space
+
+Adopted from Claude Computer Use's structured format:
+
+| Action | Parameters | Description |
+|--------|-----------|-------------|
+| `left_click` | `coordinate` | Click at position |
+| `right_click` | `coordinate` | Right-click |
+| `double_click` | `coordinate` | Double-click |
+| `type` | `text` | Type text |
+| `key` | `text` | Press key combo (e.g., `ctrl+s`) |
+| `mouse_move` | `coordinate` | Move cursor |
+| `scroll` | `coordinate, direction, amount` | Scroll |
+| `screenshot` | none | Capture current state |
+
+#### The Agent Loop
+
+```
+while not done and iterations < max_iterations:
+    screenshot = capture_screen()
+    annotated = overlay_grid(screenshot)
+    
+    response = vision_model.analyze(annotated, task, history)
+    
+    if response.action == "done":
+        break
+    
+    execute_action(response.action, response.target)
+    log_step(screenshot, response)  # basic JSONL logging from day one
+    
+    verify_screenshot = capture_screen()
+    # next iteration uses this as the new state
+```
+
+#### Industry Context
+
+| Project | Approach | What we learn |
+|---------|----------|---------------|
+| **Claude Computer Use** | Screenshot → model → raw coordinates | Action format standard; resolution matters (1024x768 best) |
+| **browser-use** | DOM serialization with indices | Index-based selection >> coordinate guessing (for web) |
+| **OmniParser** | YOLO element detection + Florence captioning | ML-based UI parsing is powerful but heavy |
+| **Manus AI** | Code generation (writes Python to interact) | Sidesteps clicking entirely for some tasks |
+| **OpenAdapt** | Record human demos, replay with AI generalization | Different paradigm — learn from demonstration |
+
 ### User Interaction Model
 
-How does a user interact with the assistant? Four possible interfaces (not mutually exclusive):
+Four interfaces, layered incrementally:
 
 | Interface | Use case | Priority |
 |-----------|----------|----------|
-| **Python API** | `from assistant import capture_screen` — scripting, automations | Now |
-| **CLI** | `assistant capture`, `assistant run <automation>` — quick actions from terminal | Soon |
-| **Claude Code integration** | Skills/hooks that trigger assistant actions from within Claude Code | Later |
-| **Background daemon** | Hotkey-triggered, scheduled, always-on monitoring | Later |
+| **Python API** | `from assistant import capture_screen` — scripting, automations | Phase 1 |
+| **CLI** (`typer`) | `assistant capture`, `assistant run <automation>` — terminal use | Phase 2 |
+| **Claude Code skills** | `/capture-screen`, `/run-automation` — Claude orchestrates | Phase 4 |
+| **Background daemon** | Hotkey-triggered, scheduled, always-on monitoring | Future |
 
-The Python API is the foundation. CLI wraps it. Claude Code integration and daemon are future layers.
+**How the layers compose:**
+- Python API is the foundation — every other layer calls it
+- CLI wraps the API with `typer` — portable, testable, works without Claude Code
+- Claude Code skills wrap the CLI — a SKILL.md file that calls `assistant <command>` via bash, then Claude reasons about the output
+
+**Example skill (future):**
+```yaml
+---
+name: capture-screen
+description: Capture the screen and describe what's visible
+allowed-tools: Bash(assistant *)
+---
+Run: !`assistant capture --monitor 1 --describe`
+Analyze the screenshot description and answer the user's question about what's on screen.
+```
+
+### Implementation Roadmap
+
+```
+Phase 1: Screen capture                 ← capture pixels (mss + PIL)
+Phase 2: CLI (typer)                    ← wraps Phase 1
+Phase 3: AI screen interaction          ← the core value
+  3a: Input module                      ← mouse/keyboard (pyautogui)
+  3b: Vision module                     ← send screenshots + grid to models, get actions
+  3c: Agent loop + basic JSONL logging  ← capture→reason→act→verify
+Phase 4: Claude Code skills             ← SKILL.md files wrapping CLI
+Phase 5: Memory/RAG                     ← SQLite FTS5, session summaries, compaction
+```
 
 ### Runtime Data Layout
 
@@ -101,8 +210,11 @@ All runtime data lives in `~/.assistant/` — outside the repo.
 │   └── 2026-04-01/
 │       ├── 143052_full.png
 │       └── 143055_region.png
-├── sessions/           # Agent run logs (JSON per session)
-│   └── 2026-04-01_143052_abc123.json
+├── sessions/           # Agent run logs (JSONL per session)
+│   └── 2026-04-01_143052_abc123.jsonl
+├── memory/             # RAG system data (Phase 5)
+│   ├── projects/
+│   └── global/
 ├── config/             # User configuration (future)
 └── logs/               # Application logs (future)
 ```
@@ -112,34 +224,104 @@ All runtime data lives in `~/.assistant/` — outside the repo.
 ## Feature Ideas
 
 ### Screen Module
-- **capture_screen** / **capture_region** / **list_monitors** / **save_capture** — Phase 2, ready to implement
+- **capture_screen** / **capture_region** / **list_monitors** / **save_capture** — Phase 1, ready to implement
+- **overlay_grid(image, cols, rows)** — draw labeled grid on screenshot for model consumption
 - **capture_window(title)** — capture a specific window. Two approaches: geometry-based (simple, needs visible window) vs native X11/Win32 (works on minimized). Needs investigation.
 - **list_windows()** — enumerate open windows with title, geometry, PID. Platform-specific.
-- **detect_elements(image)** — use vision model to identify UI elements with bounding boxes. Intersection of screen + vision modules.
 
 ### Vision Module
-- Send PIL Image to Gemini (primary) or other providers
-- Get structured response (what's on screen, suggested actions)
-- Prompt templates for different analysis types (general, find element, read text)
+- Send annotated screenshot (with grid) to model, get structured action response
+- Support multiple backends: Claude Computer Use API, Gemini, local models
+- Prompt templates for: general analysis, grid-based targeting, adaptive zoom refinement
+- Structured output: action type + target (grid ref or coordinates) + reasoning
 
 ### Input Module
-- Mouse control (move, click, drag)
-- Keyboard control (type, hotkeys)
-- Platform abstraction (PyAutoGUI or pynput)
+- Mouse control (move, click, drag, scroll)
+- Keyboard control (type, hotkeys, key combos)
+- Platform abstraction (PyAutoGUI — cross-platform)
+- Coordinate mapping: grid reference → pixel coordinates
 
-### Browser Module
-- Playwright-based browser automation
-- Browser-Use integration (AI-driven browser control)
+### Agent Loop
+- Orchestrate capture → annotate → reason → act → verify
+- Bounded execution (max iterations, timeout, stop conditions)
+- Basic JSONL session logging from day one
+- Frozen AgentStep snapshots for each iteration
 
 ### Conversation Memory / RAG System
-A local system for maintaining context across conversations:
-- **Project-based organization** — group conversations by project/topic
-- **Compaction strategies** — different methods for different use cases:
-  - Summarization (general conversations)
-  - Extraction (e.g., vocabulary lists from language learning sessions)
-  - Key decisions / Q&A pairs
-- **Research needed**: how do Cursor, Windsurf, Continue.dev, Copilot handle context? What approaches exist beyond RAG (e.g., structured memory, knowledge graphs)?
-- This is a feature in its own right, not a foundation piece
+
+A local memory system for maintaining context across conversations. Built as a standalone module, usable by the agent but also independently (e.g., for logging any Claude Code session).
+
+**Research completed** — compared Claude Code, Cursor, Windsurf, Copilot, Mem0, Letta/MemGPT, LangChain, LlamaIndex. Key insight: plain text + full-text search covers 80% of retrieval needs. Start simple.
+
+#### What to Store
+
+**Tier 1 — Raw data (append-only, never delete):**
+- Full conversation transcripts (structured JSONL)
+- Agent action logs (clicks, typed text, navigations — structured events)
+- User corrections and feedback (tagged explicitly — highest-value signal)
+
+**Tier 2 — Derived (generated from Tier 1 via LLM):**
+- Session summaries (3-5 bullets at session end)
+- Extracted facts ("user prefers ruff", "project uses FastAPI")
+- Domain-specific extractions (vocabulary, error patterns, decision logs)
+
+#### Image Handling
+
+Strategy: **text description + retention curve**.
+
+| Time | What's kept |
+|------|-------------|
+| At capture | Full image + text description via vision model |
+| After 7 days | Description + metadata + downscaled thumbnail |
+| After 30 days | Description + metadata only (unless bookmarked) |
+
+#### Retrieval Strategy (phased)
+
+1. **v1**: SQLite FTS5 — full-text keyword search. Zero new deps.
+2. **v2**: Add ChromaDB + sentence-transformers for semantic search.
+3. **v3**: Hybrid retrieval (FTS5 + vector) with reciprocal rank fusion.
+
+#### Compaction Strategies
+
+One pipeline, multiple domain-specific plugins:
+
+| Domain | Extra extraction | Output format |
+|--------|-----------------|---------------|
+| General | Decisions, outcomes, open threads | Session summary |
+| Language learning | Vocabulary, grammar corrections | Flashcard entries |
+| Debugging | Error signature, root cause, fix | Problem-solution pairs |
+| Code review | Decisions, patterns established | Decision log |
+
+#### Project-Based Organization
+
+```
+~/.assistant/memory/
+  projects/
+    assistant/              ← scoped to this project
+      sessions/
+      summaries/
+      facts.jsonl
+    language-japanese/
+      sessions/
+      vocabulary.jsonl
+  global/
+    user_profile.jsonl      ← cross-project facts
+    corrections.jsonl       ← cross-project preferences
+```
+
+#### Cloud Sync
+
+**Syncthing** — zero cloud dependency, automatic, handles mixed content, encrypted, works on WSL2.
+
+#### Industry Comparison
+
+| Tool | Approach | Key insight |
+|------|----------|-------------|
+| Claude Code | Plain markdown files, 200-line cap | Simplicity works |
+| Cursor | Vector embeddings in Turbopuffer | Heavy infra for semantic search |
+| Copilot | 28-day expiry + citation validation | Elegant staleness handling |
+| Mem0 | Triple store (vector + graph + KV) | Captures relationships |
+| Letta/MemGPT | LLM self-manages memory via tools | Agent controls its own context |
 
 ---
 
@@ -225,14 +407,40 @@ Issue created → Branch created → Work done → PR opened → Review → Merg
 
 ## Issues to Create
 
-After the foundation work is complete, create these initial issues:
+Organized by phase. Create these as GitHub Issues with the `gh` CLI.
 
-1. `feat: screen — capture_window()` — label: `feat`
-2. `feat: screen — list_windows()` — label: `feat`
-3. `feat: screen — detect_elements()` — label: `feat`
-4. `feat: bounded agent loop with stop conditions` — label: `feat`
-5. `feat: tool registry pattern` — label: `feat`
-6. `feat: session persistence (frozen steps + JSON)` — label: `feat`
-7. `feat: CLI interface` — label: `feat`
-8. `research: context management / conversation memory approaches` — label: `research`
-9. `research: user interaction model (CLI vs daemon vs Claude Code integration)` — label: `research`
+**Phase 1 — Screen capture:**
+1. `feat: screen — core capture functions (capture_screen, capture_region, list_monitors, save_capture)` — label: `feat`
+2. `feat: screen — overlay_grid() for model-friendly screenshots` — label: `feat`
+3. `feat: screen — capture_window()` — label: `feat`
+4. `feat: screen — list_windows()` — label: `feat`
+
+**Phase 2 — CLI:**
+5. `feat: CLI interface with typer` — label: `feat`
+
+**Phase 3 — AI screen interaction:**
+6. `feat: input — mouse and keyboard control (pyautogui)` — label: `feat`
+7. `feat: vision — send annotated screenshots to models, get structured actions` — label: `feat`
+8. `feat: agent loop — capture→reason→act→verify with basic logging` — label: `feat`
+9. `feat: vision — adaptive zoom refinement for precision targeting` — label: `feat`
+
+**Phase 4 — Claude Code skills:**
+10. `feat: Claude Code skills wrapping CLI commands` — label: `feat`
+
+**Phase 5 — Memory/RAG:**
+11. `feat: memory — structured session logging (JSONL)` — label: `feat`
+12. `feat: memory — session summarization via LLM` — label: `feat`
+13. `feat: memory — SQLite FTS5 search` — label: `feat`
+14. `feat: memory — fact extraction pipeline` — label: `feat`
+15. `feat: memory — image description + retention curve` — label: `feat`
+16. `feat: memory — project-based organization` — label: `feat`
+
+**Architecture (implement when triggered):**
+17. `feat: tool registry pattern` — label: `feat` — trigger: 3+ action modules exist
+18. `feat: bounded agent loop with stop conditions` — label: `feat`
+19. `feat: session persistence (frozen steps + JSON)` — label: `feat`
+
+**Research:**
+20. `research: accessibility APIs for precise element targeting (AT-SPI, UI Automation)` — label: `research`
+21. `research: Syncthing setup for cross-device memory sync` — label: `research`
+22. `research: domain-specific compaction plugins` — label: `research`
