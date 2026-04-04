@@ -29,7 +29,6 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Remind the user to delete merged branches.
 
 ### Documentation
-- **Update `docs/STRUCTURE.md`** whenever the codebase structure changes (new files, renamed modules, changed responsibilities).
 - Every module must have a module-level docstring explaining its purpose.
 - Public functions use **Google-style docstrings** — skip docstrings for trivial/self-explanatory functions.
 
@@ -82,6 +81,6 @@ The library starts flat — modules are added as we build them. Structure emerge
 ## Reminders for Claude
 - Always read a file before editing it.
 - Notify the user if their code doesn't match the style guidelines.
-- After completing a feature: remind to commit, remind to update docs/STRUCTURE.md.
+- After completing a feature: remind to commit.
 - Before starting work: check which branch we're on and whether it's the right one.
 - When in doubt about scope, ask — don't expand silently.

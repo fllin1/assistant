@@ -11,7 +11,9 @@ from assistant.screen import (
     DEFAULT_CAPTURES_DIR,
     capture_region,
     capture_screen,
+    grid_to_pixel,
     list_monitors,
+    overlay_grid,
     save_capture,
 )
 from tests.conftest import make_fake_monitors, make_fake_screenshot
@@ -141,3 +143,64 @@ def test_live_capture():
     assert img.mode == "RGB"
     assert img.size[0] > 0
     assert img.size[1] > 0
+
+
+# -- overlay_grid --
+
+
+def test_overlay_grid_returns_new_image():
+    """Input image is not modified; a new image is returned."""
+    original = Image.new("RGB", (1024, 768), color=(100, 100, 100))
+    original_data = original.tobytes()
+
+    result = overlay_grid(original)
+
+    assert result is not original
+    assert original.tobytes() == original_data  # input unchanged
+
+
+def test_overlay_grid_same_size():
+    img = Image.new("RGB", (1024, 768))
+
+    result = overlay_grid(img, cols=10, rows=8)
+
+    assert result.size == img.size
+
+
+# -- grid_to_pixel --
+
+
+def test_grid_to_pixel_top_left():
+    """A1 should map to the center of the top-left cell."""
+    x, y = grid_to_pixel("A1", image_size=(1000, 800), cols=10, rows=8)
+
+    # Cell is 100x100, center should be (50, 50)
+    assert x == 50
+    assert y == 50
+
+
+def test_grid_to_pixel_last_cell():
+    """J8 should map to the center of the bottom-right cell."""
+    x, y = grid_to_pixel("J8", image_size=(1000, 800), cols=10, rows=8)
+
+    # Last cell center at 10x8 grid on 1000x800 image
+    assert x == 950
+    assert y == 750
+
+
+def test_grid_to_pixel_middle():
+    """E4 should map roughly to the center of the image."""
+    x, y = grid_to_pixel("E4", image_size=(1000, 800), cols=10, rows=8)
+
+    # Col E = index 4, row 4 = index 3
+    # (4 * 100 + 50, 3 * 100 + 50) = (450, 350)
+    assert x == 450
+    assert y == 350
+
+
+def test_grid_to_pixel_case_insensitive():
+    """Grid references should work with lowercase letters."""
+    upper = grid_to_pixel("B2", image_size=(1000, 800))
+    lower = grid_to_pixel("b2", image_size=(1000, 800))
+
+    assert upper == lower

@@ -1,6 +1,7 @@
-"""Screen capture utilities using mss.
+"""Screen capture and annotation utilities.
 
-Provides functions to capture screenshots, list monitors, and save images.
+Provides functions to capture screenshots, list monitors, save images,
+and annotate screenshots with grid overlays for model-friendly targeting.
 All capture functions return PIL Images in RGB format. mss captures in BGRA
 internally — the conversion happens here so callers never deal with it.
 """
@@ -10,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import mss
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
@@ -102,3 +103,101 @@ def save_capture(
     image.save(path)
     logger.debug("Saved capture to %s", path)
     return path
+
+
+def overlay_grid(
+    image: Image.Image,
+    cols: int = 10,
+    rows: int = 8,
+) -> Image.Image:
+    """Draw a labeled grid over a screenshot for model-friendly targeting.
+
+    Each cell is labeled with a column letter + row number (e.g., A1, B3, J8).
+    The model references cells instead of guessing raw pixel coordinates.
+
+    This is an experimental targeting approach — one of several to be evaluated.
+
+    Args:
+        image: The screenshot to annotate.
+        cols: Number of columns (max 26, labeled A-Z).
+        rows: Number of rows (labeled 1-N).
+
+    Returns:
+        A new image with the grid overlay. The input is not modified.
+    """
+    annotated = image.copy()
+    draw = ImageDraw.Draw(annotated, "RGBA")
+    w, h = annotated.size
+    cell_w = w / cols
+    cell_h = h / rows
+
+    # Semi-transparent grid lines
+    line_color = (255, 255, 255, 80)
+    for col in range(1, cols):
+        x = int(col * cell_w)
+        draw.line([(x, 0), (x, h)], fill=line_color, width=1)
+    for row in range(1, rows):
+        y = int(row * cell_h)
+        draw.line([(0, y), (w, y)], fill=line_color, width=1)
+
+    # Cell labels — small text at top-left of each cell
+    # Use default font; a proper font can be configured later
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    except OSError:
+        font = ImageFont.load_default()
+
+    label_bg = (0, 0, 0, 140)
+    label_fg = (255, 255, 255, 220)
+
+    for col in range(cols):
+        for row in range(rows):
+            label = f"{chr(65 + col)}{row + 1}"
+            x = int(col * cell_w) + 2
+            y = int(row * cell_h) + 1
+
+            # Draw a small background rectangle for readability
+            bbox = font.getbbox(label)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+            draw.rectangle([x, y, x + text_w + 4, y + text_h + 2], fill=label_bg)
+            draw.text((x + 2, y), label, fill=label_fg, font=font)
+
+    logger.debug("Overlaid %dx%d grid on %dx%d image", cols, rows, w, h)
+    return annotated
+
+
+def grid_to_pixel(
+    cell: str,
+    image_size: tuple[int, int],
+    cols: int = 10,
+    rows: int = 8,
+) -> tuple[int, int]:
+    """Convert a grid cell reference to pixel coordinates.
+
+    Returns the center of the specified cell. Used to map model output
+    (e.g., "B3") to a click target.
+
+    Args:
+        cell: Grid reference like "A1", "B3", "J8". Column is a letter, row is a number.
+        image_size: (width, height) of the image the grid was drawn on.
+        cols: Number of columns (must match the grid that was drawn).
+        rows: Number of rows (must match the grid that was drawn).
+
+    Returns:
+        (x, y) pixel coordinates at the center of the cell.
+    """
+    col_letter = cell[0].upper()
+    row_number = int(cell[1:])
+
+    col_index = ord(col_letter) - ord("A")
+    row_index = row_number - 1
+
+    w, h = image_size
+    cell_w = w / cols
+    cell_h = h / rows
+
+    x = int(col_index * cell_w + cell_w / 2)
+    y = int(row_index * cell_h + cell_h / 2)
+
+    return (x, y)
