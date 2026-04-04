@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "A computer control agent with vision-based screen understanding"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "mss>=9.0",
+    "Pillow>=10.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -27,11 +30,19 @@ select = [
     "UP",    # pyupgrade
     "B",     # flake8-bugbear
     "SIM",   # flake8-simplify
+    "PTH",   # prefer pathlib over os.path
+    "T20",   # no print() left in code
+    "ERA",   # no commented-out code
     "RUF",   # ruff-specific rules
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["T20"]  # stub entry point, print is intentional
 
 [tool.ruff.lint.isort]
 known-first-party = ["assistant"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["live: requires a display (deselected by default)"]
+addopts = "-m 'not live'"

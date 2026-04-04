@@ -1,7 +1,7 @@
 # Codebase Structure
 
 > This document is kept up-to-date whenever the project structure changes.
-> Last updated: 2026-04-02
+> Last updated: 2026-04-04
 
 ## Directory Layout
 
@@ -18,23 +18,27 @@ assistant/
 │   └── ruff_hook.sh                 # PostToolUse hook — runs ruff on .py edits
 ├── src/
 │   └── assistant/                   # Reusable library (flat, grows organically)
-│       └── __init__.py
+│       ├── __init__.py
+│       └── screen.py                # Screen capture (mss), grid overlay
 ├── automations/                     # Personal automation scripts (import from library)
 │   └── __init__.py
 └── tests/
-    └── __init__.py
+    ├── __init__.py
+    └── test_screen.py               # Tests for screen capture module
 ```
 
 ## Module Responsibilities
 
 ### `src/assistant/`
-Reusable library for computer control. Starts flat — modules are added as features are built. No placeholder files.
+Reusable library for computer control. Starts flat — modules are added as features are built.
 
-Planned capabilities (not yet implemented):
-- Screen capture
-- Mouse/keyboard control
-- Browser automation
+**Implemented:**
+- `screen.py` — Screen capture via mss, save with auto-naming, grid overlay for model targeting
+
+**Planned:**
+- Input control (mouse/keyboard)
 - Vision model integration
+- Agent loop orchestration
 
 ### `automations/`
 Personal automation scripts built on top of the library. Each script or module is self-contained and imports from `assistant`.
