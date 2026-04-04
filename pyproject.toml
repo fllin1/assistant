@@ -37,7 +37,8 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"main.py" = ["T20"]  # stub entry point, print is intentional
+"main.py" = ["T20"]
+"scripts/*" = ["T20"]  # demo/utility scripts can print
 
 [tool.ruff.lint.isort]
 known-first-party = ["assistant"]
