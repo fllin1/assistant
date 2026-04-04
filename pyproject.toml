@@ -7,7 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
     "mss>=9.0",
     "Pillow>=10.0",
+    "typer>=0.9.0",
 ]
+
+[project.scripts]
+assistant = "assistant.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -37,7 +41,6 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"main.py" = ["T20"]
 "scripts/*" = ["T20"]  # demo/utility scripts can print
 
 [tool.ruff.lint.isort]
