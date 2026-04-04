@@ -8,6 +8,7 @@
 ### Core Pattern: Capture → Reason → Act
 
 The agent operates in a loop:
+
 1. **Capture** — take a screenshot of the current screen state
 2. **Reason** — send to a vision model, get back a structured decision
 3. **Act** — execute the decision (click, type, navigate, etc.)
@@ -18,6 +19,7 @@ Each iteration produces a **frozen snapshot** (immutable dataclass) — a record
 ### Bounded Execution
 
 The agent loop must have explicit bounds:
+
 - **Max iterations** — prevent infinite loops
 - **Timeout** — wall-clock limit per session
 - **Stop conditions** — explicit signals to halt (goal reached, error, user interrupt)
@@ -82,19 +84,20 @@ Sessions persist as JSON in `~/.assistant/sessions/`. The schema lives in the re
 
 #### Approaches Researched
 
-| Approach | How it works | Precision | Complexity |
-|----------|-------------|-----------|------------|
-| **Claude Computer Use** | Built-in API tool, model outputs `{action: "left_click", coordinate: [x, y]}` | Good at 1024x768, degrades at higher res | Low — just API calls |
-| **Grid overlay** | Draw labeled grid on screenshot, model says "click B3" | High — grid cells are unambiguous | Low — just PIL drawing |
-| **Adaptive zoom** | Coarse grid → model picks cell → zoom in → finer grid | Very high — two passes | Medium — two API calls |
-| **SoM (Set-of-Mark)** | Detect UI elements, overlay numbered labels, model says "click #7" | High — elements are pre-identified | High — needs ML detection (OmniParser, SAM) |
-| **Accessibility APIs** | Read element tree from OS (AT-SPI on Linux, UI Automation on Windows) | Pixel-perfect | Medium — only works when apps support it |
+| Approach                | How it works                                                                  | Precision                                | Complexity                                  |
+| ----------------------- | ----------------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------- |
+| **Claude Computer Use** | Built-in API tool, model outputs `{action: "left_click", coordinate: [x, y]}` | Good at 1024x768, degrades at higher res | Low — just API calls                        |
+| **Grid overlay**        | Draw labeled grid on screenshot, model says "click B3"                        | High — grid cells are unambiguous        | Low — just PIL drawing                      |
+| **Adaptive zoom**       | Coarse grid → model picks cell → zoom in → finer grid                         | Very high — two passes                   | Medium — two API calls                      |
+| **SoM (Set-of-Mark)**   | Detect UI elements, overlay numbered labels, model says "click #7"            | High — elements are pre-identified       | High — needs ML detection (OmniParser, SAM) |
+| **Accessibility APIs**  | Read element tree from OS (AT-SPI on Linux, UI Automation on Windows)         | Pixel-perfect                            | Medium — only works when apps support it    |
 
 #### Our Approach: Grid Overlay + Claude Computer Use
 
 **Two-tier strategy optimized for token efficiency and speed:**
 
 **Tier 1 — Grid overlay (default, fast, cheap):**
+
 1. Capture screenshot at 1024x768
 2. Overlay a labeled grid (e.g., 10x8 grid → ~100x96px cells, labeled A1-J8)
 3. Send to vision model: "What's on screen? Where should I click to [task]?"
@@ -102,6 +105,7 @@ Sessions persist as JSON in `~/.assistant/sessions/`. The schema lives in the re
 5. Calculate center of cell B3, execute click
 
 **Tier 2 — Adaptive refinement (when precision matters):**
+
 1. Same as Tier 1, but after model picks a cell...
 2. Capture just that region at full resolution
 3. Overlay a finer sub-grid on the zoomed region
@@ -109,6 +113,7 @@ Sessions persist as JSON in `~/.assistant/sessions/`. The schema lives in the re
 5. Two API calls, but sub-pixel precision
 
 **Why this over Claude Computer Use raw coordinates:**
+
 - Grid references are unambiguous — "B3" can't drift by 50px
 - Works with any vision model (Gemini, Claude, local models), not locked to Claude API
 - Fewer tokens — grid labels are concise vs the model reasoning about exact pixel positions
@@ -120,16 +125,16 @@ Sessions persist as JSON in `~/.assistant/sessions/`. The schema lives in the re
 
 Adopted from Claude Computer Use's structured format:
 
-| Action | Parameters | Description |
-|--------|-----------|-------------|
-| `left_click` | `coordinate` | Click at position |
-| `right_click` | `coordinate` | Right-click |
-| `double_click` | `coordinate` | Double-click |
-| `type` | `text` | Type text |
-| `key` | `text` | Press key combo (e.g., `ctrl+s`) |
-| `mouse_move` | `coordinate` | Move cursor |
-| `scroll` | `coordinate, direction, amount` | Scroll |
-| `screenshot` | none | Capture current state |
+| Action         | Parameters                      | Description                      |
+| -------------- | ------------------------------- | -------------------------------- |
+| `left_click`   | `coordinate`                    | Click at position                |
+| `right_click`  | `coordinate`                    | Right-click                      |
+| `double_click` | `coordinate`                    | Double-click                     |
+| `type`         | `text`                          | Type text                        |
+| `key`          | `text`                          | Press key combo (e.g., `ctrl+s`) |
+| `mouse_move`   | `coordinate`                    | Move cursor                      |
+| `scroll`       | `coordinate, direction, amount` | Scroll                           |
+| `screenshot`   | none                            | Capture current state            |
 
 #### The Agent Loop
 
@@ -137,46 +142,48 @@ Adopted from Claude Computer Use's structured format:
 while not done and iterations < max_iterations:
     screenshot = capture_screen()
     annotated = overlay_grid(screenshot)
-    
+
     response = vision_model.analyze(annotated, task, history)
-    
+
     if response.action == "done":
         break
-    
+
     execute_action(response.action, response.target)
     log_step(screenshot, response)  # basic JSONL logging from day one
-    
+
     verify_screenshot = capture_screen()
     # next iteration uses this as the new state
 ```
 
 #### Industry Context
 
-| Project | Approach | What we learn |
-|---------|----------|---------------|
-| **Claude Computer Use** | Screenshot → model → raw coordinates | Action format standard; resolution matters (1024x768 best) |
-| **browser-use** | DOM serialization with indices | Index-based selection >> coordinate guessing (for web) |
-| **OmniParser** | YOLO element detection + Florence captioning | ML-based UI parsing is powerful but heavy |
-| **Manus AI** | Code generation (writes Python to interact) | Sidesteps clicking entirely for some tasks |
-| **OpenAdapt** | Record human demos, replay with AI generalization | Different paradigm — learn from demonstration |
+| Project                 | Approach                                          | What we learn                                              |
+| ----------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
+| **Claude Computer Use** | Screenshot → model → raw coordinates              | Action format standard; resolution matters (1024x768 best) |
+| **browser-use**         | DOM serialization with indices                    | Index-based selection >> coordinate guessing (for web)     |
+| **OmniParser**          | YOLO element detection + Florence captioning      | ML-based UI parsing is powerful but heavy                  |
+| **Manus AI**            | Code generation (writes Python to interact)       | Sidesteps clicking entirely for some tasks                 |
+| **OpenAdapt**           | Record human demos, replay with AI generalization | Different paradigm — learn from demonstration              |
 
 ### User Interaction Model
 
 Four interfaces, layered incrementally:
 
-| Interface | Use case | Priority |
-|-----------|----------|----------|
-| **Python API** | `from assistant import capture_screen` — scripting, automations | Phase 1 |
-| **CLI** (`typer`) | `assistant capture`, `assistant run <automation>` — terminal use | Phase 2 |
-| **Claude Code skills** | `/capture-screen`, `/run-automation` — Claude orchestrates | Phase 4 |
-| **Background daemon** | Hotkey-triggered, scheduled, always-on monitoring | Future |
+| Interface              | Use case                                                         | Priority |
+| ---------------------- | ---------------------------------------------------------------- | -------- |
+| **Python API**         | `from assistant import capture_screen` — scripting, automations  | Phase 1  |
+| **CLI** (`typer`)      | `assistant capture`, `assistant run <automation>` — terminal use | Phase 2  |
+| **Claude Code skills** | `/capture-screen`, `/run-automation` — Claude orchestrates       | Phase 4  |
+| **Background daemon**  | Hotkey-triggered, scheduled, always-on monitoring                | Future   |
 
 **How the layers compose:**
+
 - Python API is the foundation — every other layer calls it
 - CLI wraps the API with `typer` — portable, testable, works without Claude Code
 - Claude Code skills wrap the CLI — a SKILL.md file that calls `assistant <command>` via bash, then Claude reasons about the output
 
 **Example skill (future):**
+
 ```yaml
 ---
 name: capture-screen
@@ -224,24 +231,28 @@ All runtime data lives in `~/.assistant/` — outside the repo.
 ## Feature Ideas
 
 ### Screen Module
+
 - **capture_screen** / **capture_region** / **list_monitors** / **save_capture** — Phase 1, ready to implement
 - **overlay_grid(image, cols, rows)** — draw labeled grid on screenshot for model consumption
 - **capture_window(title)** — capture a specific window. Two approaches: geometry-based (simple, needs visible window) vs native X11/Win32 (works on minimized). Needs investigation.
 - **list_windows()** — enumerate open windows with title, geometry, PID. Platform-specific.
 
 ### Vision Module
+
 - Send annotated screenshot (with grid) to model, get structured action response
 - Support multiple backends: Claude Computer Use API, Gemini, local models
 - Prompt templates for: general analysis, grid-based targeting, adaptive zoom refinement
 - Structured output: action type + target (grid ref or coordinates) + reasoning
 
 ### Input Module
+
 - Mouse control (move, click, drag, scroll)
 - Keyboard control (type, hotkeys, key combos)
 - Platform abstraction (PyAutoGUI — cross-platform)
 - Coordinate mapping: grid reference → pixel coordinates
 
 ### Agent Loop
+
 - Orchestrate capture → annotate → reason → act → verify
 - Bounded execution (max iterations, timeout, stop conditions)
 - Basic JSONL session logging from day one
@@ -256,11 +267,13 @@ A local memory system for maintaining context across conversations. Built as a s
 #### What to Store
 
 **Tier 1 — Raw data (append-only, never delete):**
+
 - Full conversation transcripts (structured JSONL)
 - Agent action logs (clicks, typed text, navigations — structured events)
 - User corrections and feedback (tagged explicitly — highest-value signal)
 
 **Tier 2 — Derived (generated from Tier 1 via LLM):**
+
 - Session summaries (3-5 bullets at session end)
 - Extracted facts ("user prefers ruff", "project uses FastAPI")
 - Domain-specific extractions (vocabulary, error patterns, decision logs)
@@ -269,10 +282,10 @@ A local memory system for maintaining context across conversations. Built as a s
 
 Strategy: **text description + retention curve**.
 
-| Time | What's kept |
-|------|-------------|
-| At capture | Full image + text description via vision model |
-| After 7 days | Description + metadata + downscaled thumbnail |
+| Time          | What's kept                                     |
+| ------------- | ----------------------------------------------- |
+| At capture    | Full image + text description via vision model  |
+| After 7 days  | Description + metadata + downscaled thumbnail   |
 | After 30 days | Description + metadata only (unless bookmarked) |
 
 #### Retrieval Strategy (phased)
@@ -285,12 +298,12 @@ Strategy: **text description + retention curve**.
 
 One pipeline, multiple domain-specific plugins:
 
-| Domain | Extra extraction | Output format |
-|--------|-----------------|---------------|
-| General | Decisions, outcomes, open threads | Session summary |
-| Language learning | Vocabulary, grammar corrections | Flashcard entries |
-| Debugging | Error signature, root cause, fix | Problem-solution pairs |
-| Code review | Decisions, patterns established | Decision log |
+| Domain            | Extra extraction                  | Output format          |
+| ----------------- | --------------------------------- | ---------------------- |
+| General           | Decisions, outcomes, open threads | Session summary        |
+| Language learning | Vocabulary, grammar corrections   | Flashcard entries      |
+| Debugging         | Error signature, root cause, fix  | Problem-solution pairs |
+| Code review       | Decisions, patterns established   | Decision log           |
 
 #### Project-Based Organization
 
@@ -315,132 +328,10 @@ One pipeline, multiple domain-specific plugins:
 
 #### Industry Comparison
 
-| Tool | Approach | Key insight |
-|------|----------|-------------|
-| Claude Code | Plain markdown files, 200-line cap | Simplicity works |
-| Cursor | Vector embeddings in Turbopuffer | Heavy infra for semantic search |
-| Copilot | 28-day expiry + citation validation | Elegant staleness handling |
-| Mem0 | Triple store (vector + graph + KV) | Captures relationships |
-| Letta/MemGPT | LLM self-manages memory via tools | Agent controls its own context |
-
----
-
-## GitHub Issues Setup Guide
-
-### Initial Setup
-
-1. **Go to your repo on GitHub** → Settings → Features → make sure Issues is enabled (it is by default)
-
-2. **Create labels** — go to Issues → Labels → "New label":
-
-   | Label | Color | Description |
-   |-------|-------|-------------|
-   | `feat` | `#1a7f37` (green) | New feature |
-   | `fix` | `#d73a4a` (red) | Bug fix |
-   | `refactor` | `#0075ca` (blue) | Code improvement |
-   | `question` | `#d876e3` (purple) | Needs discussion |
-   | `research` | `#f9d0c4` (peach) | Investigation / exploration |
-   | `blocked` | `#e4e669` (yellow) | Waiting on something |
-
-   You can delete GitHub's default labels (bug, documentation, duplicate, etc.) — they're generic and overlap with ours.
-
-3. **Create milestone** (optional but useful): Issues → Milestones → "New milestone"
-   - Example: `v0.1 — Screen Capture` — group the first batch of issues
-
-### Creating Issues
-
-From the terminal with `gh` CLI:
-```bash
-# Create a feature issue
-gh issue create --title "feat: screen — capture_window()" \
-  --body "Capture a specific window by title..." \
-  --label "feat"
-
-# Create a research issue
-gh issue create --title "research: context management approaches" \
-  --body "Explore how Cursor/Windsurf/etc handle conversation context..." \
-  --label "research"
-```
-
-Or from the GitHub web UI: Issues → "New issue" → fill in title and description.
-
-### Working with Issues
-
-**Starting work on an issue:**
-```bash
-# Create a branch linked to the issue
-git checkout -b feat/capture-window
-# ... do work, commit ...
-git push -u origin feat/capture-window
-```
-
-**Linking commits to issues:**
-```bash
-git commit -m "feat(screen): add capture_window (fixes #3)"
-#                                                ^^^^^^^^
-#                              This auto-closes issue #3 when merged to main
-```
-
-Other linking keywords: `closes #3`, `resolves #3`, `relates to #3` (links without closing).
-
-**Creating a PR that closes an issue:**
-```bash
-gh pr create --title "feat(screen): add capture_window" \
-  --body "Closes #3\n\n## Summary\n- Added capture_window function\n..."
-```
-
-**Checking issue status:**
-```bash
-gh issue list                    # all open issues
-gh issue list --label "feat"     # filtered by label
-gh issue view 3                  # details of issue #3
-```
-
-### Workflow Summary
-
-```
-Issue created → Branch created → Work done → PR opened → Review → Merge → Issue auto-closed
-     #3        feat/capture-window   commits    PR #4      tests    squash    #3 closed
-```
-
----
-
-## Issues to Create
-
-Organized by phase. Create these as GitHub Issues with the `gh` CLI.
-
-**Phase 1 — Screen capture:**
-1. `feat: screen — core capture functions (capture_screen, capture_region, list_monitors, save_capture)` — label: `feat`
-2. `feat: screen — overlay_grid() for model-friendly screenshots` — label: `feat`
-3. `feat: screen — capture_window()` — label: `feat`
-4. `feat: screen — list_windows()` — label: `feat`
-
-**Phase 2 — CLI:**
-5. `feat: CLI interface with typer` — label: `feat`
-
-**Phase 3 — AI screen interaction:**
-6. `feat: input — mouse and keyboard control (pyautogui)` — label: `feat`
-7. `feat: vision — send annotated screenshots to models, get structured actions` — label: `feat`
-8. `feat: agent loop — capture→reason→act→verify with basic logging` — label: `feat`
-9. `feat: vision — adaptive zoom refinement for precision targeting` — label: `feat`
-
-**Phase 4 — Claude Code skills:**
-10. `feat: Claude Code skills wrapping CLI commands` — label: `feat`
-
-**Phase 5 — Memory/RAG:**
-11. `feat: memory — structured session logging (JSONL)` — label: `feat`
-12. `feat: memory — session summarization via LLM` — label: `feat`
-13. `feat: memory — SQLite FTS5 search` — label: `feat`
-14. `feat: memory — fact extraction pipeline` — label: `feat`
-15. `feat: memory — image description + retention curve` — label: `feat`
-16. `feat: memory — project-based organization` — label: `feat`
-
-**Architecture (implement when triggered):**
-17. `feat: tool registry pattern` — label: `feat` — trigger: 3+ action modules exist
-18. `feat: bounded agent loop with stop conditions` — label: `feat`
-19. `feat: session persistence (frozen steps + JSON)` — label: `feat`
-
-**Research:**
-20. `research: accessibility APIs for precise element targeting (AT-SPI, UI Automation)` — label: `research`
-21. `research: Syncthing setup for cross-device memory sync` — label: `research`
-22. `research: domain-specific compaction plugins` — label: `research`
+| Tool         | Approach                            | Key insight                     |
+| ------------ | ----------------------------------- | ------------------------------- |
+| Claude Code  | Plain markdown files, 200-line cap  | Simplicity works                |
+| Cursor       | Vector embeddings in Turbopuffer    | Heavy infra for semantic search |
+| Copilot      | 28-day expiry + citation validation | Elegant staleness handling      |
+| Mem0         | Triple store (vector + graph + KV)  | Captures relationships          |
+| Letta/MemGPT | LLM self-manages memory via tools   | Agent controls its own context  |

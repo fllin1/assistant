@@ -1,39 +1,47 @@
 # Assistant
 
-A computer control agent that uses vision models to understand your screen and take actions on your behalf — clicking, typing, navigating web pages, and more.
+A Python-based computer control agent. Takes screenshots, reasons about what's on screen using vision models, and executes actions (click, type, navigate) to accomplish tasks on your behalf.
 
-## Project Status
+## How It Works
 
-**Early development** — project scaffolding is in place, no features implemented yet.
+The agent operates in a **capture → reason → act** loop:
 
-## Architecture
+1. Capture a screenshot and overlay a labeled grid
+2. Send the annotated image to a vision model (Claude, Gemini)
+3. Model responds with a grid reference (e.g., "click B3") instead of guessing pixel coordinates
+4. Execute the action, capture the new state, repeat
 
-The project is split into two layers:
+Grid-based targeting is model-agnostic, token-efficient, and more precise than raw coordinate prediction. For dense UIs, adaptive zoom refines to sub-cell precision.
 
-- **`src/assistant/`** — A reusable Python library providing building blocks for computer control (screen capture, input simulation, browser automation, vision model integration).
-- **`automations/`** — Personal automation scripts that use the library for specific tasks.
+## Project Structure
+
+```
+src/assistant/       # Reusable library — screen capture, input, vision, agent loop
+automations/         # Personal automation scripts built on the library
+tests/               # Mirrors src/ structure
+docs/                # Conventions, structure map, brainstorming
+```
+
+## Roadmap
+
+| Phase | What | Status |
+|-------|------|--------|
+| 1 | Screen capture (mss + PIL) | Next |
+| 2 | CLI (typer) | Planned |
+| 3 | AI screen interaction (input + vision + agent loop) | Planned |
+| 4 | Claude Code skills | Planned |
+| 5 | Memory / RAG (SQLite FTS5) | Planned |
+
+See [docs/BRAINSTORMING.md](docs/BRAINSTORMING.md) for architecture decisions and feature vision.
 
 ## Development
 
 Requires Python 3.12+. Uses [uv](https://docs.astral.sh/uv/) for package management.
 
 ```bash
-# Install dev dependencies
-uv pip install -e ".[dev]"
-
-# Run linter and formatter
-ruff check .
-ruff format .
-
-# Run tests
-pytest
+uv pip install -e ".[dev]"    # install
+ruff check . && ruff format . # lint + format
+pytest                         # test
 ```
 
-## Tooling
-
-| Tool | Purpose |
-|------|---------|
-| **Ruff** | Linting + formatting |
-| **pytest** | Testing |
-| **Conventional Commits** | Commit message format |
-| **GitHub Flow** | Branching model |
+See [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for the full workflow guide (git, commits, testing, style).
