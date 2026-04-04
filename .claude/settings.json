@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/panda/.claude/plans/**)",
+      "Bash(.venv/bin/pip list:*)",
+      "Bash(.venv/bin/python -m pip list)"
+    ]
+  }
+}
