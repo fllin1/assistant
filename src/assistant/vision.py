@@ -201,7 +201,7 @@ def _analyze_gemini(image_bytes: bytes, prompt: str) -> VisionResponse:
 
     # Send image as inline data with the prompt
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-flash-latest",
         contents=[
             genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
             prompt,
