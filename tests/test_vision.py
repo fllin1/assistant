@@ -217,7 +217,7 @@ def test_analyze_ollama_success(mock_post):
     assert result.target == "C4"
     mock_post.assert_called_once()
     # Verify model default
-    assert mock_post.call_args.kwargs["json"]["model"] == "qwen2.5vl:7b"
+    assert mock_post.call_args.kwargs["json"]["model"] == "qwen3-vl:8b"
 
 
 @patch("httpx.post", side_effect=httpx.ConnectError("refused"))

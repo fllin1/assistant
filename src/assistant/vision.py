@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from PIL import Image
 
+from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST
 from assistant.screen import overlay_grid
 
 logger = logging.getLogger(__name__)
@@ -118,9 +119,9 @@ def analyze_screenshot(
     image_bytes = _image_to_bytes(annotated)
 
     if provider == "gemini":
-        return _analyze_gemini(image_bytes, prompt, model=model or "gemini-flash-latest")
+        return _analyze_gemini(image_bytes, prompt, model=model or DEFAULT_MODELS["gemini"])
     elif provider == "ollama":
-        return _analyze_ollama(image_bytes, prompt, model=model or "qwen2.5vl:7b")
+        return _analyze_ollama(image_bytes, prompt, model=model or DEFAULT_MODELS["ollama"])
 
     raise ValueError(f"Unknown vision provider: {provider!r}. Available: gemini, ollama")
 
@@ -194,7 +195,7 @@ def _get_api_key() -> str:
 
 
 def _analyze_gemini(
-    image_bytes: bytes, prompt: str, model: str = "gemini-flash-latest"
+    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["gemini"]
 ) -> VisionResponse:
     """Send image + prompt to Gemini and parse the response."""
     from google import genai
@@ -219,7 +220,7 @@ def _analyze_gemini(
 
 
 def _analyze_ollama(
-    image_bytes: bytes, prompt: str, model: str = "qwen2.5vl:7b"
+    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["ollama"]
 ) -> VisionResponse:
     """Send image + prompt to a local Ollama instance and parse the response.
 
@@ -230,7 +231,7 @@ def _analyze_ollama(
 
     import httpx
 
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
     url = f"{host}/api/chat"
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
