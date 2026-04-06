@@ -1,8 +1,9 @@
 """Tests for the vision module."""
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from PIL import Image
 
@@ -113,7 +114,7 @@ def test_format_history_with_steps():
     assert "Typed query" in result
 
 
-# -- analyze_screenshot --
+# -- analyze_screenshot: Gemini --
 
 
 def test_missing_api_key_raises(monkeypatch):
@@ -132,8 +133,7 @@ def test_unknown_provider_raises():
 
 
 @patch("assistant.vision._analyze_gemini")
-def test_analyze_screenshot_calls_gemini(mock_gemini, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+def test_analyze_screenshot_calls_gemini(mock_gemini):
     mock_gemini.return_value = VisionResponse(
         reasoning="test",
         action="done",
@@ -147,3 +147,110 @@ def test_analyze_screenshot_calls_gemini(mock_gemini, monkeypatch):
 
     assert result.action == "done"
     mock_gemini.assert_called_once()
+
+
+# -- analyze_screenshot: Ollama --
+
+
+@patch("assistant.vision._analyze_ollama")
+def test_analyze_screenshot_calls_ollama(mock_ollama):
+    mock_ollama.return_value = VisionResponse(
+        reasoning="test",
+        action="done",
+        target=None,
+        text=None,
+        confidence="high",
+    )
+
+    img = Image.new("RGB", (1024, 768))
+    result = analyze_screenshot(img, task="test task", provider="ollama")
+
+    assert result.action == "done"
+    mock_ollama.assert_called_once()
+
+
+@patch("assistant.vision._analyze_ollama")
+def test_analyze_screenshot_passes_model(mock_ollama):
+    mock_ollama.return_value = VisionResponse(
+        reasoning="test",
+        action="done",
+        target=None,
+        text=None,
+        confidence="high",
+    )
+
+    img = Image.new("RGB", (1024, 768))
+    analyze_screenshot(img, task="test", provider="ollama", model="llava:13b")
+
+    # model should be passed through to the provider
+    call_kwargs = mock_ollama.call_args
+    assert call_kwargs[1]["model"] == "llava:13b"
+
+
+# -- _analyze_ollama --
+
+
+@patch("httpx.post")
+def test_analyze_ollama_success(mock_post):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "message": {
+            "content": json.dumps(
+                {
+                    "reasoning": "I see a button",
+                    "action": "left_click",
+                    "target": "C4",
+                    "text": None,
+                    "confidence": "high",
+                }
+            )
+        }
+    }
+    mock_response.raise_for_status = MagicMock()
+    mock_post.return_value = mock_response
+
+    from assistant.vision import _analyze_ollama
+
+    result = _analyze_ollama(b"fake-png-bytes", "test prompt")
+
+    assert result.action == "left_click"
+    assert result.target == "C4"
+    mock_post.assert_called_once()
+    # Verify model default
+    assert mock_post.call_args.kwargs["json"]["model"] == "qwen2.5vl:7b"
+
+
+@patch("httpx.post", side_effect=httpx.ConnectError("refused"))
+def test_analyze_ollama_connection_refused(mock_post):
+    from assistant.vision import _analyze_ollama
+
+    with pytest.raises(ConnectionError, match="Cannot connect to Ollama"):
+        _analyze_ollama(b"fake-png-bytes", "test prompt")
+
+
+@patch("httpx.post")
+def test_analyze_ollama_custom_host(mock_post, monkeypatch):
+    monkeypatch.setenv("OLLAMA_HOST", "http://my-server:11434")
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "message": {
+            "content": json.dumps(
+                {
+                    "reasoning": "test",
+                    "action": "done",
+                    "target": None,
+                    "text": None,
+                    "confidence": "high",
+                }
+            )
+        }
+    }
+    mock_response.raise_for_status = MagicMock()
+    mock_post.return_value = mock_response
+
+    from assistant.vision import _analyze_ollama
+
+    _analyze_ollama(b"fake-png-bytes", "test prompt")
+
+    call_url = mock_post.call_args[0][0]
+    assert call_url == "http://my-server:11434/api/chat"

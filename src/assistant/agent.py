@@ -63,6 +63,7 @@ def run_agent(
     grid_cols: int = 10,
     grid_rows: int = 8,
     provider: str = "gemini",
+    model: str | None = None,
     dry_run: bool = False,
 ) -> Session:
     """Run the agent loop to accomplish a task.
@@ -75,6 +76,7 @@ def run_agent(
         grid_cols: Grid columns for overlay.
         grid_rows: Grid rows for overlay.
         provider: Vision model provider.
+        model: Model name override (default depends on provider).
         dry_run: If True, analyze but don't execute actions.
 
     Returns:
@@ -94,6 +96,7 @@ def run_agent(
             "started_at": session.started_at,
             "dry_run": dry_run,
             "provider": provider,
+            "model": model,
         },
     )
 
@@ -124,6 +127,7 @@ def run_agent(
             task=task,
             history=history,
             provider=provider,
+            model=model,
             grid_cols=grid_cols,
             grid_rows=grid_rows,
         )

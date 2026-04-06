@@ -4,11 +4,9 @@ Sends annotated screenshots to vision models and parses structured
 action responses. Supports grid-based targeting where the model
 references cell labels (e.g., "B3") instead of raw pixel coordinates.
 
-Provider is Gemini by default. Additional providers can be added
-by implementing a _analyze_{provider} function and adding an elif
-in analyze_screenshot().
-
-Requires GEMINI_API_KEY or GOOGLE_API_KEY environment variable.
+Supported providers:
+- "gemini": Google Gemini API (requires GEMINI_API_KEY or GOOGLE_API_KEY env var)
+- "ollama": Local Ollama instance (requires Ollama running, configurable via OLLAMA_HOST)
 """
 
 import io
@@ -79,6 +77,7 @@ def analyze_screenshot(
     task: str,
     history: list[dict] | None = None,
     provider: str = "gemini",
+    model: str | None = None,
     grid_cols: int = 10,
     grid_rows: int = 8,
 ) -> VisionResponse:
@@ -92,7 +91,8 @@ def analyze_screenshot(
         task: Natural language description of what to accomplish.
         history: Previous steps for context (list of dicts with
             "action", "target", "reasoning" keys).
-        provider: Vision model provider ("gemini").
+        provider: Vision model provider ("gemini" or "ollama").
+        model: Model name override. Defaults to provider-specific default.
         grid_cols: Grid columns for overlay.
         grid_rows: Grid rows for overlay.
 
@@ -118,9 +118,11 @@ def analyze_screenshot(
     image_bytes = _image_to_bytes(annotated)
 
     if provider == "gemini":
-        return _analyze_gemini(image_bytes, prompt)
+        return _analyze_gemini(image_bytes, prompt, model=model or "gemini-flash-latest")
+    elif provider == "ollama":
+        return _analyze_ollama(image_bytes, prompt, model=model or "qwen2.5vl:7b")
 
-    raise ValueError(f"Unknown vision provider: {provider!r}. Available: gemini")
+    raise ValueError(f"Unknown vision provider: {provider!r}. Available: gemini, ollama")
 
 
 def _format_history(history: list[dict]) -> str:
@@ -152,7 +154,6 @@ def _parse_response(raw_text: str) -> VisionResponse:
     # Strip markdown code fences if present
     if text.startswith("```"):
         lines = text.split("\n")
-        # Remove first line (```json or ```) and last line (```)
         lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
@@ -192,16 +193,17 @@ def _get_api_key() -> str:
     return key
 
 
-def _analyze_gemini(image_bytes: bytes, prompt: str) -> VisionResponse:
+def _analyze_gemini(
+    image_bytes: bytes, prompt: str, model: str = "gemini-flash-latest"
+) -> VisionResponse:
     """Send image + prompt to Gemini and parse the response."""
     from google import genai
 
     api_key = _get_api_key()
     client = genai.Client(api_key=api_key)
 
-    # Send image as inline data with the prompt
     response = client.models.generate_content(
-        model="gemini-flash-latest",
+        model=model,
         contents=[
             genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
             prompt,
@@ -212,5 +214,47 @@ def _analyze_gemini(image_bytes: bytes, prompt: str) -> VisionResponse:
     if raw_text is None:
         raise ValueError("Gemini: No response")
 
-    logger.debug("Gemini response: %s", raw_text[:200])
+    logger.debug("Gemini response (%s): %s", model, raw_text[:200])
+    return _parse_response(raw_text)
+
+
+def _analyze_ollama(
+    image_bytes: bytes, prompt: str, model: str = "qwen2.5vl:7b"
+) -> VisionResponse:
+    """Send image + prompt to a local Ollama instance and parse the response.
+
+    Ollama must be running. Configure host via OLLAMA_HOST env var
+    (default: http://localhost:11434).
+    """
+    import base64
+
+    import httpx
+
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    url = f"{host}/api/chat"
+
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt,
+                "images": [image_b64],
+            }
+        ],
+        "stream": False,
+    }
+
+    try:
+        response = httpx.post(url, json=payload, timeout=120.0)
+        response.raise_for_status()
+    except httpx.ConnectError as e:
+        raise ConnectionError(
+            f"Cannot connect to Ollama at {host}. Is Ollama running? Start it with: ollama serve"
+        ) from e
+
+    raw_text = response.json()["message"]["content"]
+    logger.debug("Ollama response (%s): %s", model, raw_text[:200])
     return _parse_response(raw_text)
