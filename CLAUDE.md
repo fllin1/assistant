@@ -82,5 +82,7 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Always read a file before editing it.
 - Notify the user if their code doesn't match the style guidelines.
 - After completing a feature: remind to commit.
+- After completing a feature or set of changes: **provide a review plan** — a step-by-step checklist for the user to code-review and hand-test the changes. Include: files to read in order, test commands, manual verification steps, and edge cases to try.
 - Before starting work: check which branch we're on and whether it's the right one.
 - When in doubt about scope, ask — don't expand silently.
+- Do not commit unless the user explicitly tells you to.

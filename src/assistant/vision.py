@@ -209,5 +209,8 @@ def _analyze_gemini(image_bytes: bytes, prompt: str) -> VisionResponse:
     )
 
     raw_text = response.text
+    if raw_text is None:
+        raise ValueError("Gemini: No response")
+
     logger.debug("Gemini response: %s", raw_text[:200])
     return _parse_response(raw_text)
