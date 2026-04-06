@@ -1,9 +1,8 @@
 """Tests for the vision module."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import httpx
 import pytest
 from PIL import Image
 
@@ -190,10 +189,9 @@ def test_analyze_screenshot_passes_model(mock_ollama):
 # -- _analyze_ollama --
 
 
-@patch("httpx.post")
-def test_analyze_ollama_success(mock_post):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
+@patch("ollama.chat")
+def test_analyze_ollama_success(mock_chat):
+    mock_chat.return_value = {
         "message": {
             "content": json.dumps(
                 {
@@ -206,8 +204,6 @@ def test_analyze_ollama_success(mock_post):
             )
         }
     }
-    mock_response.raise_for_status = MagicMock()
-    mock_post.return_value = mock_response
 
     from assistant.vision import _analyze_ollama
 
@@ -215,44 +211,16 @@ def test_analyze_ollama_success(mock_post):
 
     assert result.action == "left_click"
     assert result.target == "C4"
-    mock_post.assert_called_once()
+    mock_chat.assert_called_once()
     # Verify it uses the configured default model
     from assistant.config import DEFAULT_MODELS
 
-    assert mock_post.call_args.kwargs["json"]["model"] == DEFAULT_MODELS["ollama"]
+    assert mock_chat.call_args.kwargs["model"] == DEFAULT_MODELS["ollama"]
 
 
-@patch("httpx.post", side_effect=httpx.ConnectError("refused"))
-def test_analyze_ollama_connection_refused(mock_post):
+@patch("ollama.chat", side_effect=ConnectionError("connection refused"))
+def test_analyze_ollama_connection_refused(mock_chat):
     from assistant.vision import _analyze_ollama
 
     with pytest.raises(ConnectionError, match="Cannot connect to Ollama"):
         _analyze_ollama(b"fake-png-bytes", "test prompt")
-
-
-@patch("httpx.post")
-def test_analyze_ollama_custom_host(mock_post, monkeypatch):
-    monkeypatch.setenv("OLLAMA_HOST", "http://my-server:11434")
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "message": {
-            "content": json.dumps(
-                {
-                    "reasoning": "test",
-                    "action": "done",
-                    "target": None,
-                    "text": None,
-                    "confidence": "high",
-                }
-            )
-        }
-    }
-    mock_response.raise_for_status = MagicMock()
-    mock_post.return_value = mock_response
-
-    from assistant.vision import _analyze_ollama
-
-    _analyze_ollama(b"fake-png-bytes", "test prompt")
-
-    call_url = mock_post.call_args[0][0]
-    assert call_url == "http://my-server:11434/api/chat"

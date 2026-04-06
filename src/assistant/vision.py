@@ -224,38 +224,30 @@ def _analyze_ollama(
 ) -> VisionResponse:
     """Send image + prompt to a local Ollama instance and parse the response.
 
-    Ollama must be running. Configure host via OLLAMA_HOST env var
-    (default: http://localhost:11434).
+    Uses the official ollama Python package. Ollama must be running.
+    Configure host via OLLAMA_HOST env var (default: http://localhost:11434).
     """
     import base64
 
-    import httpx
-
-    host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
-    url = f"{host}/api/chat"
+    from ollama import chat
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
 
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-                "images": [image_b64],
-            }
-        ],
-        "stream": False,
-    }
-
     try:
-        response = httpx.post(url, json=payload, timeout=120.0)
-        response.raise_for_status()
-    except httpx.ConnectError as e:
-        raise ConnectionError(
-            f"Cannot connect to Ollama at {host}. Is Ollama running? Start it with: ollama serve"
-        ) from e
+        response = chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt, "images": [image_b64]}],
+        )
+    except Exception as e:
+        # ollama raises ConnectionError or httpx.ConnectError when server is down
+        if "connect" in str(e).lower():
+            host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
+            raise ConnectionError(
+                f"Cannot connect to Ollama at {host}. "
+                "Is Ollama running? Start it with: ollama serve"
+            ) from e
+        raise
 
-    raw_text = response.json()["message"]["content"]
+    raw_text = response["message"]["content"]
     logger.debug("Ollama response (%s): %s", model, raw_text[:200])
     return _parse_response(raw_text)

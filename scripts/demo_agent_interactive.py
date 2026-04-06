@@ -10,9 +10,8 @@ and loops until the user types 'quit'.
 
 import argparse
 import base64
-import os
 
-from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST
+from assistant.config import DEFAULT_MODELS
 from assistant.screen import capture_screen, overlay_grid, save_capture
 from assistant.vision import (
     GRID_ANALYSIS_PROMPT,
@@ -35,36 +34,29 @@ def parse_args():
 
 
 def _stream_ollama(image_bytes, prompt, model):
-    """Call Ollama with streaming enabled, print tokens as they arrive."""
-    import httpx
+    """Call Ollama with streaming via the official package. Tokens print as they arrive."""
+    from ollama import chat
 
-    host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
-
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt, "images": [image_b64]}],
-        "stream": True,
-    }
 
     full_response = ""
     print("\n--- Model output ---")
     try:
-        with httpx.stream("POST", f"{host}/api/chat", json=payload, timeout=120.0) as response:
-            response.raise_for_status()
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                import json
-
-                chunk = json.loads(line)
-                token = chunk.get("message", {}).get("content", "")
-                if token:
-                    print(token, end="", flush=True)
-                    full_response += token
-    except httpx.ConnectError:
-        print(f"\n  ERROR: Cannot connect to Ollama at {host}. Is it running?")
-        return None
+        stream = chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt, "images": [image_b64]}],
+            stream=True,
+        )
+        for chunk in stream:
+            token = chunk.get("message", {}).get("content", "")
+            if token:
+                print(token, end="", flush=True)
+                full_response += token
+    except Exception as e:
+        if "connect" in str(e).lower():
+            print("\n  ERROR: Cannot connect to Ollama. Is it running?")
+            return None
+        raise
 
     print("\n--- End output ---\n")
     return _parse_response(full_response)
@@ -103,7 +95,7 @@ def main():
 
         print(f"Sending to {args.provider}...")
 
-        # Streaming mode: call Ollama directly with stream=True
+        # Streaming mode: use ollama package with stream=True
         if args.stream and args.provider == "ollama":
             annotated = overlay_grid(img, cols=args.cols, rows=args.rows)
             image_bytes = _image_to_bytes(annotated)
