@@ -216,8 +216,10 @@ def test_analyze_ollama_success(mock_post):
     assert result.action == "left_click"
     assert result.target == "C4"
     mock_post.assert_called_once()
-    # Verify model default
-    assert mock_post.call_args.kwargs["json"]["model"] == "qwen3-vl:8b"
+    # Verify it uses the configured default model
+    from assistant.config import DEFAULT_MODELS
+
+    assert mock_post.call_args.kwargs["json"]["model"] == DEFAULT_MODELS["ollama"]
 
 
 @patch("httpx.post", side_effect=httpx.ConnectError("refused"))

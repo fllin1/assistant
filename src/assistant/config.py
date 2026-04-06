@@ -12,7 +12,7 @@ DEFAULT_VISION_PROVIDER = "gemini"
 # Default model per provider — used when --model is not passed
 DEFAULT_MODELS = {
     "gemini": "gemini-flash-latest",
-    "ollama": "qwen3-vl:8b",
+    "ollama": "qwen3-vl:4b",
 }
 
 # Ollama connection
