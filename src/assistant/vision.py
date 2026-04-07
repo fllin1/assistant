@@ -5,16 +5,19 @@ action responses. Supports grid-based targeting where the model
 references cell labels (e.g., "B3") instead of raw pixel coordinates.
 
 Supported providers:
-- "gemini": Google Gemini API (requires GEMINI_API_KEY or GOOGLE_API_KEY env var)
+- "openrouter": OpenAI-compatible API via OpenRouter (requires OPENROUTER_API_KEY env var).
+    Supports 200+ models including Gemini, Claude, Llama, etc.
 - "ollama": Local Ollama instance (requires Ollama running, configurable via OLLAMA_HOST)
 """
 
+import base64
 import io
 import json
 import logging
 import os
 from dataclasses import dataclass
 
+from openai import OpenAI
 from PIL import Image
 
 from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST
@@ -77,7 +80,7 @@ def analyze_screenshot(
     image: Image.Image,
     task: str,
     history: list[dict] | None = None,
-    provider: str = "gemini",
+    provider: str = "openrouter",
     model: str | None = None,
     grid_cols: int = 10,
     grid_rows: int = 8,
@@ -92,7 +95,7 @@ def analyze_screenshot(
         task: Natural language description of what to accomplish.
         history: Previous steps for context (list of dicts with
             "action", "target", "reasoning" keys).
-        provider: Vision model provider ("gemini" or "ollama").
+        provider: Vision model provider ("openrouter" or "ollama").
         model: Model name override. Defaults to provider-specific default.
         grid_cols: Grid columns for overlay.
         grid_rows: Grid rows for overlay.
@@ -115,15 +118,16 @@ def analyze_screenshot(
         history_section=history_section,
     )
 
-    # Convert image to bytes for the provider
     image_bytes = _image_to_bytes(annotated)
 
-    if provider == "gemini":
-        return _analyze_gemini(image_bytes, prompt, model=model or DEFAULT_MODELS["gemini"])
-    elif provider == "ollama":
-        return _analyze_ollama(image_bytes, prompt, model=model or DEFAULT_MODELS["ollama"])
+    resolved_model = model or DEFAULT_MODELS.get(provider)
 
-    raise ValueError(f"Unknown vision provider: {provider!r}. Available: gemini, ollama")
+    if provider == "openrouter":
+        return _analyze_openrouter(image_bytes, prompt, model=resolved_model)
+    elif provider == "ollama":
+        return _analyze_ollama(image_bytes, prompt, model=resolved_model)
+
+    raise ValueError(f"Unknown vision provider: {provider!r}. Available: openrouter, ollama")
 
 
 def _format_history(history: list[dict]) -> str:
@@ -184,38 +188,42 @@ def _parse_response(raw_text: str) -> VisionResponse:
     )
 
 
-def _get_api_key() -> str:
-    """Get the Gemini API key from environment variables."""
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        raise ValueError(
-            "No API key found. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable."
-        )
-    return key
-
-
-def _analyze_gemini(
-    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["gemini"]
+def _analyze_openrouter(
+    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["openrouter"]
 ) -> VisionResponse:
-    """Send image + prompt to Gemini and parse the response."""
-    from google import genai
+    """Send image + prompt via OpenRouter (OpenAI-compatible API).
 
-    api_key = _get_api_key()
-    client = genai.Client(api_key=api_key)
+    Requires OPENROUTER_API_KEY environment variable.
+    Supports any vision model available on OpenRouter.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("No API key found. Set OPENROUTER_API_KEY environment variable.")
 
-    response = client.models.generate_content(
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = client.chat.completions.create(
         model=model,
-        contents=[
-            genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-            prompt,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                    },
+                ],
+            }
         ],
     )
 
-    raw_text = response.text
+    raw_text = response.choices[0].message.content
     if raw_text is None:
-        raise ValueError("Gemini: No response")
+        raise ValueError(f"OpenRouter ({model}): No response")
 
-    logger.debug("Gemini response (%s): %s", model, raw_text[:200])
+    logger.debug("OpenRouter response (%s): %s", model, raw_text[:200])
     return _parse_response(raw_text)
 
 
@@ -227,8 +235,6 @@ def _analyze_ollama(
     Uses the official ollama Python package. Ollama must be running.
     Configure host via OLLAMA_HOST env var (default: http://localhost:11434).
     """
-    import base64
-
     from ollama import chat
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
@@ -239,7 +245,6 @@ def _analyze_ollama(
             messages=[{"role": "user", "content": prompt, "images": [image_b64]}],
         )
     except Exception as e:
-        # ollama raises ConnectionError or httpx.ConnectError when server is down
         if "connect" in str(e).lower():
             host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
             raise ConnectionError(

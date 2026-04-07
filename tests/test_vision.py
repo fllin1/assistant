@@ -113,27 +113,26 @@ def test_format_history_with_steps():
     assert "Typed query" in result
 
 
-# -- analyze_screenshot: Gemini --
+# -- analyze_screenshot: OpenRouter --
 
 
 def test_missing_api_key_raises(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     img = Image.new("RGB", (100, 100))
-    with pytest.raises(ValueError, match="No API key found"):
+    with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
         analyze_screenshot(img, task="test")
 
 
 def test_unknown_provider_raises():
     img = Image.new("RGB", (100, 100))
     with pytest.raises(ValueError, match="Unknown vision provider"):
-        analyze_screenshot(img, task="test", provider="openai")
+        analyze_screenshot(img, task="test", provider="invalid")
 
 
-@patch("assistant.vision._analyze_gemini")
-def test_analyze_screenshot_calls_gemini(mock_gemini):
-    mock_gemini.return_value = VisionResponse(
+@patch("assistant.vision._analyze_openrouter")
+def test_analyze_screenshot_calls_openrouter(mock_openrouter):
+    mock_openrouter.return_value = VisionResponse(
         reasoning="test",
         action="done",
         target=None,
@@ -145,7 +144,7 @@ def test_analyze_screenshot_calls_gemini(mock_gemini):
     result = analyze_screenshot(img, task="test task")
 
     assert result.action == "done"
-    mock_gemini.assert_called_once()
+    mock_openrouter.assert_called_once()
 
 
 # -- analyze_screenshot: Ollama --

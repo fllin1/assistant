@@ -7,11 +7,11 @@ in one place without hunting through multiple modules.
 # -- Vision providers --
 
 # Default provider when none is specified
-DEFAULT_VISION_PROVIDER = "gemini"
+DEFAULT_VISION_PROVIDER = "openrouter"
 
 # Default model per provider — used when --model is not passed
 DEFAULT_MODELS = {
-    "gemini": "gemini-flash-latest",
+    "openrouter": "google/gemini-flash-latest",
     "ollama": "qwen3-vl:4b",
 }
 
