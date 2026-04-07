@@ -335,3 +335,39 @@ One pipeline, multiple domain-specific plugins:
 | Copilot      | 28-day expiry + citation validation | Elegant staleness handling      |
 | Mem0         | Triple store (vector + graph + KV)  | Captures relationships          |
 | Letta/MemGPT | LLM self-manages memory via tools   | Agent controls its own context  |
+
+---
+
+## Future Ideas & Reminders
+
+### Image Comparison for Failure Detection
+
+Use PIL `ImageChops.difference()` to detect whether an action changed the screen — instant, CPU-only, no vision model call. Use cases:
+- **Stuck detection**: screen unchanged after action → retry or report stuck
+- **Wait-for-load**: compare screenshots until stable (animation finished)
+- **Skip unnecessary vision calls**: if nothing changed, don't re-analyze
+
+### Orchestration Strategy Versioning
+
+Store different orchestration strategies as versioned configs so we can A/B test them:
+
+```
+automations/strategies/
+  simple_click/v1.yaml       # single action per step, basic grid
+  form_filling/v1.yaml       # task-specific: fill forms
+  form_filling/v2.yaml       # improved version
+```
+
+Each strategy defines: prompt template, grid density, model to use, max iterations, verification method. Load by name in the agent loop. Enables comparison between approaches (e.g., "v1: single model" vs "v2: planner + executor" vs "v3: multi-model routing").
+
+### Reference: hermes-agent (NousResearch)
+
+https://github.com/NousResearch/hermes-agent — Notable patterns:
+- **Smart model routing**: detects complexity (code blocks, URLs, keywords) to route cheap vs expensive models
+- **Memory prefetching**: async context assembly before each turn with fence tags
+- **Resilient composition**: memory failures degrade gracefully, don't block execution
+- **Metadata-driven skill discovery**: YAML frontmatter for lightweight loading
+
+### Scripts Refinement
+
+Demo scripts (`demo_vision.py`, `demo_agent_interactive.py`) need updating after OpenRouter migration. Defer to later — functional but reference old defaults.
