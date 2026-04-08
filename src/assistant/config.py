@@ -11,7 +11,7 @@ DEFAULT_VISION_PROVIDER = "openrouter"
 
 # Default model per provider — used when --model is not passed
 DEFAULT_MODELS = {
-    "openrouter": "google/gemini-flash-latest",
+    "openrouter": "google/gemini-3.1-flash-lite-preview",
     "ollama": "qwen3-vl:4b",
 }
 

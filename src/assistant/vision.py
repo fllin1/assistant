@@ -205,6 +205,7 @@ def _analyze_openrouter(
 
     response = client.chat.completions.create(
         model=model,
+        max_tokens=1024,
         messages=[
             {
                 "role": "user",
