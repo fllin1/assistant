@@ -113,28 +113,26 @@ def test_format_history_with_steps():
     assert "Typed query" in result
 
 
-# -- analyze_screenshot --
+# -- analyze_screenshot: OpenRouter --
 
 
 def test_missing_api_key_raises(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     img = Image.new("RGB", (100, 100))
-    with pytest.raises(ValueError, match="No API key found"):
+    with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
         analyze_screenshot(img, task="test")
 
 
 def test_unknown_provider_raises():
     img = Image.new("RGB", (100, 100))
     with pytest.raises(ValueError, match="Unknown vision provider"):
-        analyze_screenshot(img, task="test", provider="openai")
+        analyze_screenshot(img, task="test", provider="invalid")
 
 
-@patch("assistant.vision._analyze_gemini")
-def test_analyze_screenshot_calls_gemini(mock_gemini, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-    mock_gemini.return_value = VisionResponse(
+@patch("assistant.vision._analyze_openrouter")
+def test_analyze_screenshot_calls_openrouter(mock_openrouter):
+    mock_openrouter.return_value = VisionResponse(
         reasoning="test",
         action="done",
         target=None,
@@ -146,4 +144,82 @@ def test_analyze_screenshot_calls_gemini(mock_gemini, monkeypatch):
     result = analyze_screenshot(img, task="test task")
 
     assert result.action == "done"
-    mock_gemini.assert_called_once()
+    mock_openrouter.assert_called_once()
+
+
+# -- analyze_screenshot: Ollama --
+
+
+@patch("assistant.vision._analyze_ollama")
+def test_analyze_screenshot_calls_ollama(mock_ollama):
+    mock_ollama.return_value = VisionResponse(
+        reasoning="test",
+        action="done",
+        target=None,
+        text=None,
+        confidence="high",
+    )
+
+    img = Image.new("RGB", (1024, 768))
+    result = analyze_screenshot(img, task="test task", provider="ollama")
+
+    assert result.action == "done"
+    mock_ollama.assert_called_once()
+
+
+@patch("assistant.vision._analyze_ollama")
+def test_analyze_screenshot_passes_model(mock_ollama):
+    mock_ollama.return_value = VisionResponse(
+        reasoning="test",
+        action="done",
+        target=None,
+        text=None,
+        confidence="high",
+    )
+
+    img = Image.new("RGB", (1024, 768))
+    analyze_screenshot(img, task="test", provider="ollama", model="llava:13b")
+
+    # model should be passed through to the provider
+    call_kwargs = mock_ollama.call_args
+    assert call_kwargs[1]["model"] == "llava:13b"
+
+
+# -- _analyze_ollama --
+
+
+@patch("ollama.chat")
+def test_analyze_ollama_success(mock_chat):
+    mock_chat.return_value = {
+        "message": {
+            "content": json.dumps(
+                {
+                    "reasoning": "I see a button",
+                    "action": "left_click",
+                    "target": "C4",
+                    "text": None,
+                    "confidence": "high",
+                }
+            )
+        }
+    }
+
+    from assistant.vision import _analyze_ollama
+
+    result = _analyze_ollama(b"fake-png-bytes", "test prompt")
+
+    assert result.action == "left_click"
+    assert result.target == "C4"
+    mock_chat.assert_called_once()
+    # Verify it uses the configured default model
+    from assistant.config import DEFAULT_MODELS
+
+    assert mock_chat.call_args.kwargs["model"] == DEFAULT_MODELS["ollama"]
+
+
+@patch("ollama.chat", side_effect=ConnectionError("connection refused"))
+def test_analyze_ollama_connection_refused(mock_chat):
+    from assistant.vision import _analyze_ollama
+
+    with pytest.raises(ConnectionError, match="Cannot connect to Ollama"):
+        _analyze_ollama(b"fake-png-bytes", "test prompt")

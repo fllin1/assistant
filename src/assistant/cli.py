@@ -115,7 +115,8 @@ def run(
     max_iterations: int = typer.Option(20, help="Maximum loop iterations."),
     timeout: float = typer.Option(300.0, help="Timeout in seconds."),
     monitor: int = typer.Option(1, help="Monitor to capture."),
-    provider: str = typer.Option("gemini", help="Vision model provider."),
+    provider: str = typer.Option("openrouter", help="Vision model provider."),
+    model: str | None = typer.Option(None, help="Model name (default depends on provider)."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Analyze but don't execute actions."),
     grid_cols: int = typer.Option(10, help="Grid columns."),
     grid_rows: int = typer.Option(8, help="Grid rows."),
@@ -134,6 +135,7 @@ def run(
         grid_cols=grid_cols,
         grid_rows=grid_rows,
         provider=provider,
+        model=model,
         dry_run=dry_run,
     )
 

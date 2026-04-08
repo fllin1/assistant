@@ -4,21 +4,23 @@ Sends annotated screenshots to vision models and parses structured
 action responses. Supports grid-based targeting where the model
 references cell labels (e.g., "B3") instead of raw pixel coordinates.
 
-Provider is Gemini by default. Additional providers can be added
-by implementing a _analyze_{provider} function and adding an elif
-in analyze_screenshot().
-
-Requires GEMINI_API_KEY or GOOGLE_API_KEY environment variable.
+Supported providers:
+- "openrouter": OpenAI-compatible API via OpenRouter (requires OPENROUTER_API_KEY env var).
+    Supports 200+ models including Gemini, Claude, Llama, etc.
+- "ollama": Local Ollama instance (requires Ollama running, configurable via OLLAMA_HOST)
 """
 
+import base64
 import io
 import json
 import logging
 import os
 from dataclasses import dataclass
 
+from openai import OpenAI
 from PIL import Image
 
+from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST, FALLBACK_MODELS
 from assistant.screen import overlay_grid
 
 logger = logging.getLogger(__name__)
@@ -78,7 +80,8 @@ def analyze_screenshot(
     image: Image.Image,
     task: str,
     history: list[dict] | None = None,
-    provider: str = "gemini",
+    provider: str = "openrouter",
+    model: str | None = None,
     grid_cols: int = 10,
     grid_rows: int = 8,
 ) -> VisionResponse:
@@ -92,7 +95,8 @@ def analyze_screenshot(
         task: Natural language description of what to accomplish.
         history: Previous steps for context (list of dicts with
             "action", "target", "reasoning" keys).
-        provider: Vision model provider ("gemini").
+        provider: Vision model provider ("openrouter" or "ollama").
+        model: Model name override. Defaults to provider-specific default.
         grid_cols: Grid columns for overlay.
         grid_rows: Grid rows for overlay.
 
@@ -114,13 +118,16 @@ def analyze_screenshot(
         history_section=history_section,
     )
 
-    # Convert image to bytes for the provider
     image_bytes = _image_to_bytes(annotated)
 
-    if provider == "gemini":
-        return _analyze_gemini(image_bytes, prompt)
+    resolved_model = model or DEFAULT_MODELS.get(provider)
 
-    raise ValueError(f"Unknown vision provider: {provider!r}. Available: gemini")
+    if provider == "openrouter":
+        return _analyze_openrouter(image_bytes, prompt, model=resolved_model)
+    elif provider == "ollama":
+        return _analyze_ollama(image_bytes, prompt, model=resolved_model)
+
+    raise ValueError(f"Unknown vision provider: {provider!r}. Available: openrouter, ollama")
 
 
 def _format_history(history: list[dict]) -> str:
@@ -152,7 +159,6 @@ def _parse_response(raw_text: str) -> VisionResponse:
     # Strip markdown code fences if present
     if text.startswith("```"):
         lines = text.split("\n")
-        # Remove first line (```json or ```) and last line (```)
         lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
@@ -182,35 +188,80 @@ def _parse_response(raw_text: str) -> VisionResponse:
     )
 
 
-def _get_api_key() -> str:
-    """Get the Gemini API key from environment variables."""
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not key:
-        raise ValueError(
-            "No API key found. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable."
-        )
-    return key
+def _analyze_openrouter(
+    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["openrouter"]
+) -> VisionResponse:
+    """Send image + prompt via OpenRouter (OpenAI-compatible API).
 
+    Requires OPENROUTER_API_KEY environment variable.
+    Falls back to a secondary model if the primary is rate-limited.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("No API key found. Set OPENROUTER_API_KEY environment variable.")
 
-def _analyze_gemini(image_bytes: bytes, prompt: str) -> VisionResponse:
-    """Send image + prompt to Gemini and parse the response."""
-    from google import genai
+    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    api_key = _get_api_key()
-    client = genai.Client(api_key=api_key)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                },
+            ],
+        }
+    ]
 
-    # Send image as inline data with the prompt
-    response = client.models.generate_content(
-        model="gemini-flash-latest",
-        contents=[
-            genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-            prompt,
-        ],
-    )
+    try:
+        response = client.chat.completions.create(model=model, messages=messages)
+    except Exception as e:
+        # On rate limit (429), try the fallback model
+        fallback = FALLBACK_MODELS.get("openrouter")
+        if "429" in str(e) and fallback and fallback != model:
+            logger.warning("Rate limited on %s, falling back to %s", model, fallback)
+            response = client.chat.completions.create(model=fallback, messages=messages)
+        else:
+            raise
 
-    raw_text = response.text
+    raw_text = response.choices[0].message.content
     if raw_text is None:
-        raise ValueError("Gemini: No response")
+        raise ValueError(f"OpenRouter ({model}): No response")
 
-    logger.debug("Gemini response: %s", raw_text[:200])
+    used_model = response.model or model
+    logger.debug("OpenRouter response (%s): %s", used_model, raw_text[:200])
+    return _parse_response(raw_text)
+
+
+def _analyze_ollama(
+    image_bytes: bytes, prompt: str, model: str = DEFAULT_MODELS["ollama"]
+) -> VisionResponse:
+    """Send image + prompt to a local Ollama instance and parse the response.
+
+    Uses the official ollama Python package. Ollama must be running.
+    Configure host via OLLAMA_HOST env var (default: http://localhost:11434).
+    """
+    from ollama import chat
+
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    try:
+        response = chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt, "images": [image_b64]}],
+        )
+    except Exception as e:
+        if "connect" in str(e).lower():
+            host = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST)
+            raise ConnectionError(
+                f"Cannot connect to Ollama at {host}. "
+                "Is Ollama running? Start it with: ollama serve"
+            ) from e
+        raise
+
+    raw_text = response["message"]["content"]
+    logger.debug("Ollama response (%s): %s", model, raw_text[:200])
     return _parse_response(raw_text)
