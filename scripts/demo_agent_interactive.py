@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--rows", type=int, default=8, help="Grid rows")
     parser.add_argument("--save-grid", action="store_true", help="Save annotated screenshots")
     parser.add_argument("--stream", action="store_true", help="Stream model output token by token")
+    parser.add_argument("--verbose", action="store_true", help="Show debug logs from all modules")
     return parser.parse_args()
 
 
@@ -63,7 +64,12 @@ def _stream_ollama(image_bytes, prompt, model):
 
 
 def main():
+    import logging
+
     args = parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 
     model = args.model or DEFAULT_MODELS.get(args.provider, "unknown")
     print(f"Provider: {args.provider}")
