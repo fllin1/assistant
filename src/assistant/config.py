@@ -15,5 +15,10 @@ DEFAULT_MODELS = {
     "ollama": "qwen3-vl:4b",
 }
 
+# Fallback models when the primary is rate-limited
+FALLBACK_MODELS = {
+    "openrouter": "nvidia/nemotron-nano-12b-v2-vl:free",
+}
+
 # Ollama connection
 DEFAULT_OLLAMA_HOST = "http://localhost:11434"

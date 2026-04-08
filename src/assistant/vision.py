@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from openai import OpenAI
 from PIL import Image
 
-from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST
+from assistant.config import DEFAULT_MODELS, DEFAULT_OLLAMA_HOST, FALLBACK_MODELS
 from assistant.screen import overlay_grid
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,7 @@ def _analyze_openrouter(
     """Send image + prompt via OpenRouter (OpenAI-compatible API).
 
     Requires OPENROUTER_API_KEY environment variable.
-    Supports any vision model available on OpenRouter.
+    Falls back to a secondary model if the primary is rate-limited.
     """
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -203,28 +203,36 @@ def _analyze_openrouter(
     client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{image_b64}"},
-                    },
-                ],
-            }
-        ],
-    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                },
+            ],
+        }
+    ]
+
+    try:
+        response = client.chat.completions.create(model=model, messages=messages)
+    except Exception as e:
+        # On rate limit (429), try the fallback model
+        fallback = FALLBACK_MODELS.get("openrouter")
+        if "429" in str(e) and fallback and fallback != model:
+            logger.warning("Rate limited on %s, falling back to %s", model, fallback)
+            response = client.chat.completions.create(model=fallback, messages=messages)
+        else:
+            raise
 
     raw_text = response.choices[0].message.content
     if raw_text is None:
         raise ValueError(f"OpenRouter ({model}): No response")
 
-    logger.debug("OpenRouter response (%s): %s", model, raw_text[:200])
+    used_model = response.model or model
+    logger.debug("OpenRouter response (%s): %s", used_model, raw_text[:200])
     return _parse_response(raw_text)
 
 
