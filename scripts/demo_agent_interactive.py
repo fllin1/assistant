@@ -69,7 +69,9 @@ def main():
     args = parse_args()
 
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
+        # Only enable debug for our modules — not httpx/openai which log full HTTP payloads
+        logging.basicConfig(level=logging.WARNING, format="%(name)s: %(message)s")
+        logging.getLogger("assistant").setLevel(logging.DEBUG)
 
     model = args.model or DEFAULT_MODELS.get(args.provider, "unknown")
     print(f"Provider: {args.provider}")
