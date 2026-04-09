@@ -12,7 +12,15 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from assistant.input import execute_action
+from assistant.input import (
+    double_click,
+    left_click,
+    mouse_move,
+    press_key,
+    right_click,
+    scroll,
+    type_text,
+)
 from assistant.screen import capture_screen, grid_to_pixel, save_capture
 from assistant.vision import analyze_screenshot
 
@@ -53,6 +61,31 @@ class Session:
     started_at: float = field(default_factory=time.time)
     ended_at: float | None = None
     outcome: str = "running"
+
+
+# Seconds to wait after each action type, giving the UI time to respond
+ACTION_DELAYS = {
+    "left_click": 0.5,
+    "right_click": 0.5,
+    "double_click": 0.5,
+    "type": 0.3,
+    "key": 0.5,
+    "mouse_move": 0.1,
+    "scroll": 0.3,
+}
+
+STUCK_THRESHOLD = 3  # consecutive identical actions before aborting
+
+
+def _is_stuck(steps: list[AgentStep]) -> bool:
+    """Check if the agent is repeating the same action without progress."""
+    if len(steps) < STUCK_THRESHOLD:
+        return False
+    recent = steps[-STUCK_THRESHOLD:]
+    return all(
+        s.action.name == recent[0].action.name and s.action.target == recent[0].action.target
+        for s in recent
+    )
 
 
 def run_agent(
@@ -166,6 +199,9 @@ def run_agent(
         if not dry_run:
             try:
                 _execute(action)
+                # Wait for the UI to respond before taking the next screenshot
+                delay = ACTION_DELAYS.get(action.name, 0.3)
+                time.sleep(delay)
             except Exception:
                 logger.exception("Action failed at step %d", i)
                 success = False
@@ -188,6 +224,17 @@ def run_agent(
             action.target or action.text or "",
             response.reasoning[:80],
         )
+
+        # Detect if the agent is stuck repeating the same action
+        if _is_stuck(session.steps):
+            session.outcome = "stuck"
+            logger.info(
+                "Agent stuck: repeated %s %s %d times",
+                action.name,
+                action.target or "",
+                STUCK_THRESHOLD,
+            )
+            break
     else:
         session.outcome = "max_iterations"
         logger.info("Reached max iterations (%d)", max_iterations)
@@ -258,15 +305,24 @@ def _build_history(steps: list[AgentStep]) -> list[dict] | None:
 
 
 def _execute(action: Action) -> None:
-    """Execute an action via the input module."""
-    kwargs: dict = {}
-    if action.pixel:
-        kwargs["x"] = action.pixel[0]
-        kwargs["y"] = action.pixel[1]
-    if action.text:
-        if action.name == "key":
-            kwargs["keys"] = action.text
-        else:
-            kwargs["text"] = action.text
+    """Execute an action by calling input functions directly."""
+    x, y = action.pixel if action.pixel else (0, 0)
 
-    execute_action(action.name, **kwargs)
+    match action.name:
+        case "left_click":
+            left_click(x, y)
+        case "right_click":
+            right_click(x, y)
+        case "double_click":
+            double_click(x, y)
+        case "mouse_move":
+            mouse_move(x, y)
+        case "type":
+            type_text(action.text or "")
+        case "key":
+            press_key(action.text or "")
+        case "scroll":
+            direction = action.text or "down"
+            scroll(x, y, direction=direction)
+        case _:
+            raise ValueError(f"Unknown action: {action.name}")
