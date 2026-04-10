@@ -11,7 +11,7 @@ The Segment model accumulates optional fields across stages:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -88,7 +88,7 @@ class CharacterRegistry:
     case-insensitive lookup by name or alias.
     """
 
-    characters: tuple[Character, ...]
+    characters: tuple[Character, ...] = ()
     narrator_name: str = "Narrator"
 
     def find(self, name: str) -> Character | None:
@@ -129,14 +129,24 @@ class VoiceConfig:
     3. default_narrator as final fallback
     """
 
-    mappings: tuple[VoiceMapping, ...]
-    default_male: VoiceMapping
-    default_female: VoiceMapping
-    default_narrator: VoiceMapping
+    mappings: tuple[VoiceMapping, ...] = ()
+    default_male: VoiceMapping = field(
+        default_factory=lambda: VoiceMapping(
+            speaker="__default_male__", provider="edge", voice_id="en-US-GuyNeural"
+        )
+    )
+    default_female: VoiceMapping = field(
+        default_factory=lambda: VoiceMapping(
+            speaker="__default_female__", provider="edge", voice_id="en-US-JennyNeural"
+        )
+    )
+    default_narrator: VoiceMapping = field(
+        default_factory=lambda: VoiceMapping(
+            speaker="Narrator", provider="edge", voice_id="en-US-AriaNeural"
+        )
+    )
 
-    def get_voice(
-        self, speaker: str, gender: str = "unknown"
-    ) -> VoiceMapping:
+    def get_voice(self, speaker: str, gender: str = "unknown") -> VoiceMapping:
         """Resolve a speaker to a voice mapping with fallback logic."""
         for mapping in self.mappings:
             if mapping.speaker == speaker:

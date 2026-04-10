@@ -13,13 +13,29 @@ from pathlib import Path
 # Directories
 # ---------------------------------------------------------------------------
 
-DATA_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
+DATA_DIR = Path.home() / ".assistant" / "ln_voice_over"
+"""Root directory for all ln_voice_over data."""
+
+PROJECTS_DIR = DATA_DIR / "projects"
 """Root directory for all book project data."""
+
+PROJECT_SUBDIRS = [
+    "config",
+    "raw",
+    "chapters",
+    "cleaned",
+    "parsed",
+    "attributed",
+    "reviewed",
+    "audio/segments",
+    "audio/chapters",
+]
+"""Subdirectories created inside each project folder."""
 
 
 def project_dir(book_slug: str) -> Path:
     """Return the data directory for a specific book project."""
-    return DATA_DIR / book_slug
+    return PROJECTS_DIR / book_slug
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +96,7 @@ MAX_SEGMENT_CHARS = 500
 # ---------------------------------------------------------------------------
 
 DEFAULT_LLM_PROVIDER = "openrouter"
-DEFAULT_LLM_MODEL = "google/gemini-2.5-flash"
+DEFAULT_LLM_MODEL = "google/gemini-3.1-flash-lite"
 ATTRIBUTION_WINDOW_SIZE = 40
 ATTRIBUTION_WINDOW_OVERLAP = 8
 ATTRIBUTION_CONFIDENCE_THRESHOLD = 0.7
