@@ -9,7 +9,7 @@ Usage:
     python -m automations.ln_voice_over.cli clean <book-slug>
     python -m automations.ln_voice_over.cli parse <book-slug>
     python -m automations.ln_voice_over.cli attribute <book-slug> [--chapter N]
-    python -m automations.ln_voice_over.cli review <book-slug> [--chapter N] [--only-low-confidence] [--approve-all]
+    python -m automations.ln_voice_over.cli review <book-slug> [--chapter N]
     python -m automations.ln_voice_over.cli synthesize <book-slug> [--chapter N]
     python -m automations.ln_voice_over.cli run-all <book-slug> [--from-stage STAGE]
 """
@@ -22,6 +22,14 @@ app = typer.Typer(
     name="lnvo",
     help="Light novel text-to-audiobook pipeline.",
 )
+
+
+@app.command()
+def init() -> None:
+    """Initialize or select a project."""
+    from .init_project import interactive_init
+
+    interactive_init()
 
 
 @app.command()
