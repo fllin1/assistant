@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 assistant = "assistant.cli:app"
+lnvo = "automations.ln_voice_over.cli:app"
 
 [project.optional-dependencies]
 dev = [
