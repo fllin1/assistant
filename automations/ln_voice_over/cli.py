@@ -102,7 +102,40 @@ def parse(book_slug: str) -> None:
 
     Reads from cleaned/ + chapters/manifest.json, writes JSON to parsed/.
     """
-    ...
+    import json
+
+    from .parse import parse_chapter
+    from .serialization import save_chapter
+
+    root = PROJECTS_DIR / book_slug
+    cleaned_dir = root / "cleaned"
+    output_dir = root / "parsed"
+    manifest_path = root / "chapters" / "manifest.json"
+
+    if not manifest_path.exists():
+        typer.echo(f"No manifest found at {manifest_path}. Run 'split' first.")
+        raise typer.Exit(1)
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    count = 0
+    for entry in manifest:
+        cleaned_path = cleaned_dir / entry["file"]
+        if not cleaned_path.exists():
+            typer.echo(f"Skipping {entry['file']} — not found in cleaned/")
+            continue
+
+        chapter = parse_chapter(
+            cleaned_path,
+            chapter_number=entry["number"],
+            title=entry["title"],
+            pov_character=entry.get("pov_character"),
+        )
+        save_chapter(chapter, output_dir / f"chapter_{entry['number']:02d}.json")
+        count += 1
+
+    typer.echo(f"Parsed {count} chapter(s) → {output_dir}")
 
 
 @app.command()
