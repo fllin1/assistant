@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import typer
 
+from .config import PROJECTS_DIR
+
 app = typer.Typer(
     name="lnvo",
     help="Light novel text-to-audiobook pipeline.",
@@ -33,6 +35,16 @@ def init() -> None:
 
 
 @app.command()
+def list_books() -> None:
+    """
+    Lists all book slug names in the ~/.assistant/ln_voice_over/ dir.
+    """
+    for project in PROJECTS_DIR.iterdir():
+        if not project.name.startswith("."):
+            typer.echo(project.name)
+
+
+@app.command()
 def split(book_slug: str) -> None:
     """Stage 1: Split a volume .txt into chapter files.
 
@@ -42,7 +54,25 @@ def split(book_slug: str) -> None:
     Outputs chapter files and manifest.json to:
         ~/.assistant/ln_voice_over/projects/<book-slug>/chapters/
     """
-    ...
+    from .split import split_volume, write_manifest
+
+    root = PROJECTS_DIR / book_slug
+    raw_dir = root / "raw"
+    output_dir = root / "chapters"
+
+    txt_files = sorted(raw_dir.glob("*.txt"))
+    if not txt_files:
+        typer.echo(f"No .txt files found in {raw_dir}")
+        raise typer.Exit(1)
+
+    # Split the first .txt file found
+    source = txt_files[0]
+    if len(txt_files) > 1:
+        typer.echo(f"Multiple .txt files found, using: {source.name}")
+
+    chapters = split_volume(source, output_dir)
+    write_manifest(chapters, output_dir)
+    typer.echo(f"Split into {len(chapters)} chapter(s) → {output_dir}")
 
 
 @app.command()
@@ -51,7 +81,19 @@ def clean(book_slug: str) -> None:
 
     Reads from chapters/, writes to cleaned/.
     """
-    ...
+    from .clean import clean_all
+
+    root = PROJECTS_DIR / book_slug
+    chapters_dir = root / "chapters"
+    output_dir = root / "cleaned"
+
+    txt_files = sorted(chapters_dir.glob("*.txt"))
+    if not txt_files:
+        typer.echo(f"No chapter files found in {chapters_dir}")
+        raise typer.Exit(1)
+
+    results = clean_all(chapters_dir, output_dir)
+    typer.echo(f"Cleaned {len(results)} chapter(s) → {output_dir}")
 
 
 @app.command()

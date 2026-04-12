@@ -17,6 +17,10 @@ dependencies = [
 assistant = "assistant.cli:app"
 lnvo = "automations.ln_voice_over.cli:app"
 
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["assistant*", "automations*"]
+
 [project.optional-dependencies]
 dev = [
     "ruff",

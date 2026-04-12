@@ -33,11 +33,6 @@ PROJECT_SUBDIRS = [
 """Subdirectories created inside each project folder."""
 
 
-def project_dir(book_slug: str) -> Path:
-    """Return the data directory for a specific book project."""
-    return PROJECTS_DIR / book_slug
-
-
 # ---------------------------------------------------------------------------
 # Stage 1: SPLIT — Chapter boundary detection
 # ---------------------------------------------------------------------------
@@ -63,8 +58,15 @@ WATERMARK_PATTERNS: list[str] = [
     "mp4directs.com",
     "goldenagato",
 ]
-"""Substrings that identify watermark lines. Lines containing any of these
-are removed entirely. Add book-specific watermarks as needed."""
+"""Substrings that identify watermark-only lines (lines where the entire
+content is a watermark). Add book-specific watermarks as needed."""
+
+INLINE_WATERMARK_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\s*Page\s+\d+\s+Goldenagato\s*\|\s*mp4directs\.com", re.IGNORECASE),
+    re.compile(r"\s*Goldenagato\s*\|\s*mp4directs\.com", re.IGNORECASE),
+]
+"""Regex patterns for watermark suffixes embedded at the end of content lines.
+These are stripped from the line rather than removing the line entirely."""
 
 PAGE_NUMBER_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^\s*Page\s+\d+\s*$", re.IGNORECASE),
