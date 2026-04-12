@@ -78,6 +78,11 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Automations import from the library but never modify it.
 - Automations should include a docstring explaining what they do and how to use them.
 
+## Documentation Maintenance
+- The root `README.md` describes the **library** (`src/assistant/`): its modules, CLI commands, and roadmap. It should not document automations — those have their own READMEs.
+- When library modules, CLI commands, or the roadmap change, update the root `README.md` to match.
+- Each automation under `automations/` should have its own `README.md` documenting its purpose and CLI usage.
+
 ## Reminders for Claude
 - Always read a file before editing it.
 - Notify the user if their code doesn't match the style guidelines.
