@@ -29,6 +29,9 @@ output directory and writes to its own. All intermediate data is inspectable.
 ├── parsed/                  # JSON per chapter
 ├── attributed/              # JSON per chapter (with speaker/confidence)
 ├── reviewed/                # JSON per chapter (user-approved)
+├── experiments/
+│   └── extraction/          # Step 1 experiment runs (config + results per batch)
+├── ground_truth_*.json      # Manually verified attributions for evaluation
 └── audio/
     ├── segments/            # Cached per-segment audio (<cache_key>.mp3)
     └── chapters/            # Final concatenated chapter audio
@@ -58,13 +61,31 @@ output directory and writes to its own. All intermediate data is inspectable.
 - **No mid-sentence splitting**: `She said "hello" and walked away.` stays as one `narration` segment
 - Long narration (>500 chars) split at sentence boundaries
 
-## Stage 4: ATTRIBUTE — LLM Speaker Attribution
+## Stage 4: ATTRIBUTE — Speaker Attribution
 
-- **Input**: `parsed/*.json` + `config/characters.json` → **Output**: `attributed/*.json`
+Two-step pipeline using local LLMs (Ollama).
+
+### Step 1: Mention Extraction (`extraction.py`)
+
+- **Input**: `parsed/*.json` → **Output**: experiment results in `experiments/extraction/`
+- Per-dialogue LLM calls with ±5 context segments
+- LLM extracts: `raw_mention` (name/pronoun from narration), `resolved_mention` (best guess), `mention_source_index`, `mention_type`, `reasoning`
+- Cross-validated with two models (gemma4:26b, qwen3.5:27b); disagreements flagged for verification
+- Versioned prompts in `prompts/extraction_v*.txt`
+- Experiment framework: batch runner, ground truth comparison, results persistence
+
+### Step 2: Entity Resolution (planned)
+
+- **Input**: extraction results + `config/characters.json` → **Output**: `attributed/*.json`
+- Maps `resolved_mention` to canonical registry names
+- Names → regex/alias lookup; pronouns/ambiguous → AI resolution
+
+### Legacy Attribution (`attribute.py`)
+
+- Windowed and per-dialogue LLM attribution (direct speaker assignment)
 - `narration` → `pov_character` if set, else `NARRATOR`
-- `dialogue` / `inner_thought` → LLM-attributed
-- **Windowing**: scenes split at `scene_break`, windows of ~40 segments with ~8 overlap
-- LLM via OpenRouter; model configurable
+- `dialogue` / `inner_thought` → LLM-attributed with registry validation
+- Still functional but being replaced by the two-step pipeline
 
 ## Stage 5: REVIEW — Manual Correction
 
@@ -104,8 +125,9 @@ Concatenate with `pydub`, insert silence between segments:
 ```
 edge-tts        # TTS provider (free, async)
 pydub           # Audio concatenation
-openai          # LLM attribution via OpenRouter
+ollama          # LLM attribution via local Ollama models
 rich            # Colored CLI review output
+typer           # CLI framework
 ```
 
-System: `ffmpeg` (required by pydub for MP3).
+System: `ffmpeg` (required by pydub for MP3), `ollama` (local LLM server).

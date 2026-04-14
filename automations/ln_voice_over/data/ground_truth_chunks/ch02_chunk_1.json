@@ -1,0 +1,1649 @@
+[
+ {
+  "index": 183,
+  "segment_type": "narration",
+  "text": "said Matsushita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 184,
+  "segment_type": "dialogue",
+  "text": "“In that case, I guess we’ll just wait and see for a while longer. If your read of the situation is right, she’ll probably come to you for help sometime soon, Matsushita. Right?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 185,
+  "segment_type": "dialogue",
+  "text": "“…Probably, yeah.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 186,
+  "segment_type": "narration",
+  "text": "Although Matsushita found that a bit difficult to accept, she quietly withdrew for now, since we both knew that this was not a conversation we could carry on for a long time with Satou so close by. The fact that Satou was a bit absent right now was somewhat concerning, but at the moment, deciding on our stall’s location took priority. It was time to finalize that decision and move onto the next phase of planning.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 187,
+  "segment_type": "narration",
+  "text": "Just as we finished inspecting the second floor and were about to move on to the last leg of our tour on the first floor, we happened to come across another small group of people.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 188,
+  "segment_type": "dialogue",
+  "text": "“’Sup, Ayanokouji. You looking for stall locations for the Cultural Festival too?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 189,
+  "segment_type": "narration",
+  "text": "The person who called out to me was none other than Hashimoto from Class 2-A. Shortly after that, Kamuro and the leader of their class, Sakayanagi, showed up as well. If all three of them were here at the same time, they likely weren’t simply going for a stroll.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 190,
+  "segment_type": "dialogue",
+  "text": "“Who can say?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 191,
+  "segment_type": "narration",
+  "text": "I replied.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 192,
+  "segment_type": "dialogue",
+  "text": "“Maybe we’ve already decided. Or maybe we haven’t even decided whether we’re going to be inside or outside yet.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 193,
+  "segment_type": "dialogue",
+  "text": "“You haven’t decided yet?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 194,
+  "segment_type": "narration",
+  "text": "said Hashimoto.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 195,
+  "segment_type": "dialogue",
+  "text": "“Nah dude, that’s clearly a lie. Are you trying to tell me that you’re taking Horikita and these other girls for a walk around the special building for no reason? Come on, tell me what kinda thing you’re gonna do at the festival.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 196,
+  "segment_type": "narration",
+  "text": "Sakayanagi didn’t join the conversation, instead just watching with a faint smile on her lips. Horikita though, unable to just stand there and listen quietly, intervened to stop the conversation right there.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 197,
+  "segment_type": "dialogue",
+  "text": "“There’s no point in asking him. He’s not in a position where he would understand everything about the class.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 198,
+  "segment_type": "dialogue",
+  "text": "“So what, you’re just enjoying your harem then?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 199,
+  "segment_type": "narration",
+  "text": "asked Hashimoto, pointing out that I was the only guy in our group of six, before turning to Kamuro for agreement.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 200,
+  "segment_type": "dialogue",
+  "text": "“Well, I’m sure it’s the same for you then, Hashimoto-kun,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 201,
+  "segment_type": "narration",
+  "text": "Horikita calmly fired back.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 202,
+  "segment_type": "dialogue",
+  "text": "“You’re with Sakayanagi-san and Kamuro-san. The only thing that’s different is the number of girls, but you’re the only boy in your group too. I wonder if you were aware of that when you made such a strange remark about us.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 203,
+  "segment_type": "narration",
+  "text": "Horikita certainly got him there, dropping to his same level, but I didn’t think it would really work on Hashimoto. Instead, he simply changed the subject, as though their previous exchange hadn’t even happened.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 204,
+  "segment_type": "dialogue",
+  "text": "“So… Satou, Matsushita, Wang, and Maezono, huh,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 205,
+  "segment_type": "narration",
+  "text": "he said, turning to the four who had proposed the maid café.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 206,
+  "segment_type": "dialogue",
+  "text": "“You guys have been chatting a lot at school lately, haven’t you?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 207,
+  "segment_type": "narration",
+  "text": "While three of the girls put up their guard, Matsushita took a step forward with the same demeanor she usually had.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 208,
+  "segment_type": "dialogue",
+  "text": "“It’s no use trying to get anything out of us,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 209,
+  "segment_type": "narration",
+  "text": "she snapped.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 210,
+  "segment_type": "dialogue",
+  "text": "“I would hope that you understand now,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 211,
+  "segment_type": "narration",
+  "text": "added Horikita. The two of them glared at Hashimoto.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 212,
+  "segment_type": "dialogue",
+  "text": "“Hey, come on, I didn’t mean it like that, ’kay? Seriously. I just—”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 213,
+  "segment_type": "narration",
+  "text": "He suddenly stopped. The others in my group started to feel a sense of unease over the way he had hinted at something.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 214,
+  "segment_type": "dialogue",
+  "text": "“Oops, guess I probably shouldn’t say any more than that, huh?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 215,
+  "segment_type": "narration",
+  "text": "he said with a grin, shooting a sideways glance at Sakayanagi for the first time during this conversation. That look seemed to be asking her,",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 216,
+  "segment_type": "dialogue",
+  "text": "“You don’t mind if I talk, do you?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 217,
+  "segment_type": "dialogue",
+  "text": "“It seems like you have something to say, Hashimoto-kun,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 218,
+  "segment_type": "narration",
+  "text": "said Matsushita, sounding somewhat irritated. Matsushita stood between Hashimoto and the three other girls, protecting them. Hashimoto must have been waiting for someone to say that though, because his smooth-talking mouth immediately went into action.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 219,
+  "segment_type": "dialogue",
+  "text": "“Hey, I’m just worried for you guys, like how things will go for you in the Cultural Festival. I mean, it seems like you worked well with Ryuuen during the Sports Festival, but do you really think you can trust that guy forever?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 220,
+  "segment_type": "dialogue",
+  "text": "“What do you mean by that?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 221,
+  "segment_type": "narration",
+  "text": "asked Matsushita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 222,
+  "segment_type": "dialogue",
+  "text": "“What it sounds like. He’ll pretend to be your ally, but he won’t be afraid to stab you in the back later.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 223,
+  "segment_type": "dialogue",
+  "text": "“The Sports Festival was the Sports Festival. This is the Cultural Festival,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 224,
+  "segment_type": "narration",
+  "text": "Matsushita replied.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 225,
+  "segment_type": "dialogue",
+  "text": "“You and Sakayanagi-san’s class are obviously enemies we need to beat, but Ryuuen-kun’s class is an enemy too. Of course, there’s no way we’d trust him.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 226,
+  "segment_type": "dialogue",
+  "text": "“Well, that’s good. I was just thinking that you’d be teaming up with Ryuuen again for sure,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 227,
+  "segment_type": "narration",
+  "text": "said Hashimoto. Hashimoto said it with an air of concern for our welfare, as though he were telling us to watch out, in case we were going to team up. I was sure that Matsushita was sharp enough to pick up on the implications behind what he was saying, however. I figured Matsushita was tempted to ask Hashimoto if he knew something, but she held herself back.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 228,
+  "segment_type": "dialogue",
+  "text": "“We’re in a hurry, and I don’t really think we can stand here and play word games forever. Right, everyone?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 229,
+  "segment_type": "narration",
+  "text": "said Matsushita, turning to the girls and me for agreement.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 230,
+  "segment_type": "dialogue",
+  "text": "“You’re right,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 231,
+  "segment_type": "narration",
+  "text": "said Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 232,
+  "segment_type": "dialogue",
+  "text": "“I think it’s about time we left. Talking with him is just a waste of time.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 233,
+  "segment_type": "dialogue",
+  "text": "“Wow, they really hate you, huh?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 234,
+  "segment_type": "narration",
+  "text": "Kamuro teased Hashimoto over the awkward atmosphere, prompting the latter to let out a forced, unnatural-sounding sigh.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 235,
+  "segment_type": "dialogue",
+  "text": "“Maybe they do,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 236,
+  "segment_type": "narration",
+  "text": "he said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 237,
+  "segment_type": "dialogue",
+  "text": "“I just figured I’d try telling them, I guess, but… Well, I’m sure they’ll do their best.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 238,
+  "segment_type": "narration",
+  "text": "In the end, Sakayanagi hadn’t uttered a single word during that entire conversation, and she went into the classroom that we had been looking at earlier.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 239,
+  "segment_type": "dialogue",
+  "text": "“That was a little scary…”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 240,
+  "segment_type": "narration",
+  "text": "Mii-chan placed her hand to her chest, murmuring to Satou, who was standing to her left.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 241,
+  "segment_type": "dialogue",
+  "text": "“…Huh? Oh, uh, yeah. It was, a little, wasn’t it?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 242,
+  "segment_type": "narration",
+  "text": "If Satou even heard what she said, her behavior was unnatural.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 243,
+  "segment_type": "dialogue",
+  "text": "“Anyway, let’s get moving,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 244,
+  "segment_type": "narration",
+  "text": "said Horikita. If we stood here and continued talking, we’d run into those Class A students again soon. Everyone wanted to avoid that, so we decided to look at another potential stall location.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 245,
+  "segment_type": "dialogue",
+  "text": "“Um, so about what Hashimoto-kun was talking about earlier… Is that bothering anyone else?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 246,
+  "segment_type": "narration",
+  "text": "Maezono mumbled. While we were making preparations for the maid café, there was one thing that Horikita and I had shared only with the people present. I figured that Maezono was shaken up because of what Hashimoto said and was feeling anxious.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 247,
+  "segment_type": "dialogue",
+  "text": "“We confirmed that we’re going to cooperate with Ryuuen’s class for the upcoming Cultural Festival too…right?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 248,
+  "segment_type": "narration",
+  "text": "Maezono went on.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 249,
+  "segment_type": "dialogue",
+  "text": "“Yes. I received permission from Ryuuen-kun’s side while we were working together during the Sports Festival,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 250,
+  "segment_type": "narration",
+  "text": "said Horikita. Horikita and Ryuuen had worked things out so our services wouldn’t overlap with each other. And if we ended up offering something similar, or if we had competing ideas, we would avoid having similar stall locations. We would engage in an efficient exchange of personnel, we would temporarily loan and borrow amongst each other, and we could support each other as necessary.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 251,
+  "segment_type": "narration",
+  "text": "Even though these were only minor arrangements, Horikita and Ryuuen came to an agreement to prepare for unforeseen circumstances.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 252,
+  "segment_type": "dialogue",
+  "text": "“I wasn’t that bothered before since things went so well in the Sports Festival, but after everything Hashimoto said, I can’t help but feel anxious, I guess… Are we really sure that we can trust Ryuuen-kun?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 253,
+  "segment_type": "narration",
+  "text": "said Maezono.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 254,
+  "segment_type": "dialogue",
+  "text": "“It’s most certainly doubtful that we can trust Ryuuen-kun, in my opinion,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 255,
+  "segment_type": "narration",
+  "text": "said Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 256,
+  "segment_type": "dialogue",
+  "text": "“Which is exactly why I brought Katsuragi-kun into the discussion. I think that it’ll be okay.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 257,
+  "segment_type": "dialogue",
+  "text": "“I want to believe that too,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 258,
+  "segment_type": "narration",
+  "text": "Maezono replied.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 259,
+  "segment_type": "dialogue",
+  "text": "“But didn’t it seem like Hashimoto-kun knew something?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 260,
+  "segment_type": "dialogue",
+  "text": "“Yes, I got that feeling too,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 261,
+  "segment_type": "narration",
+  "text": "said Mii-chan.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 262,
+  "segment_type": "dialogue",
+  "text": "“Even if their class isn’t going to betray us, isn’t it possible that the fact we’re working together has gotten out?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 263,
+  "segment_type": "dialogue",
+  "text": "“The only ones who know that are me, Ayanokouji-kun, and you four who came up with the idea for the maid café,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 264,
+  "segment_type": "narration",
+  "text": "Horikita said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 265,
+  "segment_type": "dialogue",
+  "text": "“Then, there’s also Katsuragi-kun in Ryuuen-kun’s class, of course. Some of his classmates who are important in running their stall might have heard, but there wouldn’t be any benefit in leaking that information.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 266,
+  "segment_type": "dialogue",
+  "text": "“I agree with Horikita’s opinion,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 267,
+  "segment_type": "narration",
+  "text": "I added casually.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 268,
+  "segment_type": "dialogue",
+  "text": "“I’m sure no one expected Horikita and Ryuuen to work together during the Sports Festival and that Class A would lose. They’re just wary that the next time won’t be so different. I expect Class A might try to make contact again and probe for information in similar fashion, but it’s best we don’t worry about it too much.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 269,
+  "segment_type": "dialogue",
+  "text": "“Y-yeah, that makes sense. I understand,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 270,
+  "segment_type": "narration",
+  "text": "replied Maezono. She and Mii-chan nodded while Matsushita and Satou both focused their minds once again. After that, we returned to the classroom and gathered to make a final decision.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 271,
+  "segment_type": "dialogue",
+  "text": "“I think we should decide where to have our stall by way of a majority vote with the people present here,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 272,
+  "segment_type": "narration",
+  "text": "Horikita said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 273,
+  "segment_type": "dialogue",
+  "text": "“Is that okay?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 274,
+  "segment_type": "dialogue",
+  "text": "“What if opinions are evenly split?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 275,
+  "segment_type": "narration",
+  "text": "asked Maezono.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 276,
+  "segment_type": "dialogue",
+  "text": "“We’ll figure that out if the time comes. First, let’s try coming to a decision and see where we land. Throw rock for the first floor, scissors for the second, and paper for the third. All right?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 277,
+  "segment_type": "narration",
+  "text": "Mii-chan recited those instructions in a quiet voice, perhaps so she wouldn’t get confused. She then looked at her palm.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 278,
+  "segment_type": "dialogue",
+  "text": "“Here goes. One, two, three!”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 279,
+  "segment_type": "narration",
+  "text": "The six of us, me included, simultaneously expressed which floor we preferred using our hands. The decision was obvious at a glance. Four people had thrown rock, while two had thrown scissors. No one had thrown paper. I figured that the third floor had been excluded because of the hassle involved in getting up there. I had thrown scissors myself because of the lower initial cost, but going with the first floor wasn’t a bad choice because of how convenient it was.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 280,
+  "segment_type": "narration",
+  "text": "Matsushita was the other person who had thrown scissors. At any rate, now that we decided we’d be applying for space on the first floor, we had officially taken a step forward.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 281,
+  "segment_type": "dialogue",
+  "text": "“I’ll put in our application right away,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 282,
+  "segment_type": "narration",
+  "text": "Horikita said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 283,
+  "segment_type": "dialogue",
+  "text": "“There are still many classes that are waiting to see how things go, and it’d be a hassle if the rooms on the first floor got snatched up.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 284,
+  "segment_type": "narration",
+  "text": "Using her phone, Horikita immediately began applying for a spot on the first floor.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 285,
+  "segment_type": "dialogue",
+  "text": "“All right. So, are we done for the day now?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 286,
+  "segment_type": "narration",
+  "text": "asked Maezono.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 287,
+  "segment_type": "dialogue",
+  "text": "“No,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 288,
+  "segment_type": "narration",
+  "text": "I replied.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 289,
+  "segment_type": "dialogue",
+  "text": "“Actually, there’s one thing I have to talk to you about before we split.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 290,
+  "segment_type": "narration",
+  "text": "I had been gathering information on maid cafés on my own up until recently, and I figured that I should share what I had found.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 291,
+  "segment_type": "dialogue",
+  "text": "“Men are the target audience for a maid café,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 292,
+  "segment_type": "narration",
+  "text": "I said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 293,
+  "segment_type": "dialogue",
+  "text": "“Although there will be many families among the guests coming to the Cultural Festival, basically, male visitors will be our main target.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 294,
+  "segment_type": "dialogue",
+  "text": "“Well, I wouldn’t assume we won’t see any female customers at all, but I suppose that there will be a considerable difference in the ratio of men to women,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 295,
+  "segment_type": "narration",
+  "text": "said Horikita. Everyone seemed to agree on that point; you didn’t need to do any research on the topic to come to that conclusion.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 296,
+  "segment_type": "dialogue",
+  "text": "“I’ve heard that there’s the opposite of the maid café out there in the world too—the butler café. Rather than a girl dressed in a maid outfit serving customers, it’s a guy, dressed up as a butler,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 297,
+  "segment_type": "narration",
+  "text": "I explained. Perhaps Matsushita and the others hadn’t heard that before because they seemed impressed and surprised.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 298,
+  "segment_type": "dialogue",
+  "text": "“Yes, both maid café and butler café are both types of concept cafés,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 299,
+  "segment_type": "narration",
+  "text": "said Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 300,
+  "segment_type": "dialogue",
+  "text": "“…You’re apparently quite knowledgeable too, Horikita,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 301,
+  "segment_type": "narration",
+  "text": "I replied.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 302,
+  "segment_type": "dialogue",
+  "text": "“I at least gathered some information about it,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 303,
+  "segment_type": "narration",
+  "text": "she said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 304,
+  "segment_type": "dialogue",
+  "text": "“I can only decide if something is useful or not after I’ve learned it, after all.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 305,
+  "segment_type": "narration",
+  "text": "I expected as much from her.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 306,
+  "segment_type": "dialogue",
+  "text": "“All right then, we can move on,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 307,
+  "segment_type": "narration",
+  "text": "I said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 308,
+  "segment_type": "dialogue",
+  "text": "“The most important thing is a sense of cleanliness. That is paramount. I think we need to take that aspect into account, and not just focus on what floor we’ll be on in the special building.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 309,
+  "segment_type": "narration",
+  "text": "For example, each of the classrooms had seen significantly different degrees of usage for classes and such.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 310,
+  "segment_type": "dialogue",
+  "text": "“The floors, walls, ceilings, and even other things like chairs, will probably have no small variation in scuffs and damage due to age degradation. We’ll want to make sure people don’t miss checking for those things as well,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 311,
+  "segment_type": "narration",
+  "text": "I added.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 312,
+  "segment_type": "dialogue",
+  "text": "“That’s important, for sure,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 313,
+  "segment_type": "narration",
+  "text": "agreed Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 314,
+  "segment_type": "dialogue",
+  "text": "“Even if we clean ourselves up to a certain extent, there are some things we just won’t be able to cover up. The cleaner everything looks, the better it’ll be for our café.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 315,
+  "segment_type": "narration",
+  "text": "Everyone agreed, and so they began to look here and there around the classroom. Up until now, everyone had only been taking things like convenience and the view outside the room into account. Now, they’d start focusing on different things.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 316,
+  "segment_type": "dialogue",
+  "text": "“And, regarding the uniforms, we can’t push the eroticism too blatantly,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 317,
+  "segment_type": "narration",
+  "text": "I remarked.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 318,
+  "segment_type": "dialogue",
+  "text": "“Huh?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 319,
+  "segment_type": "narration",
+  "text": "Horikita sputtered.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 320,
+  "segment_type": "dialogue",
+  "text": "“Wh-what did you just say…?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 321,
+  "segment_type": "dialogue",
+  "text": "“Eroticism,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 322,
+  "segment_type": "narration",
+  "text": "I repeated.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 323,
+  "segment_type": "dialogue",
+  "text": "“Eros and erotic elements have been considered important aspects in art since ancient times. While it would be out of the question for the maids to do something like outright show their underwear, it’s also important that we don’t dispel the hope that the customers might catch a glimpse.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 324,
+  "segment_type": "narration",
+  "text": "Even Horikita looked taken aback by that. Perhaps she hadn’t wrapped her mind around that point, after all.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 325,
+  "segment_type": "dialogue",
+  "text": "“U-um, Ayanokouji-kun… What’s with the, uh, excessive level of detail?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 326,
+  "segment_type": "narration",
+  "text": "asked Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 327,
+  "segment_type": "dialogue",
+  "text": "“I obviously can’t cut any corners since you’ve asked me to help run the maid café. I simply studied so I could be as much help as I possibly could,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 328,
+  "segment_type": "narration",
+  "text": "I replied. It was also deeply reassuring that there were several students who were quite familiar with this topic. I had avoided stating that Horikita’s class was going to be running a maid café, of course, when I approached those students with the context of me personally being interested in such things.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 329,
+  "segment_type": "narration",
+  "text": "I felt a little sorry about it—some students mistakenly came to the conclusion that I had an otaku awakening, and they treated me with an unusual degree of hospitality as they taught me what they knew. They even told me they didn’t need anything in return, because it meant they were gaining a comrade.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 330,
+  "segment_type": "dialogue",
+  "text": "“May I continue?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 331,
+  "segment_type": "narration",
+  "text": "I asked.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 332,
+  "segment_type": "dialogue",
+  "text": "“Y-yes, please… Go ahead…”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 333,
+  "segment_type": "narration",
+  "text": "said Horikita. It didn’t seem like anyone was going to stop me from talking, so I decided to spend some time telling them what it would be like to be a maid. It was important for those who were actually wearing the costumes to understand that. It was possible that they’d be more self-conscious when they were interacting with customers.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 334,
+  "segment_type": "dialogue",
+  "text": "“In that case, next, think about a sales strategy,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 335,
+  "segment_type": "narration",
+  "text": "I said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 336,
+  "segment_type": "dialogue",
+  "text": "“In addition to providing food and drinks, we will allow customers to pay for pictures. We’ll provide special instant cameras for this and charge 800 points for a picture with one maid. If a customer wants a picture with two maids, the price will be 1,200 points. I suggested taking pictures with our phones and then using a printer to print them to reduce costs, but the Professor, the one who told me all of this stuff, rejected that idea. He told me that if we neglected quality in favor of profit, no one would give us a second look.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 337,
+  "segment_type": "narration",
+  "text": "I figured that if we made good use of this system, sales of the photos could be just as good as sales from the food menu.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 338,
+  "segment_type": "dialogue",
+  "text": "“But then we’d have to worry about inventory, won’t we?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 339,
+  "segment_type": "narration",
+  "text": "asked Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 340,
+  "segment_type": "dialogue",
+  "text": "“No, we’ll be careful with the film’s use,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 341,
+  "segment_type": "narration",
+  "text": "I explained.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 342,
+  "segment_type": "dialogue",
+  "text": "“We’ll just have to consider that the pictures could sell out. Oh, and this will be done on the condition that photos are not public, of course. Then, under Horikita’s leadership, we’ll set up a food stall led by the boys, but the food offered there should be linked to the maid café too.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 343,
+  "segment_type": "narration",
+  "text": "After I finished speaking, Horikita was silent for a while. Eventually, she cleared her throat and began to speak.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 344,
+  "segment_type": "dialogue",
+  "text": "“The competition will inevitably be fiercer for food service stalls because there are signs that there will be many of them across the other classes and grades. So, we’ll specialize in lighter fare at the food stall and keep our prices low.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 345,
+  "segment_type": "dialogue",
+  "text": "“But we won’t earn a lot of money that way, will we?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 346,
+  "segment_type": "narration",
+  "text": "asked Maezono.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 347,
+  "segment_type": "dialogue",
+  "text": "“That’s true,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 348,
+  "segment_type": "narration",
+  "text": "said Horikita.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 349,
+  "segment_type": "dialogue",
+  "text": "“Which is why it’s just a way to get people over to our main event, the maid café. People who purchase items at the food stall will receive a ticket for half-off one drink, which can be used at the café.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 350,
+  "segment_type": "narration",
+  "text": "After all, we needed to make people aware of the maid café, and then we needed to get them to come all the way over to the special building. To do that, we needed to advertise outside and to establish a conduit that would lead people to the café. 2.2 AFTER WE WERE DONE with our maid café discussion, I walked over to Keyaki Mall. Today, I was going to do some research on food prices. Some ingredients were sold at the mall, and others we could purchase online.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 351,
+  "segment_type": "narration",
+  "text": "It was important that we were able to prepare quality food at the lowest possible price. I knew that if I invited Kei to come along, this trip would’ve turned into a date rather than an investigation, so I decided to go it alone today. While I was on my way over to the supermarket, I saw someone staring at the mall map. I was a little worried about the rather grim look he had on his face, so I decided to go over and talk to him.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 352,
+  "segment_type": "dialogue",
+  "text": "“You sure were the center of attention today, Sudou,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 353,
+  "segment_type": "narration",
+  "text": "I remarked. Perhaps he hadn’t noticed I was there until I got a little closer because he turned around with a bit of a start.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 354,
+  "segment_type": "dialogue",
+  "text": "“Huh?! Oh, it’s you, Ayanokouji. Whaddya mean, center of attention?”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 355,
+  "segment_type": "dialogue",
+  "text": "“The midterm,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 356,
+  "segment_type": "narration",
+  "text": "I clarified.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 357,
+  "segment_type": "dialogue",
+  "text": "“Oh, that,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 358,
+  "segment_type": "narration",
+  "text": "he said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 359,
+  "segment_type": "dialogue",
+  "text": "“I’m happy, but… I mean, I think I pretty much did as well as I thought I did, with how much effort I put into it and all. It’s just… I dunno, I guess the best way to put it is that it felt the same as when you just grade your own test.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 360,
+  "segment_type": "narration",
+  "text": "It sounded like Sudou checked over his answers on tests in detail, even after midterms.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 361,
+  "segment_type": "dialogue",
+  "text": "“I bet if the old you, from before you came to this school, saw the new you, he’d be pretty surprised,”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 362,
+  "segment_type": "narration",
+  "text": "I said.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 363,
+  "segment_type": "dialogue",
+  "text": "“Ha ha ha. Yeah, definitely, dude.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 364,
+  "segment_type": "narration",
+  "text": "Sudou chuckled, imagining his past self.",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ },
+ {
+  "index": 365,
+  "segment_type": "dialogue",
+  "text": "“I bet he’d be yellin’ at me all angry, like ‘What’re you studyin’ and learnin’ words and formulas for?! Don’t waste your time on that stuff! Go and practice basketball more!’ or something.”",
+  "line_start": 2,
+  "line_end": 2,
+  "speaker": null,
+  "confidence": null
+ }
+]
