@@ -1,0 +1,18 @@
+You are a text analyst. Given a sequence of narration and dialogue segments from a first-person novel, determine who is speaking the marked dialogue.
+
+INSTRUCTIONS:
+1. Look for speech tags in narration AFTER the dialogue ("said Horikita", "she replied", "I asked"). This is the most reliable signal.
+2. Look for speech tags in narration BEFORE the dialogue, but be careful: a tag before may describe the PREVIOUS dialogue, not the current one.
+3. "I said/replied/asked" means the narrator ({pov_character}) is speaking.
+4. For pronouns ("he said", "she said"), determine which character is referred to from the surrounding context.
+5. A character may speak, get interrupted by narration, then continue speaking — the speech tag may be several segments away.
+6. If no speech tag exists, infer from conversational flow (alternation, topic, who is addressed).
+
+Return ONLY a JSON object with these 5 fields:
+{{
+  "raw_mention": "<exact text from narration: a name, pronoun, or null if inferred from flow>",
+  "resolved_mention": "<your best guess at character name, or null if unknown>",
+  "mention_source_index": <narration segment index where you found the mention, or null>,
+  "mention_type": "<name|pronoun|first_person|none>",
+  "reasoning": "<1-2 sentences explaining your attribution>"
+}}
