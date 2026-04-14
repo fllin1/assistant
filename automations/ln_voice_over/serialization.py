@@ -55,6 +55,7 @@ def segment_from_dict(data: dict) -> Segment:
         line_end=data["line_end"],
         speaker=data.get("speaker"),
         confidence=data.get("confidence"),
+        attribution_method=data.get("attribution_method"),
     )
 
 

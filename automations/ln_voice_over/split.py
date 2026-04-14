@@ -52,16 +52,11 @@ def find_chapter_boundaries(
 def _split_header_from_body(line: str) -> tuple[str, str]:
     """Separate the chapter header from body text on the same line.
 
-    LN text files often have no newline between the chapter title and
-    the body. The body typically starts with a stylized ALL-CAPS opener
-    (e.g., "WHEN I EVALUATE MYSELF" or "IT WAS MONDAY"). We detect this
-    by looking for a sequence of 2+ consecutive ALL-CAPS words.
-
     Returns:
         (header_portion, body_portion). body_portion is empty if no
         caps opener is detected.
     """
-    # Find where the ALL-CAPS body opener starts. LN body text typically
+    # Find where the ALL-CAPS body opener starts. Our LN body text
     # opens with a stylized caps phrase like "WHEN I EVALUATE MYSELF",
     # "TUESDAY, NOVEMBER 9TH", or "FOUR O'CLOCK". We look for an
     # uppercase word of 2+ chars followed by more uppercase words,

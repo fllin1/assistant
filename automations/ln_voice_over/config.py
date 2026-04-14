@@ -97,12 +97,14 @@ MAX_SEGMENT_CHARS = 500
 # Stage 4: ATTRIBUTE — LLM settings
 # ---------------------------------------------------------------------------
 
-DEFAULT_LLM_PROVIDER = "openrouter"
-DEFAULT_LLM_MODEL = "google/gemini-3.1-flash-lite"
-ATTRIBUTION_WINDOW_SIZE = 40
-ATTRIBUTION_WINDOW_OVERLAP = 8
+DEFAULT_LLM_MODEL = "gemma4:26b"
+ATTRIBUTION_WINDOW_SIZE = 10
+ATTRIBUTION_WINDOW_OVERLAP = 3
 ATTRIBUTION_CONFIDENCE_THRESHOLD = 0.7
 """Segments below this confidence are flagged for manual review."""
+
+PREVIOUS_ATTRIBUTIONS_SIZE: int = 5
+"""Number of recent attributions to pass as context in per-dialogue mode."""
 
 # ---------------------------------------------------------------------------
 # Stage 6: SYNTHESIZE — TTS and assembly

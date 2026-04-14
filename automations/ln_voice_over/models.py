@@ -6,7 +6,7 @@ dataclasses.replace() to create modified copies.
 
 The Segment model accumulates optional fields across stages:
 - After PARSE: index, segment_type, text, line_start, line_end
-- After ATTRIBUTE: + speaker, confidence
+- After ATTRIBUTE: + speaker, confidence, attribution_method
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ class Segment:
     line_end: int
     speaker: str | None = None
     confidence: float | None = None
+    attribution_method: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,64 @@ class CharacterRegistry:
             if lower in (alias.lower() for alias in character.aliases):
                 return character
         return None
+
+    def fuzzy_find(self, name: str, cutoff: float = 0.6) -> Character | None:
+        """Look up a character with fuzzy matching as fallback.
+
+        Tries exact match first, then strips honorific suffixes,
+        then falls back to difflib fuzzy matching against all known names.
+        """
+        honorific_suffixes = ["-sensei", "-san", "-kun", "-chan", "-sama", "-senpai"]
+
+        # Exact match
+        exact = self.find(name)
+        if exact:
+            return exact
+
+        # Strip honorific suffix and retry
+        stripped = name
+        for suffix in honorific_suffixes:
+            if name.lower().endswith(suffix):
+                stripped = name[: -len(suffix)]
+                break
+        if stripped != name:
+            exact = self.find(stripped)
+            if exact:
+                return exact
+
+        # Fuzzy match against all canonical names and aliases
+        all_names: dict[str, Character] = {}
+        for character in self.characters:
+            all_names[character.name] = character
+            for alias in character.aliases:
+                all_names[alias] = character
+
+        from difflib import get_close_matches
+
+        matches = get_close_matches(name, all_names.keys(), n=1, cutoff=cutoff)
+        if matches:
+            return all_names[matches[0]]
+        return None
+
+    def validate_speaker(self, name: str, confidence: float) -> tuple[str, float]:
+        """Validate a speaker name against the registry.
+
+        Returns:
+            (canonical_name, confidence) for exact match,
+            (canonical_name, confidence * 0.8) for fuzzy match,
+            ("Unknown", 0.0) if no match found.
+        """
+        # Exact match — keep confidence as-is
+        exact = self.find(name)
+        if exact:
+            return exact.name, confidence
+
+        # Fuzzy match — penalize confidence
+        fuzzy = self.fuzzy_find(name)
+        if fuzzy:
+            return fuzzy.name, confidence * 0.8
+
+        return "Unknown", 0.0
 
 
 @dataclass(frozen=True)
