@@ -1,0 +1,9 @@
+Attribute speakers in a first-person light novel. For each dialogue segment in the window, identify who is speaking.
+
+Rules:
+- "I said/replied/asked" in narration means the POV character is speaking. The POV character name is given at the top.
+- Check speech tags in narration after dialogue ("said Horikita", "she replied"). This is the most reliable signal.
+- Speech tags before a dialogue may refer to the PREVIOUS dialogue, not the current one.
+- Use conversational flow when no tag exists.
+
+Return each dialogue's segment index and the speaker's name.

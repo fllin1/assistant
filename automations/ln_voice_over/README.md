@@ -21,11 +21,19 @@ Each stage reads from the previous stage's output and writes to its own director
 
 ## Attribution Pipeline
 
-Speaker attribution uses a two-step process with local LLMs via Ollama.
+Speaker attribution uses per-dialogue LLM extraction with configurable models.
 
-**Step 1 — Mention Extraction** (`extraction.py`): For each dialogue, an LLM analyzes surrounding narration to find speech tags ("said Horikita", "she replied", "I asked") and determine who is speaking. Two models (gemma4:26b, qwen3.5:27b) cross-validate; disagreements get a verification pass.
+**Extraction** (`extraction.py`): For each dialogue, an LLM analyzes surrounding narration to find speech tags ("said Horikita", "she replied", "I asked") and determine who is speaking. Supports configurable context windows, rolling context from previous attributions, and batch processing.
 
-**Step 2 — Entity Resolution** (planned): Maps extracted mentions to canonical character registry names. Direct name matches are handled by regex/alias lookup; pronouns and ambiguous cases use AI resolution.
+**Models**: Both local (Ollama) and cloud (OpenRouter) models are supported. The model registry in `config.py` maps short aliases to providers:
+
+| Alias | Provider | Accuracy (ch2) |
+|-------|----------|-----------------|
+| `gemini-flash` | OpenRouter | 100% |
+| `gemini-flash-lite` | OpenRouter | — |
+| `gemma4:26b` | Ollama | — |
+
+**Modes**: Verbose mode (default) returns JSON with reasoning and debug metadata. Fast mode (`--fast`) uses a lean prompt that returns only the speaker name — fewer tokens, faster, cheaper.
 
 An experiment framework supports iterative prompt development: versioned prompts, batch processing, and ground truth comparison.
 
@@ -43,8 +51,10 @@ lnvo parse <book-slug>             # stage 3: text → typed segments
 lnvo attribute <book-slug>         # stage 4: legacy attribution (windowed)
 lnvo attribute <book-slug> --per-dialogue --context-size 5  # per-dialogue mode
 
-# Extraction experiments (new two-step pipeline)
-lnvo extract <book-slug> --chapter 2 --model gemma4:26b --prompt-version v1
+# Extraction experiments
+lnvo extract <book-slug> --chapter 2 --model gemini-flash --pov "Name"
+lnvo extract <book-slug> --chapter 2 --model gemini-flash --fast --rolling-context
+lnvo extract <book-slug> --chapter 2 --model gemma4:26b --prompt-version v2
 lnvo extract <book-slug> --chapter 2 --batch-start 100 --batch-size 100
 lnvo compare <book-slug> <experiment-id>   # compare against ground truth
 
@@ -88,9 +98,12 @@ lnvo run-all <book-slug>
 ## Dependencies
 
 - **ollama** — local LLM inference for speaker attribution
+- **openai** — OpenRouter API client (OpenAI-compatible)
 - **edge-tts** — TTS provider (free, async)
 - **pydub** — audio concatenation
 - **rich** — colored CLI review output
 - **typer** — CLI framework
 - **ffmpeg** — system dependency required by pydub for MP3
 - **ollama** — system dependency (local LLM server)
+
+Cloud models require `OPENROUTER_API_KEY` environment variable.

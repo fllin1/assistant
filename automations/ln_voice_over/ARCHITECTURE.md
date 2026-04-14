@@ -63,29 +63,33 @@ output directory and writes to its own. All intermediate data is inspectable.
 
 ## Stage 4: ATTRIBUTE — Speaker Attribution
 
-Two-step pipeline using local LLMs (Ollama).
+Per-dialogue LLM extraction via `extraction.py`. Supports local (Ollama) and cloud (OpenRouter) models through a unified interface.
 
-### Step 1: Mention Extraction (`extraction.py`)
+### Model Registry (`config.py`)
+
+Models are registered as `alias → (provider, model_id)`:
+
+| Alias | Provider | Notes |
+|-------|----------|-------|
+| `gemini-flash` | OpenRouter | 100% accuracy on chapter 2 ground truth |
+| `gemini-flash-lite` | OpenRouter | Faster/cheaper, lower accuracy |
+| `gemma4:26b` | Ollama | Local, no API key needed |
+| `gemma4:12b` | Ollama | Smaller local model |
+| `grok-fast` | OpenRouter | Fast cloud alternative |
+
+### Extraction (`extraction.py`)
 
 - **Input**: `parsed/*.json` → **Output**: experiment results in `experiments/extraction/`
-- Per-dialogue LLM calls with ±5 context segments
-- LLM extracts: `raw_mention` (name/pronoun from narration), `resolved_mention` (best guess), `mention_source_index`, `mention_type`, `reasoning`
-- Cross-validated with two models (gemma4:26b, qwen3.5:27b); disagreements flagged for verification
-- Versioned prompts in `prompts/extraction_v*.txt`
+- Per-dialogue LLM calls with configurable context window (default ±5 segments)
+- Rolling context: passes recent attributions to improve conversational flow tracking
+- **Verbose mode** (default): LLM returns JSON with `raw_mention`, `resolved_mention`, `mention_source_index`, `mention_type`, `reasoning`
+- **Fast mode** (`--fast`): lean prompt, LLM returns only speaker name — fewer tokens, faster
+- Versioned prompts in `prompts/` (`extraction_v1.txt`, `v2.txt`, `extraction_fast.txt`)
 - Experiment framework: batch runner, ground truth comparison, results persistence
 
-### Step 2: Entity Resolution (planned)
+### LLM Routing (`llm.py`)
 
-- **Input**: extraction results + `config/characters.json` → **Output**: `attributed/*.json`
-- Maps `resolved_mention` to canonical registry names
-- Names → regex/alias lookup; pronouns/ambiguous → AI resolution
-
-### Legacy Attribution (`attribute.py`)
-
-- Windowed and per-dialogue LLM attribution (direct speaker assignment)
-- `narration` → `pov_character` if set, else `NARRATOR`
-- `dialogue` / `inner_thought` → LLM-attributed with registry validation
-- Still functional but being replaced by the two-step pipeline
+`call_llm()` resolves the model alias via `MODEL_REGISTRY`, then dispatches to `_call_ollama()` or `_call_openrouter()`. Cloud models require `OPENROUTER_API_KEY`.
 
 ## Stage 5: REVIEW — Manual Correction
 
@@ -126,8 +130,10 @@ Concatenate with `pydub`, insert silence between segments:
 edge-tts        # TTS provider (free, async)
 pydub           # Audio concatenation
 ollama          # LLM attribution via local Ollama models
+openai          # OpenRouter API client (OpenAI-compatible)
 rich            # Colored CLI review output
 typer           # CLI framework
 ```
 
 System: `ffmpeg` (required by pydub for MP3), `ollama` (local LLM server).
+Cloud: `OPENROUTER_API_KEY` env var for OpenRouter models.

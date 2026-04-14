@@ -68,7 +68,8 @@ def run_extraction_experiment(
     results = extract_chapter_mentions(chapter, config, batch_range=batch_range)
 
     # Save results
-    exp_id = _experiment_id(config.model, config.prompt_version, batch_start)
+    prompt_label = "fast" if config.fast else config.prompt_version
+    exp_id = _experiment_id(config.model, prompt_label, batch_start)
     exp_dir = root / "experiments" / "extraction" / exp_id
     exp_dir.mkdir(parents=True, exist_ok=True)
 
