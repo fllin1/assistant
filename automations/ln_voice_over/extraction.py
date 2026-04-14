@@ -4,7 +4,7 @@ Extracts WHO is speaking each dialogue segment by analyzing surrounding
 narration for speech tags, pronouns, and conversational flow. Does NOT
 resolve mentions to canonical registry names — that's Step 2.
 
-Each dialogue gets an LLM call with ±context_size surrounding segments.
+Each dialogue gets an LLM call with configurable context window.
 The LLM returns the raw mention (name/pronoun/null), its best guess at
 the character, the narration source, and brief reasoning.
 """
@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
-from ollama import chat
-
+from .llm import call_llm
 from .models import Chapter, Segment, SegmentType
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,33 @@ _PRONOUNS = {"he", "she", "they", "her", "him", "his"}
 _FIRST_PERSON = {"i", "me", "my"}
 
 
-def load_prompt_template(version: str) -> str:
-    """Load a versioned prompt template from the prompts/ directory."""
-    path = PROMPTS_DIR / f"extraction_{version}.txt"
-    return path.read_text(encoding="utf-8")
+@dataclass(frozen=True)
+class ExtractionConfig:
+    """Configuration for a mention extraction run.
+
+    Bundles all experiment parameters so they're passed as a single
+    object instead of threaded through every function signature.
+    """
+
+    model: str = "gemma4:26b"
+    prompt_version: str = "v1"
+    context_before: int = 5
+    context_after: int = 5
+    pov_character: str | None = None
+    use_rolling_context: bool = False
+    rolling_context_size: int = 5
+
+    @property
+    def system_prompt(self) -> str:
+        """Load and format the system prompt template. Cached per instance."""
+        if not hasattr(self, "_cached_system_prompt"):
+            template = (PROMPTS_DIR / f"extraction_{self.prompt_version}.txt").read_text(
+                encoding="utf-8"
+            )
+            prompt = template.format(pov_character=self.pov_character or "unknown narrator")
+            # Frozen dataclass — use object.__setattr__ for caching
+            object.__setattr__(self, "_cached_system_prompt", prompt)
+        return self._cached_system_prompt  # type: ignore[attr-defined]
 
 
 def classify_mention_type(raw_mention: str | None) -> str:
@@ -46,36 +69,22 @@ def classify_mention_type(raw_mention: str | None) -> str:
     return "name"
 
 
-def _call_llm(system_prompt: str, user_prompt: str, model: str) -> str:
-    response = chat(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    )
-    return response["message"]["content"]
-
-
 def _build_user_prompt(
     target_index: int,
     segments: list[Segment],
-    context_before: int,
-    context_after: int,
-    pov_character: str | None,
+    config: ExtractionConfig,
     previous_attributions: list[dict] | None = None,
 ) -> str:
     """Build the user prompt with context segments around the target dialogue."""
-    # Find position of target in the segment list
     pos = next(i for i, s in enumerate(segments) if s.index == target_index)
 
-    start = max(0, pos - context_before)
-    end = min(len(segments), pos + context_after + 1)
+    start = max(0, pos - config.context_before)
+    end = min(len(segments), pos + config.context_after + 1)
     context = segments[start:end]
 
     lines = []
-    if pov_character:
-        lines.append(f"Narrator: {pov_character}")
+    if config.pov_character:
+        lines.append(f"Narrator: {config.pov_character}")
     lines.append("")
 
     if previous_attributions:
@@ -110,20 +119,19 @@ def parse_extraction_response(response: str) -> dict | None:
 
     # Strip markdown code fences
     if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [line for line in lines if not line.strip().startswith("```")]
-        text = "\n".join(lines).strip()
+        text_lines = text.split("\n")
+        text_lines = [line for line in text_lines if not line.strip().startswith("```")]
+        text = "\n".join(text_lines).strip()
 
-    # Try to extract JSON from the response
-    # Sometimes models wrap JSON in extra text
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1:
+    # Extract JSON object from potentially wrapped text
+    json_start = text.find("{")
+    json_end = text.rfind("}")
+    if json_start == -1 or json_end == -1:
         logger.warning("No JSON object found in response: %s", text[:200])
         return None
 
     try:
-        data = json.loads(text[start : end + 1])
+        data = json.loads(text[json_start : json_end + 1])
     except json.JSONDecodeError:
         logger.warning("Failed to parse extraction response: %s", text[:200])
         return None
@@ -137,85 +145,17 @@ def parse_extraction_response(response: str) -> dict | None:
     }
 
 
-def _validate_source_index(result: dict, segments: list[Segment]) -> dict:
-    """Verify that mention_source_index actually contains raw_mention."""
-    source_idx = result.get("mention_source_index")
-    raw = result.get("raw_mention")
-    if source_idx is None or raw is None:
-        return result
-
-    # Find the source segment
-    source_seg = next((s for s in segments if s.index == source_idx), None)
-    if source_seg is None:
-        result["_source_valid"] = False
-        return result
-
-    if raw.lower() in source_seg.text.lower():
-        result["_source_valid"] = True
-    else:
-        result["_source_valid"] = False
-        logger.debug(
-            "Source index %d does not contain '%s': %s",
-            source_idx,
-            raw,
-            source_seg.text[:80],
-        )
-
-    return result
-
-
-def extract_mention(
+def _enrich_result(
+    parsed: dict,
     dialogue_index: int,
     segments: list[Segment],
-    context_before: int = 5,
-    context_after: int = 5,
-    pov_character: str | None = None,
-    model: str = "gemma4:26b",
-    prompt_version: str = "v1",
-    previous_attributions: list[dict] | None = None,
+    model: str,
 ) -> dict:
-    """Extract speaker mention for a single dialogue segment.
+    """Add derived fields and validate the raw LLM result.
 
-    Args:
-        dialogue_index: The segment index of the target dialogue.
-        segments: All segments in the chapter.
-        context_before: Number of segments before the dialogue for context.
-        context_after: Number of segments after the dialogue for context.
-        pov_character: Name of the first-person narrator for this segment.
-        model: Ollama model tag.
-        prompt_version: Prompt template version (e.g. "v1").
-        previous_attributions: Recent attributions for conversational context.
-            Each dict has keys: index, text, speaker.
-
-    Returns:
-        Dict with keys: index, raw_mention, resolved_mention,
-        mention_source_index, mention_position, mention_type,
-        reasoning, model, _source_valid.
+    Adds: index, mention_position, model, _source_valid.
+    Overrides mention_type with deterministic classification.
     """
-    system_prompt = load_prompt_template(prompt_version).format(
-        pov_character=pov_character or "unknown narrator"
-    )
-    user_prompt = _build_user_prompt(
-        dialogue_index,
-        segments,
-        context_before,
-        context_after,
-        pov_character,
-        previous_attributions,
-    )
-
-    raw_response = _call_llm(system_prompt, user_prompt, model)
-    parsed = parse_extraction_response(raw_response)
-
-    if parsed is None:
-        parsed = {
-            "raw_mention": None,
-            "resolved_mention": None,
-            "mention_source_index": None,
-            "mention_type": "none",
-            "reasoning": "Failed to parse LLM response",
-        }
-
     # Override mention_type with our deterministic classification
     parsed["mention_type"] = classify_mention_type(parsed.get("raw_mention"))
 
@@ -230,35 +170,71 @@ def extract_mention(
     parsed["index"] = dialogue_index
     parsed["model"] = model
 
-    # Validate source index
-    parsed = _validate_source_index(parsed, segments)
+    # Validate that mention_source_index actually contains raw_mention
+    raw = parsed.get("raw_mention")
+    if source_idx is not None and raw is not None:
+        source_seg = next((s for s in segments if s.index == source_idx), None)
+        if source_seg and raw.lower() in source_seg.text.lower():
+            parsed["_source_valid"] = True
+        else:
+            parsed["_source_valid"] = False
+            if source_seg:
+                logger.debug(
+                    "Source index %d does not contain '%s': %s",
+                    source_idx,
+                    raw,
+                    source_seg.text[:80],
+                )
 
     return parsed
 
 
+_EMPTY_RESULT = {
+    "raw_mention": None,
+    "resolved_mention": None,
+    "mention_source_index": None,
+    "mention_type": "none",
+    "reasoning": "Failed to parse LLM response",
+}
+
+
+def extract_mention(
+    dialogue_index: int,
+    segments: list[Segment],
+    config: ExtractionConfig,
+    previous_attributions: list[dict] | None = None,
+) -> dict:
+    """Extract speaker mention for a single dialogue segment.
+
+    Args:
+        dialogue_index: The segment index of the target dialogue.
+        segments: All segments in the chapter.
+        config: Extraction configuration.
+        previous_attributions: Recent attributions for conversational context.
+
+    Returns:
+        Enriched dict with index, raw_mention, resolved_mention,
+        mention_source_index, mention_position, mention_type,
+        reasoning, model, _source_valid.
+    """
+    user_prompt = _build_user_prompt(dialogue_index, segments, config, previous_attributions)
+    raw_response = call_llm(config.system_prompt, user_prompt, config.model)
+    parsed = parse_extraction_response(raw_response) or dict(_EMPTY_RESULT)
+
+    return _enrich_result(parsed, dialogue_index, segments, config.model)
+
+
 def extract_chapter_mentions(
     chapter: Chapter,
-    model: str = "gemma4:26b",
-    context_before: int = 5,
-    context_after: int = 5,
-    prompt_version: str = "v1",
-    pov_character: str | None = None,
+    config: ExtractionConfig,
     batch_range: tuple[int, int] | None = None,
-    use_rolling_context: bool = False,
-    rolling_context_size: int = 5,
 ) -> list[dict]:
     """Run mention extraction on all (or a batch of) dialogues in a chapter.
 
     Args:
         chapter: Parsed chapter with segments.
-        model: Ollama model tag.
-        context_before: Segments before the dialogue for context.
-        context_after: Segments after the dialogue for context.
-        prompt_version: Prompt template version.
-        pov_character: Override POV character (uses chapter.pov_character if None).
+        config: Extraction configuration.
         batch_range: Optional (start, end) slice into dialogue indices.
-        use_rolling_context: Pass recent attributions to each LLM call.
-        rolling_context_size: Number of recent attributions to include.
 
     Returns:
         List of extraction dicts, one per dialogue segment.
@@ -272,16 +248,14 @@ def extract_chapter_mentions(
         start, end = batch_range
         dialogue_positions = dialogue_positions[start:end]
 
-    resolved_pov = pov_character or chapter.pov_character
-
     logger.info(
         "Extracting mentions: %d dialogues, model=%s, prompt=%s, context=-%d/+%d, rolling=%s",
         len(dialogue_positions),
-        model,
-        prompt_version,
-        context_before,
-        context_after,
-        use_rolling_context,
+        config.model,
+        config.prompt_version,
+        config.context_before,
+        config.context_after,
+        config.use_rolling_context,
     )
 
     results = []
@@ -292,17 +266,13 @@ def extract_chapter_mentions(
         result = extract_mention(
             dialogue_index=seg.index,
             segments=segments,
-            context_before=context_before,
-            context_after=context_after,
-            pov_character=resolved_pov,
-            model=model,
-            prompt_version=prompt_version,
-            previous_attributions=previous_attributions if use_rolling_context else None,
+            config=config,
+            previous_attributions=previous_attributions if config.use_rolling_context else None,
         )
         results.append(result)
 
         # Update rolling context
-        if use_rolling_context:
+        if config.use_rolling_context:
             resolved = result.get("resolved_mention")
             if resolved:
                 previous_attributions.append(
@@ -312,7 +282,7 @@ def extract_chapter_mentions(
                         "speaker": resolved,
                     }
                 )
-                previous_attributions = previous_attributions[-rolling_context_size:]
+                previous_attributions = previous_attributions[-config.rolling_context_size :]
 
         if (count + 1) % 25 == 0:
             logger.info("Progress: %d/%d", count + 1, len(dialogue_positions))

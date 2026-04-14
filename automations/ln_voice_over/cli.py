@@ -139,73 +139,6 @@ def parse(book_slug: str) -> None:
 
 
 @app.command()
-def attribute(
-    book_slug: str,
-    chapter: int | None = typer.Option(None, help="Process only this chapter number."),
-    per_dialogue: bool = typer.Option(
-        False,
-        "--per-dialogue",
-        help="Attribute each dialogue individually (slower, more accurate).",
-    ),
-    context_size: int = typer.Option(
-        2,
-        "--context-size",
-        help="Segments before/after each dialogue for context (per-dialogue mode).",
-    ),
-) -> None:
-    """Stage 4: Attribute dialogue speakers via LLM.
-
-    Reads from parsed/ + config/characters.json, writes to attributed/.
-    """
-    import logging
-
-    from .attribute import attribute_chapter, attribute_chapter_per_dialogue
-    from .serialization import load_chapter, load_registry, save_chapter
-
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    root = PROJECTS_DIR / book_slug
-    parsed_dir = root / "parsed"
-    output_dir = root / "attributed"
-    registry_path = root / "config" / "characters.json"
-
-    if not registry_path.exists():
-        typer.echo(f"No character registry at {registry_path}. Run 'init' first.")
-        raise typer.Exit(1)
-
-    registry = load_registry(registry_path)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Determine which chapters to process
-    if chapter is not None:
-        files = [parsed_dir / f"chapter_{chapter:02d}.json"]
-        if not files[0].exists():
-            typer.echo(f"Chapter {chapter} not found at {files[0]}")
-            raise typer.Exit(1)
-    else:
-        files = sorted(parsed_dir.glob("chapter_*.json"))
-
-    if not files:
-        typer.echo(f"No parsed chapters in {parsed_dir}")
-        raise typer.Exit(1)
-
-    count = 0
-    for path in files:
-        parsed = load_chapter(path)
-        typer.echo(f"Attributing {path.name} ({len(parsed.segments)} segments)...")
-        if per_dialogue:
-            attributed = attribute_chapter_per_dialogue(
-                parsed, registry, context_size=context_size
-            )
-        else:
-            attributed = attribute_chapter(parsed, registry)
-        save_chapter(attributed, output_dir / path.name)
-        count += 1
-
-    typer.echo(f"Attributed {count} chapter(s) → {output_dir}")
-
-
-@app.command()
 def review(
     book_slug: str,
     chapter: int | None = typer.Option(None, help="Review only this chapter."),
@@ -254,20 +187,24 @@ def extract(
     import logging
 
     from .experiments.runner import run_extraction_experiment
+    from .extraction import ExtractionConfig
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    exp_dir = run_extraction_experiment(
-        book_slug=book_slug,
-        chapter_num=chapter,
+    config = ExtractionConfig(
         model=model,
         prompt_version=prompt_version,
         context_before=context_before,
         context_after=context_after,
-        batch_start=batch_start,
-        batch_size=batch_size,
         pov_character=pov_character,
         use_rolling_context=rolling_context,
+    )
+    exp_dir = run_extraction_experiment(
+        book_slug=book_slug,
+        chapter_num=chapter,
+        config=config,
+        batch_start=batch_start,
+        batch_size=batch_size,
     )
     typer.echo(f"Experiment saved → {exp_dir}")
 
