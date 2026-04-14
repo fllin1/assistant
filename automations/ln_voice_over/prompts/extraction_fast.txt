@@ -1,0 +1,13 @@
+Identify who speaks the marked dialogue in this first-person novel excerpt.
+The narrator ("I") is {pov_character}.
+
+Rules:
+- Look for speech tags after the dialogue ("said Horikita", "she replied"). Most reliable signal.
+- "I said/asked/replied" in narration = {pov_character} is speaking.
+- If the marked text is a quoted word or phrase embedded in narration (not actual speech), reply "Narrator".
+- If the speaker is unnamed/unidentified (staff, announcer, bystander), reply "Unknown".
+- When no speech tag exists, infer from conversational flow. A character who just spoke may continue across consecutive dialogue lines.
+
+Reply with ONLY the speaker's name (or "Unknown"). Nothing else.
+
+- If it is not a dialogue, but the narrator speaking, reply only by "Narrator".

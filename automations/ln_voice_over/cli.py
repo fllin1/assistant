@@ -16,6 +16,8 @@ Usage:
 
 from __future__ import annotations
 
+import typing
+
 import typer
 
 from .config import PROJECTS_DIR
@@ -138,6 +140,160 @@ def parse(book_slug: str) -> None:
     typer.echo(f"Parsed {count} chapter(s) → {output_dir}")
 
 
+@app.command(name="extract")
+def extract(
+    book_slug: str,
+    chapter: int = typer.Option(..., help="Chapter number to process."),
+    model: str = typer.Option("gemma4:26b", help="Model (Ollama or OpenRouter)."),
+    prompt_version: str = typer.Option("v1", "--prompt-version", help="Prompt template version."),
+    context_before: int = typer.Option(10, "--context-before", help="Segments before dialogue."),
+    context_after: int = typer.Option(5, "--context-after", help="Segments after dialogue."),
+    batch_start: int = typer.Option(0, "--batch-start", help="Start index in dialogue list."),
+    batch_size: int = typer.Option(100, "--batch-size", help="Number of dialogues per batch."),
+    pov_character: str | None = typer.Option(None, "--pov", help="Override POV character name."),
+    rolling_context: bool = typer.Option(
+        True, "--rolling-context", help="Pass recent attributions as context."
+    ),
+    fast: bool = typer.Option(
+        True, "--fast", help="Fast mode: lean prompt, returns only speaker name."
+    ),
+) -> None:
+    """Run Step 1: speaker mention extraction experiment.
+
+    Extracts who speaks each dialogue using LLM analysis of narration context.
+    Results saved to experiments/extraction/<run_id>/.
+    """
+    import logging
+
+    from .experiments.runner import run_extraction_experiment
+    from .extraction import ExtractionConfig
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    config = ExtractionConfig(
+        model=model,
+        prompt_version=prompt_version,
+        context_before=context_before,
+        context_after=context_after,
+        pov_character=pov_character,
+        use_rolling_context=rolling_context,
+        fast=fast,
+    )
+    exp_dir = run_extraction_experiment(
+        book_slug=book_slug,
+        chapter_num=chapter,
+        config=config,
+        batch_start=batch_start,
+        batch_size=batch_size,
+    )
+    typer.echo(f"Experiment saved → {exp_dir}")
+
+
+@app.command(name="resolve")
+def resolve(
+    book_slug: str,
+    chapter: int = typer.Option(..., help="Chapter number to resolve."),
+    source: typing.Annotated[
+        list[str],
+        typer.Option(
+            "--source", help="Source filenames in extracted/chapter_NN/ (without .json)."
+        ),
+    ] = ...,
+) -> None:
+    """Resolve raw speaker names to canonical character names.
+
+    Loads extraction results from extracted/chapter_NN/, resolves names
+    against the character registry, and writes attributed chapter + flags.
+    """
+    import json
+    import logging
+
+    from .resolution import cross_validate, load_extracted, resolve_chapter
+    from .serialization import load_chapter, load_registry, save_chapter
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    root = PROJECTS_DIR / book_slug
+    parsed_path = root / "parsed" / f"chapter_{chapter:02d}.json"
+    extracted_dir = root / "extracted" / f"chapter_{chapter:02d}"
+    registry_path = root / "config" / "characters.json"
+    output_dir = root / "attributed"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not parsed_path.exists():
+        typer.echo(f"Parsed chapter not found: {parsed_path}")
+        raise typer.Exit(1)
+    if not registry_path.exists():
+        typer.echo(f"Character registry not found: {registry_path}")
+        raise typer.Exit(1)
+
+    ch = load_chapter(parsed_path)
+    registry = load_registry(registry_path)
+
+    # Load sources
+    sources: dict[str, dict[str, str]] = {}
+    for s in source:
+        path = extracted_dir / f"{s}.json"
+        if not path.exists():
+            typer.echo(f"Source not found: {path}")
+            raise typer.Exit(1)
+        sources[s] = load_extracted(path)
+        typer.echo(f"Loaded {s}: {len(sources[s])} entries")
+
+    # Cross-validate if multiple sources, otherwise use single source directly
+    if len(sources) > 1:
+        attributions, divergences = cross_validate(sources, registry)
+        typer.echo(f"Cross-validation: {len(divergences)} flags")
+    else:
+        attributions = next(iter(sources.values()))
+        divergences = []
+
+    # Resolve names to canonical
+    attributed, flags = resolve_chapter(ch, attributions, registry)
+    flags.extend(divergences)
+
+    # Save
+    out_path = output_dir / f"chapter_{chapter:02d}.json"
+    save_chapter(attributed, out_path)
+    typer.echo(f"Attributed chapter → {out_path}")
+
+    if flags:
+        flags_path = output_dir / f"chapter_{chapter:02d}_flags.json"
+        flags_path.write_text(
+            json.dumps(flags, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        typer.echo(f"{len(flags)} flags → {flags_path}")
+    else:
+        typer.echo("No flags — all attributions resolved cleanly.")
+
+
+# TODO: The resolve feature will replace the compare feature. Shall be removed once
+# the resolve feature is added, along its respective modules.
+@app.command(name="compare")
+def compare(
+    book_slug: str,
+    experiment_id: str = typer.Argument(..., help="Experiment directory name."),
+) -> None:
+    """Compare extraction experiment results against ground truth."""
+    from .config import PROJECTS_DIR
+    from .experiments.compare import compare_to_ground_truth, format_comparison_report
+
+    root = PROJECTS_DIR / book_slug
+    exp_dir = root / "experiments" / "extraction" / experiment_id
+    gt_path = root / "ground_truth_chapter_02.json"
+    registry_path = root / "config" / "characters.json"
+
+    if not exp_dir.exists():
+        typer.echo(f"Experiment not found: {exp_dir}")
+        raise typer.Exit(1)
+    if not gt_path.exists():
+        typer.echo(f"Ground truth not found: {gt_path}")
+        raise typer.Exit(1)
+
+    comparison = compare_to_ground_truth(exp_dir, gt_path, registry_path)
+    typer.echo(format_comparison_report(comparison))
+
+
 @app.command()
 def review(
     book_slug: str,
@@ -162,76 +318,6 @@ def synthesize(
     Reads from reviewed/ + config/voices.json, writes to audio/.
     """
     ...
-
-
-@app.command(name="extract")
-def extract(
-    book_slug: str,
-    chapter: int = typer.Option(..., help="Chapter number to process."),
-    model: str = typer.Option("gemma4:26b", help="Ollama model tag."),
-    prompt_version: str = typer.Option("v1", "--prompt-version", help="Prompt template version."),
-    context_before: int = typer.Option(5, "--context-before", help="Segments before dialogue."),
-    context_after: int = typer.Option(5, "--context-after", help="Segments after dialogue."),
-    batch_start: int = typer.Option(0, "--batch-start", help="Start index in dialogue list."),
-    batch_size: int = typer.Option(100, "--batch-size", help="Number of dialogues per batch."),
-    pov_character: str | None = typer.Option(None, "--pov", help="Override POV character name."),
-    rolling_context: bool = typer.Option(
-        False, "--rolling-context", help="Pass recent attributions as context."
-    ),
-) -> None:
-    """Run Step 1: speaker mention extraction experiment.
-
-    Extracts who speaks each dialogue using LLM analysis of narration context.
-    Results saved to experiments/extraction/<run_id>/.
-    """
-    import logging
-
-    from .experiments.runner import run_extraction_experiment
-    from .extraction import ExtractionConfig
-
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    config = ExtractionConfig(
-        model=model,
-        prompt_version=prompt_version,
-        context_before=context_before,
-        context_after=context_after,
-        pov_character=pov_character,
-        use_rolling_context=rolling_context,
-    )
-    exp_dir = run_extraction_experiment(
-        book_slug=book_slug,
-        chapter_num=chapter,
-        config=config,
-        batch_start=batch_start,
-        batch_size=batch_size,
-    )
-    typer.echo(f"Experiment saved → {exp_dir}")
-
-
-@app.command(name="compare")
-def compare(
-    book_slug: str,
-    experiment_id: str = typer.Argument(..., help="Experiment directory name."),
-) -> None:
-    """Compare extraction experiment results against ground truth."""
-    from .config import PROJECTS_DIR
-    from .experiments.compare import compare_to_ground_truth, format_comparison_report
-
-    root = PROJECTS_DIR / book_slug
-    exp_dir = root / "experiments" / "extraction" / experiment_id
-    gt_path = root / "ground_truth_chapter_02.json"
-    registry_path = root / "config" / "characters.json"
-
-    if not exp_dir.exists():
-        typer.echo(f"Experiment not found: {exp_dir}")
-        raise typer.Exit(1)
-    if not gt_path.exists():
-        typer.echo(f"Ground truth not found: {gt_path}")
-        raise typer.Exit(1)
-
-    comparison = compare_to_ground_truth(exp_dir, gt_path, registry_path)
-    typer.echo(format_comparison_report(comparison))
 
 
 @app.command(name="run-all")

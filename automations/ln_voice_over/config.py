@@ -98,6 +98,19 @@ MAX_SEGMENT_CHARS = 500
 # ---------------------------------------------------------------------------
 
 DEFAULT_LLM_MODEL = "gemma4:26b"
+
+# Model registry: short alias → (provider, model_id)
+# Provider is "ollama" (local) or "openrouter" (cloud via OpenAI-compatible API).
+# Use the alias as --model in CLI commands.
+MODEL_REGISTRY: dict[str, tuple[str, str]] = {
+    "gemma4:26b": ("ollama", "gemma4:26b"),
+    "gemma4:12b": ("ollama", "gemma4:12b"),
+    "gemini-flash-lite": ("openrouter", "google/gemini-3.1-flash-lite-preview"),
+    "gemini-flash": ("openrouter", "google/gemini-3-flash-preview"),
+    "grok-fast": ("openrouter", "x-ai/grok-4.1-fast"),
+}
+"""Model alias → (provider, model_id). Provider is "ollama" or "openrouter"."""
+
 ATTRIBUTION_WINDOW_SIZE = 10
 ATTRIBUTION_WINDOW_OVERLAP = 3
 ATTRIBUTION_CONFIDENCE_THRESHOLD = 0.7

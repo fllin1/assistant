@@ -1,0 +1,29 @@
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "attribution",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "properties": {
+        "attributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": { "type": "string", "description": "Segment index" },
+              "speaker": {
+                "type": "string",
+                "description": "Speaker name, or 'I' for the POV character"
+              }
+            },
+            "required": ["index", "speaker"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["attributions"],
+      "additionalProperties": false
+    }
+  }
+}

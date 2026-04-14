@@ -1,0 +1,7 @@
+Read this chapter from a light novel. Identify who narrates in first person ("I").
+
+Rules:
+- The narrator uses "I" and refers to other characters by name in third person.
+- If the narrator says "Ayanokouji-kun", the narrator is NOT Ayanokouji.
+- There may be a POV shift mid-chapter (different narrator takes over).
+- If there is no mid-chapter POV shift, set pov_ranges to null.
