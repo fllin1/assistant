@@ -126,14 +126,18 @@ class CharacterRegistry:
             if exact:
                 return exact
 
-        # Component match: "Kiriyama" matches "Kiriyama Ikuto"
-        lower = stripped.lower()
-        for character in self.characters:
-            if lower in character.name.lower().split():
-                return character
-            for alias in character.aliases:
-                if lower in alias.lower().split():
+        # Component match: "Kiriyama" matches "Kiriyama Ikuto",
+        # "Ike Kakeru" matches "Ike Kanji" via shared surname "Ike"
+        input_parts = stripped.lower().split()
+        for part in input_parts:
+            if len(part) < 2:
+                continue
+            for character in self.characters:
+                if part in character.name.lower().split():
                     return character
+                for alias in character.aliases:
+                    if part in alias.lower().split():
+                        return character
 
         # Fuzzy match against all canonical names and aliases
         all_names: dict[str, Character] = {}
