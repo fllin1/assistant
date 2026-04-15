@@ -1,12 +1,9 @@
-"""Stage 5: REVIEW — Manual correction of speaker attributions.
+"""Stage 5: REVIEW — Correction of speaker attributions.
 
-Provides tools for the user to inspect LLM-attributed segments and fix
-mistakes before TTS synthesis. Two modes:
-
-1. CLI interactive: prints segments with color-coded attributions,
-   highlights low-confidence items, prompts for corrections.
-2. Direct file editing: attributed JSON is human-readable and can be
-   edited in any text editor, then copied to reviewed/.
+Provides tools for inspecting LLM-attributed segments and fixing
+mistakes before TTS synthesis. The primary interface is the
+/review-chapter Claude skill, which reads context and resolves
+divergences. This module supports the CLI path and programmatic use.
 
 This stage is deliberately separate from attribution so corrections
 persist independently of re-runs.
@@ -15,15 +12,12 @@ persist independently of re-runs.
 from __future__ import annotations
 
 from dataclasses import replace
-from pathlib import Path
 
-from .models import Chapter, Segment
+from .models import Chapter, Segment, SegmentType
 
 
-def get_low_confidence_segments(
-    chapter: Chapter, threshold: float = 0.7
-) -> list[Segment]:
-    """Return segments with confidence below the threshold.
+def get_low_confidence_segments(chapter: Chapter, threshold: float = 0.7) -> list[Segment]:
+    """Return dialogue segments with confidence below the threshold.
 
     Args:
         chapter: Attributed chapter.
@@ -32,57 +26,34 @@ def get_low_confidence_segments(
     Returns:
         List of Segments needing review, sorted by index.
     """
-    ...
+    return sorted(
+        [
+            s
+            for s in chapter.segments
+            if s.segment_type == SegmentType.DIALOGUE
+            and s.confidence is not None
+            and s.confidence < threshold
+        ],
+        key=lambda s: s.index,
+    )
 
 
-def apply_correction(
-    chapter: Chapter, segment_index: int, new_speaker: str
-) -> Chapter:
+def apply_correction(chapter: Chapter, segment_index: int, new_speaker: str) -> Chapter:
     """Create a new Chapter with one segment's speaker corrected.
 
     Sets the corrected segment's confidence to 1.0 (human-verified).
-
-    Args:
-        chapter: The chapter to correct.
-        segment_index: Index of the segment to fix.
-        new_speaker: Corrected speaker name.
-
-    Returns:
-        New Chapter with the correction applied.
     """
-    ...
+    new_segments = []
+    for seg in chapter.segments:
+        if seg.index == segment_index:
+            new_segments.append(
+                replace(seg, speaker=new_speaker, confidence=1.0, attribution_method="reviewed")
+            )
+        else:
+            new_segments.append(seg)
+    return replace(chapter, segments=tuple(new_segments))
 
 
 def approve_chapter(chapter: Chapter) -> Chapter:
-    """Mark a chapter as reviewed without changes.
-
-    Sets reviewed=True on the chapter.
-
-    Args:
-        chapter: Attributed chapter to approve.
-
-    Returns:
-        New Chapter with reviewed=True.
-    """
-    ...
-
-
-def display_segments_for_review(
-    chapter: Chapter,
-    only_low_confidence: bool = False,
-    threshold: float = 0.7,
-) -> None:
-    """Print chapter segments with color-coded attributions.
-
-    Uses rich for colored output:
-    - Narration in dim/gray
-    - Dialogue in white with speaker name colored
-    - Low-confidence segments highlighted in yellow
-    - Scene breaks as horizontal rules
-
-    Args:
-        chapter: Chapter to display.
-        only_low_confidence: If True, show only flagged segments.
-        threshold: Confidence threshold for highlighting.
-    """
-    ...
+    """Mark a chapter as reviewed without changes."""
+    return replace(chapter, reviewed=True)
