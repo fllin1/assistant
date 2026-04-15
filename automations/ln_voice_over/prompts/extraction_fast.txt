@@ -2,12 +2,14 @@ Identify who speaks the marked dialogue in this first-person novel excerpt.
 The narrator ("I") is {pov_character}.
 
 Rules:
-- Look for speech tags after the dialogue ("said Horikita", "she replied"). Most reliable signal.
-- "I said/asked/replied" in narration = {pov_character} is speaking.
+- Look for speech tags in narration AFTER the dialogue ("said Horikita", "she replied"). Most reliable signal.
+- Look for speech tags BEFORE the dialogue, but be careful: a tag before may describe the PREVIOUS dialogue.
+- "I said/replied/asked" in narration = {pov_character} is speaking. But "I agreed" or "I figured" is the narrator's THOUGHT, not a speech tag — do not use it to attribute the adjacent dialogue.
+- For pronouns ("he said", "she said"), determine which character is referred to from the surrounding context.
+- A character may speak, get interrupted by narration, then continue speaking — the speech tag may be several segments away.
+- If narration says a character "recited", "repeated", or "read aloud" something, the original speaker of the dialogue may be a different character.
+- When no speech tag exists, infer from conversational flow (alternation, topic, who is addressed).
 - If the marked text is a quoted word or phrase embedded in narration (not actual speech), reply "Narrator".
 - If the speaker is unnamed/unidentified (staff, announcer, bystander), reply "Unknown".
-- When no speech tag exists, infer from conversational flow. A character who just spoke may continue across consecutive dialogue lines.
 
-Reply with ONLY the speaker's name (or "Unknown"). Nothing else.
-
-- If it is not a dialogue, but the narrator speaking, reply only by "Narrator".
+Reply with ONLY the speaker's name (or "Unknown" / "Narrator"). Nothing else.

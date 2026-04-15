@@ -5,74 +5,127 @@ Converts raw light novel text files into multi-voice audiobooks. The pipeline sp
 ## Pipeline
 
 ```
-SPLIT → CLEAN → PARSE → ATTRIBUTE → REVIEW → SYNTHESIZE
+SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
 ```
 
 Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under `~/.assistant/ln_voice_over/projects/<book-slug>/`.
 
-| Stage | What it does |
-|-------|-------------|
-| **Split** | Detect chapter boundaries and split a volume `.txt` into individual chapter files |
-| **Clean** | Remove watermarks, page numbers, collapse excessive blank lines |
-| **Parse** | Segment text into typed blocks: narration, dialogue, inner thought, scene break, chapter header |
-| **Attribute** | Assign speakers to dialogue segments (see Attribution Pipeline below) |
-| **Review** | Interactive CLI for reviewing and correcting speaker attributions |
-| **Synthesize** | TTS synthesis per segment with per-character voices, then assemble into chapter audio files |
+| Stage | What it does | Output directory |
+|-------|-------------|-----------------|
+| **Split** | Detect chapter boundaries, split volume `.txt` into chapters | `chapters/` |
+| **Clean** | Remove watermarks, page numbers, collapse blank lines | `cleaned/` |
+| **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `parsed/` |
+| **Extract** | LLM-based speaker attribution per dialogue segment | `extracted/` |
+| **Resolve** | Cross-validate sources, resolve names via character registry | `attributed/` |
+| **Review** | Review and correct flagged attributions | `reviewed/` |
+| **Synthesize** | TTS per segment with per-character voices, assemble audio | `audio/` |
 
-## Attribution Pipeline
-
-Speaker attribution uses per-dialogue LLM extraction with configurable models.
-
-**Extraction** (`extraction.py`): For each dialogue, an LLM analyzes surrounding narration to find speech tags ("said Horikita", "she replied", "I asked") and determine who is speaking. Supports configurable context windows, rolling context from previous attributions, and batch processing.
-
-**Models**: Both local (Ollama) and cloud (OpenRouter) models are supported. The model registry in `config.py` maps short aliases to providers:
-
-| Alias | Provider | Accuracy (ch2) |
-|-------|----------|-----------------|
-| `gemini-flash` | OpenRouter | 100% |
-| `gemini-flash-lite` | OpenRouter | — |
-| `gemma4:26b` | Ollama | — |
-
-**Modes**: Verbose mode (default) returns JSON with reasoning and debug metadata. Fast mode (`--fast`) uses a lean prompt that returns only the speaker name — fewer tokens, faster, cheaper.
-
-An experiment framework supports iterative prompt development: versioned prompts, batch processing, and ground truth comparison.
-
-## CLI Commands
+## Quick Start
 
 ```bash
-# Project setup
-lnvo init                          # create a new project
-lnvo list-books                    # list existing projects
+# 1. Create project and place your .txt volume in raw/
+lnvo init
 
-# Run pipeline stages
-lnvo split <book-slug>             # stage 1: volume → chapters
-lnvo clean <book-slug>             # stage 2: remove artifacts
-lnvo parse <book-slug>             # stage 3: text → typed segments
-lnvo attribute <book-slug>         # stage 4: legacy attribution (windowed)
-lnvo attribute <book-slug> --per-dialogue --context-size 5  # per-dialogue mode
+# 2. Split, clean, parse
+lnvo split classroom-of-the-elite-year-2
+lnvo clean classroom-of-the-elite-year-2
+lnvo parse classroom-of-the-elite-year-2
 
-# Extraction experiments
-lnvo extract <book-slug> --chapter 2 --model gemini-flash --pov "Name"
-lnvo extract <book-slug> --chapter 2 --model gemini-flash --fast --rolling-context
-lnvo extract <book-slug> --chapter 2 --model gemma4:26b --prompt-version v2
-lnvo extract <book-slug> --chapter 2 --batch-start 100 --batch-size 100
-lnvo compare <book-slug> <experiment-id>   # compare against ground truth
+# 3. Extract speakers (two independent sources for cross-validation)
+# Source A: Gemini Flash via OpenRouter (all chapters, sequential)
+python -m automations.ln_voice_over.scripts.run_all_extractions \
+    --model gemini-flash --no-resolve
 
-# Review and synthesis
-lnvo review <book-slug>            # stage 5: interactive review
-lnvo synthesize <book-slug>        # stage 6: TTS + audio assembly
+# Source B: Claude Sonnet via /attribute-chapter skill (per chapter)
+/attribute-chapter classroom-of-the-elite-year-2 2
 
-# Full pipeline
-lnvo run-all <book-slug>
+# 4. Resolve: cross-validate sources and map to canonical names
+python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
+
+# 5. Review divergences (next step — Claude skill, not yet implemented)
+# 6. Synthesize audio (not yet implemented)
 ```
 
-## Getting Started
+## Extraction
 
-1. Run `lnvo init` to create a project (e.g., "classroom-of-the-elite-year-2").
-2. Place your `.txt` volume file in `~/.assistant/ln_voice_over/projects/<slug>/raw/`.
-3. Edit `config/characters.json` with the book's characters (names, aliases, gender).
-4. Set `pov_character` in `chapters/manifest.json` after splitting.
-5. Run the pipeline stage by stage, or use `lnvo run-all <slug>`.
+Speaker extraction determines who speaks each dialogue segment by analyzing surrounding narration for speech tags, pronouns, and conversational flow.
+
+### Two Extraction Methods
+
+**CLI extraction** (`lnvo extract`) — runs a local or cloud LLM per-dialogue with a configurable context window:
+
+```bash
+# Gemini Flash (cloud, via OpenRouter)
+lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+    --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
+
+# Verbose mode (adds reasoning for debugging)
+lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+    --model gemini-flash --pov "Ayanokouji Kiyotaka" --verbose
+```
+
+**Claude Sonnet skill** (`/attribute-chapter`) — spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap. Faster for large chapters:
+
+```
+/attribute-chapter classroom-of-the-elite-year-2 5
+```
+
+Both methods produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
+
+### Batch Extraction
+
+Run all chapters with a given model:
+
+```bash
+# All chapters with Gemini Flash
+python -m automations.ln_voice_over.scripts.run_all_extractions --model gemini-flash
+
+# Specific chapters
+python -m automations.ln_voice_over.scripts.run_all_extractions \
+    --model gemini-flash --chapters 1,3,5
+
+# Skip extraction, just resolve + diagnose
+python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
+```
+
+## Resolution
+
+The resolve step cross-validates multiple extraction sources and maps raw speaker names to canonical character names from the registry.
+
+```bash
+# Resolve a single chapter with specific sources
+lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
+    --source gemini-flash_fast_20260414 \
+    --source claude-sonnet_skill_20260415
+
+# Resolve all chapters (uses all available sources per chapter)
+python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
+```
+
+### Cross-Validation Behavior
+
+When two sources are available:
+- **Both agree** (after canonical name resolution) → consensus, no flag
+- **One says "Unknown", other finds a registry name** → prefer the named attribution
+- **Both say "Unknown"** → confirmed unknown (no flag — genuinely unnamed speaker)
+- **Sources disagree** → flagged as divergence, majority wins
+
+### Flags
+
+The resolve step writes a `_flags.json` file alongside each attributed chapter:
+
+| Flag type | Meaning |
+|-----------|---------|
+| `divergence` | Sources disagreed on the speaker |
+| `unknown` | Single-source Unknown (not confirmed by second source) |
+| `unresolved` | Name not found in character registry |
+| `missing` | No source had an attribution for this dialogue |
+
+## Review
+
+> **Note:** The review step will be handled by a Claude skill (`/review-chapter` or similar) that reads the attributed chapter + flags, examines the surrounding narration context, and resolves the remaining divergences. This is the next feature to implement.
+
+The review step takes the attributed chapters (with flags) and produces final reviewed chapters. The flags file tells you exactly which segments need attention — typically 1-3% of all dialogues.
 
 ## Project Data Layout
 
@@ -80,30 +133,53 @@ lnvo run-all <book-slug>
 ~/.assistant/ln_voice_over/projects/<book-slug>/
 ├── config/
 │   ├── characters.json      # character registry (names, aliases, gender)
-│   └── voices.json          # voice mappings per character
+│   ├── voices.json          # voice mappings per character
+│   └── extractions/         # config sidecars for extraction runs
 ├── raw/                     # original volume .txt files
 ├── chapters/                # split chapter .txt files + manifest.json
 ├── cleaned/                 # cleaned chapter .txt files
 ├── parsed/                  # structural segments as JSON
-├── attributed/              # segments with speaker attribution as JSON
-├── reviewed/                # user-approved segments as JSON
-├── experiments/
-│   └── extraction/          # Step 1 experiment runs (config + results per batch)
-├── ground_truth_*.json      # manually verified attributions for evaluation
+├── extracted/
+│   └── chapter_NN/          # flat {index: speaker} JSONs per source
+│       ├── gemini-flash_fast_YYYYMMDD.json
+│       ├── gemini-flash_fast_YYYYMMDD_config.json
+│       └── claude-sonnet_skill_YYYYMMDD.json
+├── attributed/              # resolved chapters + flags
+│   ├── chapter_NN.json      # full chapter with speaker attributions
+│   └── chapter_NN_flags.json # divergences and issues to review
+├── reviewed/                # user-approved final attributions
 └── audio/
     ├── segments/            # cached per-segment audio files
-    └── chapters/            # final assembled chapter audio
+    └── chapters/            # assembled chapter audio
 ```
+
+## Character Registry
+
+The registry at `config/characters.json` maps character names and aliases for resolution:
+
+```json
+{
+  "characters": [
+    {
+      "name": "Horikita Suzune",
+      "aliases": ["Horikita", "Suzune"],
+      "gender": "female",
+      "role": "main"
+    }
+  ]
+}
+```
+
+Name matching is layered: exact match → alias match → honorific stripping (`-sensei`, `-kun`, etc.) → component match ("Kiriyama" matches "Kiriyama Ikuto") → fuzzy match (difflib).
 
 ## Dependencies
 
-- **ollama** — local LLM inference for speaker attribution
+- **typer** — CLI framework
 - **openai** — OpenRouter API client (OpenAI-compatible)
+- **ollama** — local LLM inference (optional)
 - **edge-tts** — TTS provider (free, async)
 - **pydub** — audio concatenation
-- **rich** — colored CLI review output
-- **typer** — CLI framework
-- **ffmpeg** — system dependency required by pydub for MP3
-- **ollama** — system dependency (local LLM server)
+- **rich** — colored CLI output
+- **ffmpeg** — system dependency for audio processing
 
 Cloud models require `OPENROUTER_API_KEY` environment variable.

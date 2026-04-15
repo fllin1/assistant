@@ -126,6 +126,15 @@ class CharacterRegistry:
             if exact:
                 return exact
 
+        # Component match: "Kiriyama" matches "Kiriyama Ikuto"
+        lower = stripped.lower()
+        for character in self.characters:
+            if lower in character.name.lower().split():
+                return character
+            for alias in character.aliases:
+                if lower in alias.lower().split():
+                    return character
+
         # Fuzzy match against all canonical names and aliases
         all_names: dict[str, Character] = {}
         for character in self.characters:

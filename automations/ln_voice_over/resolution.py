@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 
@@ -33,10 +34,7 @@ def load_extracted(path: Path) -> dict[str, str]:
 
 
 def _resolve_name(name: str, registry: CharacterRegistry) -> str | None:
-    """Resolve a raw name to a canonical character name.
-
-    Returns the canonical name or None if unresolved.
-    """
+    """Resolve a raw name to a canonical character name."""
     char = registry.find(name)
     if char:
         return char.name
@@ -52,19 +50,21 @@ def resolve_chapter(
     chapter: Chapter,
     attributions: dict[str, str],
     registry: CharacterRegistry,
+    confirmed_unknowns: set[str] | None = None,
 ) -> tuple[Chapter, list[dict]]:
     """Resolve raw attributions to canonical names and produce an attributed chapter.
 
     For each dialogue segment:
     - "Narrator" → reclassify as NARRATION, speaker = None
-    - "Unknown" → keep, flag for review
+    - "Unknown" → keep, flag only if not in confirmed_unknowns
     - Name → resolve via registry, flag if unresolved
     - Missing → flag as missing
 
-    Returns:
-        (attributed_chapter, flags) where flags is a list of dicts
-        describing unresolved/missing attributions.
+    Args:
+        confirmed_unknowns: Indices where multiple sources agreed on "Unknown".
+            These are genuinely unnamed characters and don't need review.
     """
+    confirmed = confirmed_unknowns or set()
     flags: list[dict] = []
     new_segments = []
 
@@ -85,9 +85,11 @@ def resolve_chapter(
             continue
 
         if raw == "Unknown":
-            flags.append(
-                {"index": seg.index, "type": "unknown", "raw": raw, "text": seg.text[:80]}
-            )
+            # Only flag if not confirmed by multiple sources
+            if str(seg.index) not in confirmed:
+                flags.append(
+                    {"index": seg.index, "type": "unknown", "raw": raw, "text": seg.text[:80]}
+                )
             new_segments.append(replace(seg, speaker="Unknown"))
             continue
 
@@ -107,17 +109,19 @@ def resolve_chapter(
 def cross_validate(
     sources: dict[str, dict[str, str]],
     registry: CharacterRegistry,
-) -> tuple[dict[str, str], list[dict]]:
+) -> tuple[dict[str, str], list[dict], set[str]]:
     """Cross-validate attributions from multiple sources.
 
     For each dialogue index:
     - All sources agree (after canonical resolution) → consensus
-    - Sources disagree → flag divergence
-    - Only one source has it → flag for review
+    - One says Unknown, other resolves to known character → prefer the name
+    - Sources disagree → flag divergence, pick majority
+    - Only one source has it → use it (no flag)
     - No source → flag as missing
 
     Returns:
-        (consensus_attributions, divergences)
+        (consensus_attributions, divergences, confirmed_unknowns)
+        confirmed_unknowns: indices where all sources agreed on "Unknown"
     """
     all_indices: set[str] = set()
     for source in sources.values():
@@ -125,6 +129,7 @@ def cross_validate(
 
     consensus: dict[str, str] = {}
     divergences: list[dict] = []
+    confirmed_unknowns: set[str] = set()
 
     for idx in sorted(all_indices, key=int):
         values: dict[str, str] = {}
@@ -139,9 +144,6 @@ def cross_validate(
         if len(values) == 1:
             source_name, raw = next(iter(values.items()))
             consensus[idx] = raw
-            divergences.append(
-                {"index": idx, "type": "single_source", "source": source_name, "value": raw}
-            )
             continue
 
         # Resolve all to canonical for comparison
@@ -154,19 +156,30 @@ def cross_validate(
                 resolved[source_name] = canonical or raw
 
         unique = set(resolved.values())
+
         if len(unique) == 1:
+            # All sources agree
             consensus[idx] = next(iter(values.values()))
-        else:
-            # Divergence — pick majority, or first source as tiebreaker
-            from collections import Counter
+            if next(iter(unique)) == "Unknown":
+                confirmed_unknowns.add(idx)
+            continue
 
-            counts = Counter(resolved.values())
-            winner = counts.most_common(1)[0][0]
-            # Find original raw value for the winner
-            for source_name, canon in resolved.items():
-                if canon == winner:
-                    consensus[idx] = values[source_name]
-                    break
-            divergences.append({"index": idx, "type": "divergence", "sources": dict(values)})
+        # One source says Unknown, another found a name — prefer the name if it resolves
+        if "Unknown" in unique and len(unique) == 2:
+            named = {s: r for s, r in resolved.items() if r != "Unknown"}
+            if named:
+                winner_source = next(iter(named))
+                if _resolve_name(values[winner_source], registry):
+                    consensus[idx] = values[winner_source]
+                    continue
 
-    return consensus, divergences
+        # Divergence — pick majority, or first source as tiebreaker
+        counts = Counter(resolved.values())
+        winner = counts.most_common(1)[0][0]
+        for source_name, canon in resolved.items():
+            if canon == winner:
+                consensus[idx] = values[source_name]
+                break
+        divergences.append({"index": idx, "type": "divergence", "sources": dict(values)})
+
+    return consensus, divergences, confirmed_unknowns
