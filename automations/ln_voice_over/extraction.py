@@ -1,12 +1,11 @@
 """Step 1: Speaker mention extraction from narration context.
 
 Extracts WHO is speaking each dialogue segment by analyzing surrounding
-narration for speech tags, pronouns, and conversational flow. Does NOT
-resolve mentions to canonical registry names — that's Step 2.
+narration for speech tags, pronouns, and conversational flow.
 
-Each dialogue gets an LLM call with configurable context window.
-The LLM returns the raw mention (name/pronoun/null), its best guess at
-the character, the narration source, and brief reasoning.
+Two modes:
+- Fast (default): LLM returns just a speaker name.
+- Verbose: LLM returns speaker + reasoning JSON, useful for debugging.
 """
 
 from __future__ import annotations
@@ -23,29 +22,12 @@ logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-# Pronouns for mention_type classification
-_PRONOUNS = {"he", "she", "they", "her", "him", "his"}
-_FIRST_PERSON = {"i", "me", "my"}
-
-_EMPTY_RESULT = {
-    "raw_mention": None,
-    "resolved_mention": None,
-    "mention_source_index": None,
-    "mention_type": "none",
-    "reasoning": "Failed to parse LLM response",
-}
-
 
 @dataclass(frozen=True)
 class ExtractionConfig:
-    """Configuration for a mention extraction run.
-
-    Bundles all experiment parameters so they're passed as a single
-    object instead of threaded through every function signature.
-    """
+    """Configuration for a mention extraction run."""
 
     model: str = "gemma4:26b"
-    prompt_version: str = "v2"
     context_before: int = 10
     context_after: int = 5
     pov_character: str | None = None
@@ -55,28 +37,12 @@ class ExtractionConfig:
 
     @property
     def system_prompt(self) -> str:
-        """Load and format the system prompt template. Cached per instance."""
         if not hasattr(self, "_cached_system_prompt"):
-            filename = (
-                "extraction_fast.txt" if self.fast else f"extraction_{self.prompt_version}.txt"
-            )
+            filename = "extraction_fast.txt" if self.fast else "extraction_v2.txt"
             template = (PROMPTS_DIR / filename).read_text(encoding="utf-8")
             prompt = template.format(pov_character=self.pov_character or "unknown narrator")
-            # Frozen dataclass — use object.__setattr__ for caching
             object.__setattr__(self, "_cached_system_prompt", prompt)
         return self._cached_system_prompt  # type: ignore[attr-defined]
-
-
-def classify_mention_type(raw_mention: str | None) -> str:
-    """Derive mention_type from raw_mention text."""
-    if raw_mention is None:
-        return "none"
-    lower = raw_mention.lower().strip()
-    if lower in _FIRST_PERSON:
-        return "first_person"
-    if lower in _PRONOUNS:
-        return "pronoun"
-    return "name"
 
 
 def _build_user_prompt(
@@ -119,12 +85,8 @@ def _build_user_prompt(
     return "\n".join(lines)
 
 
-def parse_extraction_response(response: str) -> dict | None:
-    """Parse the LLM's extraction response into a structured dict.
-
-    Returns dict with keys: raw_mention, resolved_mention,
-    mention_source_index, mention_type, reasoning. Returns None on failure.
-    """
+def _parse_verbose_response(response: str) -> dict | None:
+    """Parse the LLM's verbose JSON response into speaker + reasoning."""
     text = response.strip()
 
     # Strip markdown code fences
@@ -133,7 +95,6 @@ def parse_extraction_response(response: str) -> dict | None:
         text_lines = [line for line in text_lines if not line.strip().startswith("```")]
         text = "\n".join(text_lines).strip()
 
-    # Extract JSON object from potentially wrapped text
     json_start = text.find("{")
     json_end = text.rfind("}")
     if json_start == -1 or json_end == -1:
@@ -143,43 +104,13 @@ def parse_extraction_response(response: str) -> dict | None:
     try:
         data = json.loads(text[json_start : json_end + 1])
     except json.JSONDecodeError:
-        logger.warning("Failed to parse extraction response: %s", text[:200])
+        logger.warning("Failed to parse verbose response: %s", text[:200])
         return None
 
     return {
-        "raw_mention": data.get("raw_mention"),
-        "resolved_mention": data.get("resolved_mention"),
-        "mention_source_index": data.get("mention_source_index"),
-        "mention_type": data.get("mention_type", "none"),
+        "speaker": data.get("speaker") or data.get("resolved_mention"),
         "reasoning": data.get("reasoning", ""),
     }
-
-
-def _enrich_result(
-    parsed: dict,
-    dialogue_index: int,
-    model: str,
-) -> dict:
-    """Add derived fields and validate the raw LLM result.
-
-    Adds: index, mention_position, model, _source_valid.
-    Overrides mention_type with deterministic classification.
-    """
-    # Override mention_type with our deterministic classification
-    parsed["mention_type"] = classify_mention_type(parsed.get("raw_mention"))
-
-    # Derive mention_position from indices
-    source_idx = parsed.get("mention_source_index")
-    if source_idx is not None:
-        parsed["mention_position"] = "before" if source_idx < dialogue_index else "after"
-    else:
-        parsed["mention_position"] = None
-
-    # Add metadata
-    parsed["index"] = dialogue_index
-    parsed["model"] = model
-
-    return parsed
 
 
 def extract_mention(
@@ -188,11 +119,7 @@ def extract_mention(
     config: ExtractionConfig,
     previous_attributions: list[dict] | None = None,
 ) -> dict:
-    """Extract speaker mention for a single dialogue segment.
-
-    In fast mode, the LLM returns just a name — no JSON parsing needed.
-    In verbose mode, the LLM returns a JSON object with debug metadata.
-    """
+    """Extract speaker mention for a single dialogue segment."""
     user_prompt = _build_user_prompt(dialogue_index, segments, config, previous_attributions)
     raw_response = call_llm(config.system_prompt, user_prompt, config.model)
 
@@ -200,17 +127,26 @@ def extract_mention(
         name = raw_response.strip().strip('"').strip("'")
         return {
             "index": dialogue_index,
-            "raw_mention": None,
-            "resolved_mention": name,
-            "mention_source_index": None,
-            "mention_type": classify_mention_type(name),
-            "mention_position": None,
+            "speaker": name,
             "reasoning": "",
             "model": config.model,
         }
 
-    parsed = parse_extraction_response(raw_response) or dict(_EMPTY_RESULT)
-    return _enrich_result(parsed, dialogue_index, config.model)
+    parsed = _parse_verbose_response(raw_response)
+    if parsed is None:
+        return {
+            "index": dialogue_index,
+            "speaker": None,
+            "reasoning": "Failed to parse LLM response",
+            "model": config.model,
+        }
+
+    return {
+        "index": dialogue_index,
+        "speaker": parsed["speaker"],
+        "reasoning": parsed["reasoning"],
+        "model": config.model,
+    }
 
 
 def extract_chapter_mentions(
@@ -237,7 +173,7 @@ def extract_chapter_mentions(
         start, end = batch_range
         dialogue_positions = dialogue_positions[start:end]
 
-    mode = "fast" if config.fast else config.prompt_version
+    mode = "fast" if config.fast else "verbose"
     logger.info(
         "Extracting mentions: %d dialogues, model=%s, mode=%s, context=-%d/+%d, rolling=%s",
         len(dialogue_positions),
@@ -264,18 +200,17 @@ def extract_chapter_mentions(
         if (count + 1) % 25 == 0:
             logger.info("Progress: %d/%d", count + 1, len(dialogue_positions))
 
-
         # Update rolling context
         if not config.use_rolling_context:
             continue
 
-        resolved = result.get("resolved_mention")
-        if resolved:
+        speaker = result.get("speaker")
+        if speaker:
             previous_attributions.append(
                 {
                     "index": seg.index,
                     "text": seg.text[:80],
-                    "speaker": resolved,
+                    "speaker": speaker,
                 }
             )
             previous_attributions = previous_attributions[-config.rolling_context_size :]

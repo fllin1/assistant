@@ -1,7 +1,8 @@
-"""Experiment runner for mention extraction.
+"""Extraction runner: extract speaker mentions and save to extracted/.
 
-Runs extraction on a batch of dialogues, saves config and results
-to a timestamped experiment directory under the project.
+Runs extraction on a batch of dialogues, saves a flat {index: speaker}
+JSON file to the project's extracted/chapter_NN/ directory, along with
+a config sidecar recording the parameters used.
 """
 
 from __future__ import annotations
@@ -20,16 +21,9 @@ from ..serialization import load_chapter
 logger = logging.getLogger(__name__)
 
 
-def _experiment_id(model: str, prompt_version: str, batch_start: int) -> str:
-    """Generate a human-readable experiment ID."""
-    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    model_short = model.replace(":", "-").replace("/", "-")
-    return f"{ts}_{model_short}_{prompt_version}_b{batch_start}"
-
-
 def run_extraction_experiment(
     book_slug: str,
-    chapter_num: int,
+    chapter_id: str,
     config: ExtractionConfig,
     batch_start: int = 0,
     batch_size: int = 100,
@@ -38,16 +32,16 @@ def run_extraction_experiment(
 
     Args:
         book_slug: Project directory name.
-        chapter_num: Chapter number to process.
+        chapter_id: Chapter identifier (e.g. "02", "04a").
         config: Extraction configuration (model, prompt, context, etc.).
         batch_start: Index into dialogue list to start from.
         batch_size: Number of dialogues to process.
 
     Returns:
-        Path to the experiment directory.
+        Path to the saved extraction file.
     """
     root = PROJECTS_DIR / book_slug
-    parsed_path = root / "parsed" / f"chapter_{chapter_num:02d}.json"
+    parsed_path = root / "parsed" / f"chapter_{chapter_id}.json"
     chapter = load_chapter(parsed_path)
 
     batch_range = (batch_start, batch_start + batch_size)
@@ -55,41 +49,53 @@ def run_extraction_experiment(
     total_dialogues = sum(1 for s in chapter.segments if s.segment_type == SegmentType.DIALOGUE)
     actual_end = min(batch_start + batch_size, total_dialogues)
     logger.info(
-        "Running experiment: %s ch%d [%d:%d]/%d, model=%s, prompt=%s",
+        "Running extraction: %s ch%s [%d:%d]/%d, model=%s",
         book_slug,
-        chapter_num,
+        chapter_id,
         batch_start,
         actual_end,
         total_dialogues,
         config.model,
-        config.prompt_version,
     )
 
     results = extract_chapter_mentions(chapter, config, batch_range=batch_range)
 
-    # Save results
-    prompt_label = "fast" if config.fast else config.prompt_version
-    exp_id = _experiment_id(config.model, prompt_label, batch_start)
-    exp_dir = root / "experiments" / "extraction" / exp_id
-    exp_dir.mkdir(parents=True, exist_ok=True)
+    # Build flat {index: speaker} dict
+    flat = {str(r["index"]): r["speaker"] for r in results if r.get("speaker")}
 
-    saved_config = {
+    # File naming
+    model_short = config.model.replace(":", "-").replace("/", "-")
+    mode = "fast" if config.fast else "verbose"
+    ts = datetime.now(UTC).strftime("%Y%m%d")
+    base_name = f"{model_short}_{mode}_{ts}"
+
+    # Save extraction results
+    extracted_dir = root / "extracted" / f"chapter_{chapter_id}"
+    extracted_dir.mkdir(parents=True, exist_ok=True)
+    extracted_path = extracted_dir / f"{base_name}.json"
+    extracted_path.write_text(json.dumps(flat, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # Save config sidecar alongside extraction
+    config_data = {
         **asdict(config),
         "book_slug": book_slug,
-        "chapter": chapter_num,
+        "chapter": chapter_id,
         "batch_start": batch_start,
         "batch_size": batch_size,
-        "actual_count": len(results),
+        "actual_dialogues": len(flat),
         "total_dialogues": total_dialogues,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+    config_path = extracted_dir / f"{base_name}_config.json"
+    config_path.write_text(json.dumps(config_data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    (exp_dir / "config.json").write_text(
-        json.dumps(saved_config, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    (exp_dir / "results.json").write_text(
-        json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
+    # Also save config to project config/extractions/ for easy auditing
+    config_extractions_dir = root / "config" / "extractions"
+    config_extractions_dir.mkdir(parents=True, exist_ok=True)
+    config_copy_path = config_extractions_dir / f"chapter_{chapter_id}_{base_name}.json"
+    config_copy_path.write_text(
+        json.dumps(config_data, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    logger.info("Experiment saved to %s", exp_dir)
-    return exp_dir
+    logger.info("Extracted %d attributions → %s", len(flat), extracted_path)
+    return extracted_path

@@ -143,9 +143,8 @@ def parse(book_slug: str) -> None:
 @app.command(name="extract")
 def extract(
     book_slug: str,
-    chapter: int = typer.Option(..., help="Chapter number to process."),
+    chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     model: str = typer.Option("gemma4:26b", help="Model (Ollama or OpenRouter)."),
-    prompt_version: str = typer.Option("v1", "--prompt-version", help="Prompt template version."),
     context_before: int = typer.Option(10, "--context-before", help="Segments before dialogue."),
     context_after: int = typer.Option(5, "--context-after", help="Segments after dialogue."),
     batch_start: int = typer.Option(0, "--batch-start", help="Start index in dialogue list."),
@@ -154,14 +153,14 @@ def extract(
     rolling_context: bool = typer.Option(
         True, "--rolling-context", help="Pass recent attributions as context."
     ),
-    fast: bool = typer.Option(
-        True, "--fast", help="Fast mode: lean prompt, returns only speaker name."
+    verbose: bool = typer.Option(
+        False, "--verbose", help="Verbose mode: LLM returns speaker + reasoning JSON."
     ),
 ) -> None:
-    """Run Step 1: speaker mention extraction experiment.
+    """Run Step 1: speaker mention extraction.
 
     Extracts who speaks each dialogue using LLM analysis of narration context.
-    Results saved to experiments/extraction/<run_id>/.
+    Results saved to extracted/chapter_NN/<model>_<mode>_<date>.json.
     """
     import logging
 
@@ -172,27 +171,26 @@ def extract(
 
     config = ExtractionConfig(
         model=model,
-        prompt_version=prompt_version,
         context_before=context_before,
         context_after=context_after,
         pov_character=pov_character,
         use_rolling_context=rolling_context,
-        fast=fast,
+        fast=not verbose,
     )
-    exp_dir = run_extraction_experiment(
+    extracted_path = run_extraction_experiment(
         book_slug=book_slug,
-        chapter_num=chapter,
+        chapter_id=chapter,
         config=config,
         batch_start=batch_start,
         batch_size=batch_size,
     )
-    typer.echo(f"Experiment saved → {exp_dir}")
+    typer.echo(f"Extraction saved → {extracted_path}")
 
 
 @app.command(name="resolve")
 def resolve(
     book_slug: str,
-    chapter: int = typer.Option(..., help="Chapter number to resolve."),
+    chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     source: typing.Annotated[
         list[str],
         typer.Option(
@@ -214,8 +212,8 @@ def resolve(
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     root = PROJECTS_DIR / book_slug
-    parsed_path = root / "parsed" / f"chapter_{chapter:02d}.json"
-    extracted_dir = root / "extracted" / f"chapter_{chapter:02d}"
+    parsed_path = root / "parsed" / f"chapter_{chapter}.json"
+    extracted_dir = root / "extracted" / f"chapter_{chapter}"
     registry_path = root / "config" / "characters.json"
     output_dir = root / "attributed"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -241,57 +239,33 @@ def resolve(
         typer.echo(f"Loaded {s}: {len(sources[s])} entries")
 
     # Cross-validate if multiple sources, otherwise use single source directly
+    confirmed_unknowns: set[str] = set()
     if len(sources) > 1:
-        attributions, divergences = cross_validate(sources, registry)
-        typer.echo(f"Cross-validation: {len(divergences)} flags")
+        attributions, divergences, confirmed_unknowns = cross_validate(sources, registry)
+        typer.echo(f"Cross-validation: {len(divergences)} divergences")
     else:
         attributions = next(iter(sources.values()))
         divergences = []
 
     # Resolve names to canonical
-    attributed, flags = resolve_chapter(ch, attributions, registry)
+    attributed, flags = resolve_chapter(
+        ch, attributions, registry, confirmed_unknowns=confirmed_unknowns
+    )
     flags.extend(divergences)
 
     # Save
-    out_path = output_dir / f"chapter_{chapter:02d}.json"
+    out_path = output_dir / f"chapter_{chapter}.json"
     save_chapter(attributed, out_path)
     typer.echo(f"Attributed chapter → {out_path}")
 
     if flags:
-        flags_path = output_dir / f"chapter_{chapter:02d}_flags.json"
+        flags_path = output_dir / f"chapter_{chapter}_flags.json"
         flags_path.write_text(
             json.dumps(flags, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         typer.echo(f"{len(flags)} flags → {flags_path}")
     else:
         typer.echo("No flags — all attributions resolved cleanly.")
-
-
-# TODO: The resolve feature will replace the compare feature. Shall be removed once
-# the resolve feature is added, along its respective modules.
-@app.command(name="compare")
-def compare(
-    book_slug: str,
-    experiment_id: str = typer.Argument(..., help="Experiment directory name."),
-) -> None:
-    """Compare extraction experiment results against ground truth."""
-    from .config import PROJECTS_DIR
-    from .experiments.compare import compare_to_ground_truth, format_comparison_report
-
-    root = PROJECTS_DIR / book_slug
-    exp_dir = root / "experiments" / "extraction" / experiment_id
-    gt_path = root / "ground_truth_chapter_02.json"
-    registry_path = root / "config" / "characters.json"
-
-    if not exp_dir.exists():
-        typer.echo(f"Experiment not found: {exp_dir}")
-        raise typer.Exit(1)
-    if not gt_path.exists():
-        typer.echo(f"Ground truth not found: {gt_path}")
-        raise typer.Exit(1)
-
-    comparison = compare_to_ground_truth(exp_dir, gt_path, registry_path)
-    typer.echo(format_comparison_report(comparison))
 
 
 @app.command()

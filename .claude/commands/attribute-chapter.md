@@ -8,30 +8,36 @@ Example: `/attribute-chapter classroom-of-the-elite-year-2 2`
 
 ## Instructions
 
-You are orchestrating speaker attribution for a light novel chapter. Your job is to split the work across multiple Sonnet agents, merge their results, and save the output.
+You are orchestrating speaker attribution for a light novel chapter. Python scripts handle all file I/O; you just run them and spawn agents.
 
-### Step 1: Load the chapter
+### Step 1: Prepare chunks
 
-Read the parsed chapter JSON from:
-`~/.assistant/ln_voice_over/projects/$ARGUMENTS/parsed/chapter_<NN>.json`
+Run the prepare script — it reads the chapter, splits into overlapping chunks, and prints metadata as a single JSON line:
 
-Parse the arguments: first word is the book slug, second is the chapter number (zero-pad to 2 digits).
+```
+python automations/ln_voice_over/scripts/prepare_chunks.py <slug> <chapter_number>
+```
 
-Also read the manifest at `~/.assistant/ln_voice_over/projects/<slug>/chapters/manifest.json` to get the `pov_character` for this chapter.
+Parse the arguments from `$ARGUMENTS`: first word is the book slug, rest is the chapter number.
 
-Count the total dialogue segments and report to the user.
+Capture the JSON output — it contains `pov_character`, `dialogue_count`, `chunks` (each with `chunk_path` and `output_path`), and other metadata you'll need.
 
-### Step 2: Split into chunks and spawn agents
+Report to the user: chapter title, POV character, total segments, dialogue count.
 
-Split the chapter segments into chunks of ~150 segments each (with ~20 segment overlap between consecutive chunks for context continuity). Write each chunk to a temporary JSON file under the project directory.
+### Step 2: Spawn agents
 
-Spawn **up to 6 Sonnet agents in parallel** (one per chunk) using `model: "sonnet"`. Each agent gets this prompt:
+Spawn **up to 8 Sonnet agents in parallel** (one per chunk) using `model: "sonnet"`. Each agent gets this prompt:
 
 ---
 
 You are attributing dialogue speakers in a light novel chapter. The narrator ("I") is {pov_character}.
 
-Read the file at {chunk_path}. It contains a JSON array of segments (narration + dialogue interleaved).
+Run this command to read the chunk:
+```
+cat {chunk_path}
+```
+
+It contains a JSON array of segments (narration + dialogue interleaved).
 
 For each DIALOGUE segment, determine who is speaking by:
 1. Checking narration AFTER the dialogue for speech tags ("said Horikita", "she replied", "I asked")
@@ -50,27 +56,23 @@ Return ONLY a JSON object mapping dialogue segment index to speaker name. Use ch
 
 Where "I" means the narrator ({pov_character}). Include EVERY dialogue segment. Be concise — no explanation needed, just the JSON.
 
-Write the result to {output_path}.
+Write the result by running:
+```
+cat > {output_path} << 'ATTRIBUTION_EOF'
+<your JSON here>
+ATTRIBUTION_EOF
+```
 
 ---
 
-### Step 3: Merge results
+### Step 3: Merge and save
 
-After all agents complete:
-1. Read each agent's output JSON
-2. Merge into a single dict (for overlapping segments, keep the attribution from the chunk where the segment is NOT at the edge — prefer the chunk where it has more surrounding context)
-3. Normalize "I" → the pov_character name
-4. Report: total dialogues, how many attributed, how many Unknown, how many Narrator
+After all agents complete, run the merge script. Pass the metadata JSON (from step 1) as a single-quoted argument:
 
-### Step 4: Save
+```
+python automations/ln_voice_over/scripts/merge_attributions.py '<metadata_json>'
+```
 
-Generate a filename with today's date: `claude-sonnet_skill_YYYYMMDD.json`
+The script merges overlaps, normalizes "I" → POV character, saves the result, and cleans up temp files. It prints a JSON report.
 
-Save the merged result as JSON to:
-`~/.assistant/ln_voice_over/projects/<slug>/extracted/chapter_<NN>/claude-sonnet_skill_YYYYMMDD.json`
-
-Create the directory if it doesn't exist.
-
-Format: `{"index": "speaker_name"}` — flat dict, same format as other extraction sources.
-
-Report the save path and a brief summary to the user.
+Report the save path and speaker breakdown to the user.
