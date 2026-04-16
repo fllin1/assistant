@@ -5,7 +5,7 @@ segments have more surrounding context), normalizes "I" to the POV
 character, and saves the final attribution.
 
 Usage:
-    python merge_attributions.py <metadata_json>
+    python -m automations.ln_voice_over.scripts.merge_attributions <metadata_json>
 
 Where metadata_json is the JSON string output by prepare_chunks.py.
 """

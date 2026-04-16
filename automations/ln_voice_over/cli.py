@@ -107,7 +107,6 @@ def parse(book_slug: str) -> None:
     import json
 
     from .parse import parse_chapter
-    from .serialization import save_chapter
 
     root = PROJECTS_DIR / book_slug
     cleaned_dir = root / "cleaned"
@@ -134,7 +133,7 @@ def parse(book_slug: str) -> None:
             title=entry["title"],
             pov_character=entry.get("pov_character"),
         )
-        save_chapter(chapter, output_dir / f"chapter_{entry['number']:02d}.json")
+        chapter.save(output_dir / f"chapter_{entry['number']:02d}.json")
         count += 1
 
     typer.echo(f"Parsed {count} chapter(s) → {output_dir}")
@@ -206,8 +205,8 @@ def resolve(
     import json
     import logging
 
+    from .models import Chapter, CharacterRegistry
     from .resolution import cross_validate, load_extracted, resolve_chapter
-    from .serialization import load_chapter, load_registry, save_chapter
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -225,8 +224,8 @@ def resolve(
         typer.echo(f"Character registry not found: {registry_path}")
         raise typer.Exit(1)
 
-    ch = load_chapter(parsed_path)
-    registry = load_registry(registry_path)
+    ch = Chapter.load(parsed_path)
+    registry = CharacterRegistry.load(registry_path)
 
     # Load sources
     sources: dict[str, dict[str, str]] = {}
@@ -255,7 +254,7 @@ def resolve(
 
     # Save
     out_path = output_dir / f"chapter_{chapter}.json"
-    save_chapter(attributed, out_path)
+    attributed.save(out_path)
     typer.echo(f"Attributed chapter → {out_path}")
 
     if flags:

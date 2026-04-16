@@ -15,7 +15,7 @@ You are orchestrating speaker attribution for a light novel chapter. Python scri
 Run the prepare script — it reads the chapter, splits into overlapping chunks, and prints metadata as a single JSON line:
 
 ```
-python automations/ln_voice_over/scripts/prepare_chunks.py <slug> <chapter_number>
+python -m automations.ln_voice_over.scripts.prepare_chunks <slug> <chapter_number>
 ```
 
 Parse the arguments from `$ARGUMENTS`: first word is the book slug, rest is the chapter number.
@@ -70,7 +70,7 @@ ATTRIBUTION_EOF
 After all agents complete, run the merge script. Pass the metadata JSON (from step 1) as a single-quoted argument:
 
 ```
-python automations/ln_voice_over/scripts/merge_attributions.py '<metadata_json>'
+python -m automations.ln_voice_over.scripts.merge_attributions '<metadata_json>'
 ```
 
 The script merges overlaps, normalizes "I" → POV character, saves the result, and cleans up temp files. It prints a JSON report.

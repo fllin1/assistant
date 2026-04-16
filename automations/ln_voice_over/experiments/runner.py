@@ -15,8 +15,7 @@ from pathlib import Path
 
 from ..config import PROJECTS_DIR
 from ..extraction import ExtractionConfig, extract_chapter_mentions
-from ..models import SegmentType
-from ..serialization import load_chapter
+from ..models import Chapter, SegmentType
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def run_extraction_experiment(
     """
     root = PROJECTS_DIR / book_slug
     parsed_path = root / "parsed" / f"chapter_{chapter_id}.json"
-    chapter = load_chapter(parsed_path)
+    chapter = Chapter.load(parsed_path)
 
     batch_range = (batch_start, batch_start + batch_size)
 

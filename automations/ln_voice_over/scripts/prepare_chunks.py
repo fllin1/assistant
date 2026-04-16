@@ -4,12 +4,15 @@ Reads a parsed chapter JSON, splits segments into overlapping chunks,
 writes each chunk to a temp directory, and prints metadata as JSON.
 
 Usage:
-    python prepare_chunks.py <slug> <chapter_number>
+    python -m automations.ln_voice_over.scripts.prepare_chunks <slug> <chapter_number>
 """
 
 import json
+import re
 import sys
 from pathlib import Path
+
+from automations.ln_voice_over.models import Chapter, SegmentType
 
 PROJECTS_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
 CHUNK_SIZE = 80
@@ -25,8 +28,6 @@ def main():
     parsed_dir = project_dir / "parsed"
 
     # Zero-pad numeric prefix: "4b" → "04b", "4" → "04", "12" → "12"
-    import re
-
     match = re.match(r"^(\d+)(.*)", chapter_raw)
     padded = match.group(1).zfill(2) + match.group(2) if match else chapter_raw
 
@@ -41,8 +42,7 @@ def main():
 
     # Read manifest for POV character
     manifest_path = project_dir / "chapters" / "manifest.json"
-    with open(manifest_path) as f:
-        manifest = json.load(f)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     pov_character = None
     for entry in manifest:
@@ -53,14 +53,13 @@ def main():
         print(f"ERROR: Chapter '{chapter_raw}' not found in manifest", file=sys.stderr)
         sys.exit(1)
 
-    # Load chapter
-    with open(chapter_path) as f:
-        data = json.load(f)
-    segments = data["segments"]
+    # Load chapter via model
+    chapter = Chapter.load(chapter_path)
+    segments = chapter.segments
     total = len(segments)
-    dialogue_count = sum(1 for s in segments if s.get("segment_type") == "dialogue")
+    dialogue_count = sum(1 for s in segments if s.segment_type == SegmentType.DIALOGUE)
 
-    # Split into chunks with overlap
+    # Split into chunks with overlap — write as raw JSON dicts for agent consumption
     tmp_dir = project_dir / "tmp_chunks"
     tmp_dir.mkdir(exist_ok=True)
 
@@ -69,20 +68,23 @@ def main():
     chunk_idx = 0
     while start < total:
         end = min(start + CHUNK_SIZE, total)
-        chunk_segments = segments[start:end]
+        chunk_segments = [s.model_dump() for s in segments[start:end]]
+        # Serialize enum values for agent readability
+        for s in chunk_segments:
+            s["segment_type"] = s["segment_type"].value
+
         chunk_path = tmp_dir / f"chunk_{chunk_idx}.json"
         output_path = tmp_dir / f"chunk_{chunk_idx}_output.json"
 
-        with open(chunk_path, "w") as f:
-            json.dump(chunk_segments, f, indent=2)
+        chunk_path.write_text(json.dumps(chunk_segments, indent=2, ensure_ascii=False))
 
         chunks.append(
             {
                 "chunk_idx": chunk_idx,
                 "chunk_path": str(chunk_path),
                 "output_path": str(output_path),
-                "start_index": segments[start]["index"],
-                "end_index": segments[end - 1]["index"],
+                "start_index": segments[start].index,
+                "end_index": segments[end - 1].index,
             }
         )
 
