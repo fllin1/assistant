@@ -3,10 +3,6 @@
 All models are frozen dataclasses — immutable after creation. Collection
 fields use tuples (not lists) so immutability is genuine. Use
 dataclasses.replace() to create modified copies.
-
-The Segment model accumulates optional fields across stages:
-- After PARSE: index, segment_type, text, line_start, line_end
-- After ATTRIBUTE: + speaker, confidence, attribution_method
 """
 
 from __future__ import annotations
@@ -29,19 +25,15 @@ class SegmentType(Enum):
 class Segment:
     """A single segment of chapter text.
 
-    Created by the PARSE stage with speaker/confidence as None.
-    The ATTRIBUTE stage produces new Segment instances (via replace())
-    with speaker and confidence populated.
+    Created by the PARSE stage with speaker as None.
+    The RESOLVE stage produces new Segment instances (via replace())
+    with speaker populated.
     """
 
     index: int
     segment_type: SegmentType
     text: str
-    line_start: int
-    line_end: int
     speaker: str | None = None
-    confidence: float | None = None
-    attribution_method: str | None = None
 
 
 @dataclass(frozen=True)
@@ -152,26 +144,6 @@ class CharacterRegistry:
         if matches:
             return all_names[matches[0]]
         return None
-
-    def validate_speaker(self, name: str, confidence: float) -> tuple[str, float]:
-        """Validate a speaker name against the registry.
-
-        Returns:
-            (canonical_name, confidence) for exact match,
-            (canonical_name, confidence * 0.8) for fuzzy match,
-            ("Unknown", 0.0) if no match found.
-        """
-        # Exact match — keep confidence as-is
-        exact = self.find(name)
-        if exact:
-            return exact.name, confidence
-
-        # Fuzzy match — penalize confidence
-        fuzzy = self.fuzzy_find(name)
-        if fuzzy:
-            return fuzzy.name, confidence * 0.8
-
-        return "Unknown", 0.0
 
 
 @dataclass(frozen=True)

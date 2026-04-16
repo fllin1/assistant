@@ -272,7 +272,6 @@ def resolve(
 def review(
     book_slug: str,
     chapter: int | None = typer.Option(None, help="Review only this chapter."),
-    only_low_confidence: bool = typer.Option(False, help="Show only flagged segments."),
     approve_all: bool = typer.Option(False, help="Approve all without review."),
 ) -> None:
     """Stage 5: Review and correct speaker attributions.

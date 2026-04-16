@@ -43,8 +43,6 @@ def main() -> None:
             continue
         old_speaker = seg.get("speaker")
         seg["speaker"] = corr["new_speaker"]
-        seg["confidence"] = 1.0
-        seg["attribution_method"] = "reviewed"
         changes.append(
             {
                 "index": idx,

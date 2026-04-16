@@ -19,12 +19,20 @@ DATA_DIR = Path.home() / ".assistant" / "ln_voice_over"
 PROJECTS_DIR = DATA_DIR / "projects"
 """Root directory for all book project data."""
 
+
+def project_dir(slug: str) -> Path:
+    """Return the root directory for a given book project."""
+    return PROJECTS_DIR / slug
+
+
 PROJECT_SUBDIRS = [
     "config",
+    "config/extractions",
     "raw",
     "chapters",
     "cleaned",
     "parsed",
+    "extracted",
     "attributed",
     "reviewed",
     "audio/segments",
@@ -110,14 +118,6 @@ MODEL_REGISTRY: dict[str, tuple[str, str]] = {
     "grok-fast": ("openrouter", "x-ai/grok-4.1-fast"),
 }
 """Model alias → (provider, model_id). Provider is "ollama" or "openrouter"."""
-
-ATTRIBUTION_WINDOW_SIZE = 10
-ATTRIBUTION_WINDOW_OVERLAP = 3
-ATTRIBUTION_CONFIDENCE_THRESHOLD = 0.7
-"""Segments below this confidence are flagged for manual review."""
-
-PREVIOUS_ATTRIBUTIONS_SIZE: int = 5
-"""Number of recent attributions to pass as context in per-dialogue mode."""
 
 # ---------------------------------------------------------------------------
 # Stage 6: SYNTHESIZE — TTS and assembly
