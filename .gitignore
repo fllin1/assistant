@@ -12,3 +12,4 @@ wheels/
 
 # Claude Code local settings (personal, not committed)
 .claude/settings.local.json
+.DS_Store
