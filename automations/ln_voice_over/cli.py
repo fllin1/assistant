@@ -200,7 +200,7 @@ def resolve(
     """Resolve raw speaker names to canonical character names.
 
     Loads extraction results from extracted/chapter_NN/, resolves names
-    against the character registry, and writes attributed chapter + flags.
+    against the character registry, and writes resolved chapter + flags.
     """
     import json
     import logging
@@ -214,7 +214,7 @@ def resolve(
     parsed_path = root / "parsed" / f"chapter_{chapter}.json"
     extracted_dir = root / "extracted" / f"chapter_{chapter}"
     registry_path = root / "config" / "characters.json"
-    output_dir = root / "attributed"
+    output_dir = root / "resolved"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not parsed_path.exists():

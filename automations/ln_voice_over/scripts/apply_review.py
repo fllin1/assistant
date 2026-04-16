@@ -28,7 +28,7 @@ def main() -> None:
     corrections = json.loads(sys.argv[3])
 
     project_dir = PROJECTS_DIR / slug
-    attributed_path = project_dir / "attributed" / f"chapter_{chapter_id}.json"
+    attributed_path = project_dir / "resolved" / f"chapter_{chapter_id}.json"
     output_path = project_dir / "reviewed" / f"chapter_{chapter_id}.json"
 
     chapter = Chapter.load(attributed_path)

@@ -28,13 +28,15 @@ def project_dir(slug: str) -> Path:
 PROJECT_SUBDIRS = [
     "config",
     "config/extractions",
+    "downloads",
     "raw",
     "chapters",
     "cleaned",
     "parsed",
     "extracted",
-    "attributed",
+    "resolved",
     "reviewed",
+    "illustrations/images",
     "audio/segments",
     "audio/chapters",
 ]

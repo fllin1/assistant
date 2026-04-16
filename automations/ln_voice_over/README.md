@@ -8,7 +8,7 @@ Converts raw light novel text files into multi-voice audiobooks. The pipeline sp
 SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
   │        │        │         │         │         │          │
   ▼        ▼        ▼         ▼         ▼         ▼          ▼
-chapters/ cleaned/ parsed/  extracted/ attributed/ reviewed/ audio/
+chapters/ cleaned/ parsed/  extracted/ resolved/ reviewed/ audio/
 (txt)    (txt)    (json)   (json)     (json)      (json)    (mp3)
 ```
 
@@ -20,7 +20,7 @@ Each stage reads from the previous stage's output and writes to its own director
 | **Clean** | Remove watermarks, page numbers, collapse blank lines | `cleaned/` |
 | **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `parsed/` |
 | **Extract** | LLM-based speaker attribution per dialogue segment | `extracted/` |
-| **Resolve** | Cross-validate sources, resolve names via character registry | `attributed/` |
+| **Resolve** | Cross-validate sources, resolve names via character registry | `resolved/` |
 | **Review** | Review and correct flagged attributions | `reviewed/` |
 | **Synthesize** | TTS per segment with per-character voices, assemble audio | `audio/` |
 
@@ -139,7 +139,7 @@ When two sources are available:
 
 #### Flags
 
-The resolve step writes a `_flags.json` file alongside each attributed chapter:
+The resolve step writes a `_flags.json` file alongside each resolved chapter:
 
 | Flag type | Meaning |
 |-----------|---------|
@@ -150,7 +150,7 @@ The resolve step writes a `_flags.json` file alongside each attributed chapter:
 
 ### Stage 6: REVIEW — Manual Correction
 
-- **Input**: `attributed/*.json` + `attributed/*_flags.json` → **Output**: `reviewed/*.json`
+- **Input**: `resolved/*.json` + `resolved/*_flags.json` → **Output**: `reviewed/*.json`
 - The `/review-chapter` Claude skill reads context and resolves divergences
 - The flags file tells you exactly which segments need attention — typically 1-3% of all dialogues
 
@@ -197,7 +197,7 @@ Concatenate with `pydub`, insert silence between segments:
 │       ├── gemini-flash_fast_YYYYMMDD.json
 │       ├── gemini-flash_fast_YYYYMMDD_config.json
 │       └── claude-sonnet_skill_YYYYMMDD.json
-├── attributed/              # resolved chapters + flags
+├── resolved/              # resolved chapters + flags
 │   ├── chapter_NN.json      # full chapter with speaker attributions
 │   └── chapter_NN_flags.json # divergences and issues to review
 ├── reviewed/                # user-approved final attributions
