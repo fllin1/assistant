@@ -275,9 +275,205 @@ def review(
 ) -> None:
     """Stage 5: Review and correct speaker attributions.
 
-    Reads from attributed/, writes to reviewed/.
+    Reads from resolved/, writes to reviewed/.
     """
     ...
+
+
+# ---------------------------------------------------------------------------
+# Voice management commands
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="list-voices")
+def list_voices(
+    provider_name: str = typer.Option(
+        "edge", "--provider", help="TTS provider (edge/openai/kokoro)."
+    ),
+    gender: str | None = typer.Option(None, help="Filter by gender (male/female)."),
+    locale: str = typer.Option("en-", help="Locale prefix filter (Edge only)."),
+) -> None:
+    """List available TTS voices."""
+    if provider_name == "openai":
+        from .providers.openai import OPENAI_VOICES
+
+        voices = OPENAI_VOICES
+        if gender:
+            voices = [v for v in voices if v["gender"].lower() == gender.lower()]
+        for v in voices:
+            typer.echo(f"  {v['voice_id']:20s} {v['gender']:8s} {v['description']}")
+        typer.echo(f"\n{len(voices)} voice(s)")
+    elif provider_name == "kokoro":
+        from .providers.kokoro import KOKORO_VOICES
+
+        voices = KOKORO_VOICES
+        if gender:
+            voices = [v for v in voices if v["gender"].lower() == gender.lower()]
+        for v in voices:
+            typer.echo(
+                f"  {v['voice_id']:20s} {v['gender']:8s} {v['accent']:10s} {v['description']}"
+            )
+        typer.echo(f"\n{len(voices)} voice(s)")
+    else:
+        import asyncio
+
+        from .providers.edge import list_edge_voices
+
+        edge_voices = asyncio.run(list_edge_voices(locale_prefix=locale, gender=gender))
+        if not edge_voices:
+            typer.echo("No voices found matching filters.")
+            raise typer.Exit(1)
+
+        for v in sorted(edge_voices, key=lambda x: (x["Locale"], x["Gender"], x["ShortName"])):
+            typer.echo(f"  {v['ShortName']:35s} {v['Gender']:8s} {v['Locale']}")
+        typer.echo(f"\n{len(edge_voices)} voice(s)")
+
+
+@app.command()
+def audition(
+    voice_id: str = typer.Argument(help="Voice name (e.g. en-US-GuyNeural, nova)."),
+    text: str | None = typer.Option(None, help="Custom sample text."),
+    character: str | None = typer.Option(None, help="Character name to find sample dialogue."),
+    book: str | None = typer.Option(None, help="Book slug (required with --character)."),
+    provider_name: str = typer.Option("edge", "--provider", help="TTS provider (edge/openai)."),
+) -> None:
+    """Preview a voice by synthesizing sample text and playing it."""
+    import subprocess
+    import tempfile
+
+    from .providers.registry import get_provider
+
+    sample = (
+        text or "The quick brown fox jumps over the lazy dog. How fascinating, don't you think?"
+    )
+
+    # Find a real dialogue line from the character if requested
+    if character and book:
+        sample = _find_character_dialogue(book, character) or sample
+
+    # Strip surrounding dialogue quotes — Edge TTS chokes on them
+    if sample.startswith(("\u201c", '"')) and sample.endswith(("\u201d", '"')):
+        sample = sample[1:-1]
+
+    provider = get_provider(provider_name)
+    typer.echo(f"Synthesizing with {voice_id} ({provider_name})...")
+    typer.echo(f'  "{sample[:80]}{"..." if len(sample) > 80 else ""}"')
+
+    audio = provider.synthesize(sample, voice_id)
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        f.write(audio)
+        tmp_path = f.name
+
+    subprocess.run(["afplay", tmp_path], check=True)
+
+
+def _find_character_dialogue(book_slug: str, character_name: str) -> str | None:
+    """Find a sample dialogue line from a character in resolved chapters."""
+    from .models import Chapter
+
+    root = PROJECTS_DIR / book_slug
+    # Check reviewed first, then resolved
+    for stage_dir in [root / "reviewed", root / "resolved"]:
+        if not stage_dir.exists():
+            continue
+        for path in sorted(stage_dir.glob("chapter_*.json")):
+            if path.name.endswith("_flags.json"):
+                continue
+            chapter = Chapter.load(path)
+            for seg in chapter.segments:
+                if (
+                    seg.speaker
+                    and seg.speaker.lower() == character_name.lower()
+                    and len(seg.text) > 20
+                ):
+                    return seg.text
+    return None
+
+
+@app.command(name="assign-voice")
+def assign_voice(
+    book_slug: str,
+    character_name: str = typer.Argument(help="Character name (as in characters.json)."),
+    voice_id: str = typer.Argument(help="Edge voice ID (e.g. en-US-DavisNeural)."),
+    provider_name: str = typer.Option("edge", help="TTS provider."),
+) -> None:
+    """Assign a TTS voice to a character."""
+    from .models import CharacterRegistry, VoiceConfig, VoiceMapping
+
+    root = PROJECTS_DIR / book_slug
+    registry_path = root / "config" / "characters.json"
+    voices_path = root / "config" / "voices.json"
+
+    registry = CharacterRegistry.load(registry_path)
+    char = registry.find(character_name)
+    if not char:
+        typer.echo(f"Character '{character_name}' not found in registry.")
+        raise typer.Exit(1)
+
+    config = VoiceConfig.load(voices_path)
+
+    # Check for existing mapping
+    existing = [m for m in config.mappings if m.speaker == char.name]
+    if existing:
+        typer.echo(f"Updating: {char.name} was {existing[0].voice_id} → {voice_id}")
+
+    new_mapping = VoiceMapping(speaker=char.name, provider=provider_name, voice_id=voice_id)
+
+    # Replace or append
+    new_mappings = (*[m for m in config.mappings if m.speaker != char.name], new_mapping)
+    config = config.model_copy(update={"mappings": new_mappings})
+
+    config.save(voices_path)
+    typer.echo(f"Assigned {char.name} → {voice_id} ({provider_name})")
+
+
+@app.command(name="show-voices")
+def show_voices(book_slug: str) -> None:
+    """Show current voice assignments for a project."""
+    from .models import CharacterRegistry, VoiceConfig
+
+    root = PROJECTS_DIR / book_slug
+    registry = CharacterRegistry.load(root / "config" / "characters.json")
+    config = VoiceConfig.load(root / "config" / "voices.json")
+
+    assigned_names = {m.speaker for m in config.mappings}
+
+    # Assigned characters
+    if config.mappings:
+        typer.echo("Assigned:")
+        for m in sorted(config.mappings, key=lambda x: x.speaker):
+            typer.echo(f"  {m.speaker:30s} → {m.voice_id} ({m.provider})")
+    else:
+        typer.echo("No voices assigned yet.")
+
+    # Unassigned, grouped by role
+    unassigned_main = [
+        c
+        for c in registry.characters
+        if c.name not in assigned_names and c.role in ("main", "supporting")
+    ]
+    unassigned_minor = [
+        c for c in registry.characters if c.name not in assigned_names and c.role == "minor"
+    ]
+
+    if unassigned_main:
+        typer.echo(f"\nUnassigned (main/supporting) — {len(unassigned_main)}:")
+        for c in unassigned_main:
+            fallback = config.get_voice(c.name, c.gender)
+            typer.echo(f"  {c.name:30s} ({c.gender:6s}) → fallback: {fallback.voice_id}")
+
+    if unassigned_minor:
+        typer.echo(f"\nUnassigned (minor) — {len(unassigned_minor)}:")
+        for c in unassigned_minor:
+            fallback = config.get_voice(c.name, c.gender)
+            typer.echo(f"  {c.name:30s} ({c.gender:6s}) → fallback: {fallback.voice_id}")
+
+    # Defaults
+    typer.echo("\nDefaults:")
+    typer.echo(f"  Narrator:  {config.default_narrator.voice_id}")
+    typer.echo(f"  Male:      {config.default_male.voice_id}")
+    typer.echo(f"  Female:    {config.default_female.voice_id}")
 
 
 @app.command()
