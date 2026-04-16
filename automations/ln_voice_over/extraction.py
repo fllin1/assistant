@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from .llm import call_llm
+from .llm import LLMClient
 from .models import Chapter, Segment, SegmentType
 
 logger = logging.getLogger(__name__)
@@ -35,14 +35,11 @@ class ExtractionConfig:
     rolling_context_size: int = 10
     fast: bool = True
 
-    @property
-    def system_prompt(self) -> str:
-        if not hasattr(self, "_cached_system_prompt"):
-            filename = "extraction_fast.txt" if self.fast else "extraction_v2.txt"
-            template = (PROMPTS_DIR / filename).read_text(encoding="utf-8")
-            prompt = template.format(pov_character=self.pov_character or "unknown narrator")
-            object.__setattr__(self, "_cached_system_prompt", prompt)
-        return self._cached_system_prompt  # type: ignore[attr-defined]
+    def build_system_prompt(self) -> str:
+        """Read and format the system prompt template."""
+        filename = "extraction_fast.txt" if self.fast else "extraction_v2.txt"
+        template = (PROMPTS_DIR / filename).read_text(encoding="utf-8")
+        return template.format(pov_character=self.pov_character or "unknown narrator")
 
 
 def _build_user_prompt(
@@ -116,12 +113,14 @@ def _parse_verbose_response(response: str) -> dict | None:
 def extract_mention(
     dialogue_index: int,
     segments: list[Segment],
+    client: LLMClient,
+    system_prompt: str,
     config: ExtractionConfig,
     previous_attributions: list[dict] | None = None,
 ) -> dict:
     """Extract speaker mention for a single dialogue segment."""
     user_prompt = _build_user_prompt(dialogue_index, segments, config, previous_attributions)
-    raw_response = call_llm(config.system_prompt, user_prompt, config.model)
+    raw_response = client.chat(system_prompt, user_prompt)
 
     if config.fast:
         name = raw_response.strip().strip('"').strip("'")
@@ -156,6 +155,8 @@ def extract_chapter_mentions(
 ) -> list[dict]:
     """Run mention extraction on all (or a batch of) dialogues in a chapter.
 
+    Creates an LLMClient once and reuses it across all dialogue extractions.
+
     Args:
         chapter: Parsed chapter with segments.
         config: Extraction configuration.
@@ -164,6 +165,9 @@ def extract_chapter_mentions(
     Returns:
         List of extraction dicts, one per dialogue segment.
     """
+    client = LLMClient(config.model)
+    system_prompt = config.build_system_prompt()
+
     segments = list(chapter.segments)
     dialogue_positions = [
         i for i, s in enumerate(segments) if s.segment_type == SegmentType.DIALOGUE
@@ -192,6 +196,8 @@ def extract_chapter_mentions(
         result = extract_mention(
             dialogue_index=seg.index,
             segments=segments,
+            client=client,
+            system_prompt=system_prompt,
             config=config,
             previous_attributions=previous_attributions if config.use_rolling_context else None,
         )
