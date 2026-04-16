@@ -17,6 +17,12 @@ List all available voices: edge-tts --list-voices
 
 from __future__ import annotations
 
+import asyncio
+
+import edge_tts
+
+from .base import TTSSynthesisError
+
 
 class EdgeTTSProvider:
     """TTS provider using Microsoft Edge's free neural voices.
@@ -30,9 +36,7 @@ class EdgeTTSProvider:
         """Provider identifier."""
         return "edge"
 
-    def synthesize(
-        self, text: str, voice_id: str, **settings: object
-    ) -> bytes:
+    def synthesize(self, text: str, voice_id: str, **settings: object) -> bytes:
         """Synthesize text to MP3 audio bytes using Edge TTS.
 
         Creates an edge_tts.Communicate instance, runs the async
@@ -50,4 +54,45 @@ class EdgeTTSProvider:
         Raises:
             TTSSynthesisError: If edge-tts fails.
         """
-        ...
+        communicate_kwargs: dict[str, str] = {}
+        for key in ("rate", "pitch", "volume"):
+            if key in settings:
+                communicate_kwargs[key] = str(settings[key])
+
+        async def _synthesize() -> bytes:
+            communicate = edge_tts.Communicate(text, voice_id, **communicate_kwargs)
+            chunks: list[bytes] = []
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    chunks.append(chunk["data"])
+            return b"".join(chunks)
+
+        try:
+            audio = asyncio.run(_synthesize())
+        except Exception as e:
+            raise TTSSynthesisError(f"Edge TTS failed for voice '{voice_id}': {e}") from e
+
+        if not audio:
+            raise TTSSynthesisError(f"Edge TTS returned empty audio for voice '{voice_id}'")
+
+        return audio
+
+
+async def list_edge_voices(
+    locale_prefix: str = "en-",
+    gender: str | None = None,
+) -> list[dict[str, str]]:
+    """List available Edge TTS voices, optionally filtered.
+
+    Args:
+        locale_prefix: Filter voices by locale prefix (e.g. "en-", "en-US").
+        gender: Filter by "Male" or "Female" (case-insensitive).
+
+    Returns:
+        List of voice dicts with ShortName, Gender, Locale keys.
+    """
+    voices = await edge_tts.list_voices()
+    filtered = [v for v in voices if v["Locale"].startswith(locale_prefix)]
+    if gender:
+        filtered = [v for v in filtered if v["Gender"].lower() == gender.lower()]
+    return filtered

@@ -13,9 +13,13 @@ from __future__ import annotations
 
 from .base import TTSProvider
 from .edge import EdgeTTSProvider
+from .kokoro import KokoroTTSProvider
+from .openai import OpenAITTSProvider
 
 _REGISTRY: dict[str, type] = {
     "edge": EdgeTTSProvider,
+    "kokoro": KokoroTTSProvider,
+    "openai": OpenAITTSProvider,
 }
 
 
@@ -33,7 +37,5 @@ def get_provider(name: str) -> TTSProvider:
     """
     if name not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY))
-        raise KeyError(
-            f"Unknown TTS provider '{name}'. Available: {available}"
-        )
+        raise KeyError(f"Unknown TTS provider '{name}'. Available: {available}")
     return _REGISTRY[name]()
