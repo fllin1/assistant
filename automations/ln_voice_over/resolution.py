@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
-from dataclasses import replace
 from pathlib import Path
 
 from .models import Chapter, CharacterRegistry, SegmentType
@@ -81,7 +80,9 @@ def resolve_chapter(
             continue
 
         if raw == "Narrator":
-            new_segments.append(replace(seg, segment_type=SegmentType.NARRATION, speaker=None))
+            new_segments.append(
+                seg.model_copy(update={"segment_type": SegmentType.NARRATION, "speaker": None})
+            )
             continue
 
         if raw == "Unknown":
@@ -90,19 +91,19 @@ def resolve_chapter(
                 flags.append(
                     {"index": seg.index, "type": "unknown", "raw": raw, "text": seg.text[:80]}
                 )
-            new_segments.append(replace(seg, speaker="Unknown"))
+            new_segments.append(seg.model_copy(update={"speaker": "Unknown"}))
             continue
 
         canonical = _resolve_name(raw, registry)
         if canonical:
-            new_segments.append(replace(seg, speaker=canonical))
+            new_segments.append(seg.model_copy(update={"speaker": canonical}))
         else:
             flags.append(
                 {"index": seg.index, "type": "unresolved", "raw": raw, "text": seg.text[:80]}
             )
-            new_segments.append(replace(seg, speaker=raw))
+            new_segments.append(seg.model_copy(update={"speaker": raw}))
 
-    attributed = replace(chapter, segments=tuple(new_segments))
+    attributed = chapter.model_copy(update={"segments": tuple(new_segments)})
     return attributed, flags
 
 

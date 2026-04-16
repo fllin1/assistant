@@ -13,7 +13,6 @@ import typer
 
 from .config import PROJECT_SUBDIRS, PROJECTS_DIR, project_dir
 from .models import Character, CharacterRegistry, VoiceConfig
-from .serialization import save_registry, save_voice_config
 
 
 def slugify(name: str) -> str:
@@ -48,11 +47,11 @@ def create_project(slug: str) -> Path:
             gender="female",
             role="main",
         )
-        save_registry(CharacterRegistry(characters=(example,)), chars_path)
+        CharacterRegistry(characters=(example,)).save(chars_path)
 
     voices_path = root / "config" / "voices.json"
     if not voices_path.exists():
-        save_voice_config(VoiceConfig(), voices_path)
+        VoiceConfig().save(voices_path)
 
     return root
 

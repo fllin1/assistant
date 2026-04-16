@@ -15,7 +15,7 @@ You are reviewing speaker attributions where two LLM sources (Gemini Flash and C
 Run the prepare script:
 
 ```
-python automations/ln_voice_over/scripts/prepare_review.py <slug> <chapter_number>
+python -m automations.ln_voice_over.scripts.prepare_review <slug> <chapter_number>
 ```
 
 Parse the arguments from `$ARGUMENTS`: first word is the book slug, rest is the chapter number (zero-pad if needed, e.g. "4b" → "04b", "2" → "02").
@@ -40,7 +40,7 @@ For each divergence, examine the context and determine the correct speaker.
 **If the default context window (8 segments) is insufficient**, re-run the prepare script with a wider window:
 
 ```
-python automations/ln_voice_over/scripts/prepare_review.py <slug> <chapter_number> --context 15
+python -m automations.ln_voice_over.scripts.prepare_review <slug> <chapter_number> --context 15
 ```
 
 Then re-examine the uncertain divergence(s) with the additional context.
@@ -65,7 +65,7 @@ If all current attributions are already correct, use an empty array `[]`.
 Run the apply script, passing the corrections JSON:
 
 ```
-python automations/ln_voice_over/scripts/apply_review.py '<slug>' '<chapter_id>' '<corrections_json>'
+python -m automations.ln_voice_over.scripts.apply_review '<slug>' '<chapter_id>' '<corrections_json>'
 ```
 
 The script applies corrections, marks the chapter as reviewed, and saves to `reviewed/chapter_NN.json`.

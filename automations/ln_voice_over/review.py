@@ -11,8 +11,6 @@ persist independently of re-runs.
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from .models import Chapter
 
 
@@ -21,12 +19,12 @@ def apply_correction(chapter: Chapter, segment_index: int, new_speaker: str) -> 
     new_segments = []
     for seg in chapter.segments:
         if seg.index == segment_index:
-            new_segments.append(replace(seg, speaker=new_speaker))
+            new_segments.append(seg.model_copy(update={"speaker": new_speaker}))
         else:
             new_segments.append(seg)
-    return replace(chapter, segments=tuple(new_segments))
+    return chapter.model_copy(update={"segments": tuple(new_segments)})
 
 
 def approve_chapter(chapter: Chapter) -> Chapter:
     """Mark a chapter as reviewed without changes."""
-    return replace(chapter, reviewed=True)
+    return chapter.model_copy(update={"reviewed": True})

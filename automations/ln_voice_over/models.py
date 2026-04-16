@@ -1,14 +1,30 @@
 """Data models for the LN voice-over pipeline.
 
-All models are frozen dataclasses — immutable after creation. Collection
-fields use tuples (not lists) so immutability is genuine. Use
-dataclasses.replace() to create modified copies.
+All models are pydantic BaseModel with frozen config — immutable after
+creation. Use .model_copy(update={...}) to create modified copies.
+
+Models with file I/O needs (Chapter, CharacterRegistry, VoiceConfig) have
+.save(path) / .load(path) classmethods for JSON round-trip with atomic writes.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import tempfile
 from enum import Enum
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content to a file atomically via temp file + rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent, suffix=".tmp", delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp.write(content)
+        tmp_path = Path(tmp.name)
+    tmp_path.rename(path)
 
 
 class SegmentType(Enum):
@@ -21,14 +37,15 @@ class SegmentType(Enum):
     CHAPTER_HEADER = "chapter_header"
 
 
-@dataclass(frozen=True)
-class Segment:
+class Segment(BaseModel):
     """A single segment of chapter text.
 
     Created by the PARSE stage with speaker as None.
-    The RESOLVE stage produces new Segment instances (via replace())
+    The RESOLVE stage produces new Segment instances (via model_copy())
     with speaker populated.
     """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     index: int
     segment_type: SegmentType
@@ -36,14 +53,15 @@ class Segment:
     speaker: str | None = None
 
 
-@dataclass(frozen=True)
-class Chapter:
+class Chapter(BaseModel):
     """A chapter with all its segments.
 
     The pov_character field drives narrator voice selection: when set,
     all narration segments in this chapter use that character's voice
     instead of the default narrator voice.
     """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     chapter_number: int
     title: str
@@ -52,9 +70,17 @@ class Chapter:
     segments: tuple[Segment, ...]
     reviewed: bool = False
 
+    def save(self, path: Path) -> None:
+        """Atomic write to JSON file."""
+        _atomic_write(path, self.model_dump_json(indent=2))
 
-@dataclass(frozen=True)
-class Character:
+    @classmethod
+    def load(cls, path: Path) -> Chapter:
+        """Read a Chapter from a JSON file."""
+        return cls.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+class Character(BaseModel):
     """A character in the character registry.
 
     Attributes:
@@ -65,6 +91,8 @@ class Character:
         role: Affects voice assignment priority ("main", "supporting", "minor").
     """
 
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
     name: str
     aliases: tuple[str, ...] = ()
     description: str = ""
@@ -72,14 +100,15 @@ class Character:
     role: str = "minor"
 
 
-@dataclass(frozen=True)
-class CharacterRegistry:
+class CharacterRegistry(BaseModel):
     """All known characters for a book or series.
 
     The registry is the source of truth for character names during
     attribution and voice resolution. The find() method handles
     case-insensitive lookup by name or alias.
     """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     characters: tuple[Character, ...] = ()
     narrator_name: str = "Narrator"
@@ -145,9 +174,17 @@ class CharacterRegistry:
             return all_names[matches[0]]
         return None
 
+    def save(self, path: Path) -> None:
+        """Atomic write to JSON file."""
+        _atomic_write(path, self.model_dump_json(indent=2))
 
-@dataclass(frozen=True)
-class VoiceMapping:
+    @classmethod
+    def load(cls, path: Path) -> CharacterRegistry:
+        """Read a CharacterRegistry from a JSON file."""
+        return cls.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+class VoiceMapping(BaseModel):
     """Maps a speaker to a TTS voice.
 
     Attributes:
@@ -157,14 +194,15 @@ class VoiceMapping:
         settings: Optional provider-specific params (speed, pitch, etc.).
     """
 
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
     speaker: str
     provider: str
     voice_id: str
     settings: dict | None = None
 
 
-@dataclass(frozen=True)
-class VoiceConfig:
+class VoiceConfig(BaseModel):
     """Complete voice configuration for a project.
 
     Resolution order in get_voice():
@@ -173,21 +211,17 @@ class VoiceConfig:
     3. default_narrator as final fallback
     """
 
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
     mappings: tuple[VoiceMapping, ...] = ()
-    default_male: VoiceMapping = field(
-        default_factory=lambda: VoiceMapping(
-            speaker="__default_male__", provider="edge", voice_id="en-US-GuyNeural"
-        )
+    default_male: VoiceMapping = VoiceMapping(
+        speaker="__default_male__", provider="edge", voice_id="en-US-GuyNeural"
     )
-    default_female: VoiceMapping = field(
-        default_factory=lambda: VoiceMapping(
-            speaker="__default_female__", provider="edge", voice_id="en-US-JennyNeural"
-        )
+    default_female: VoiceMapping = VoiceMapping(
+        speaker="__default_female__", provider="edge", voice_id="en-US-JennyNeural"
     )
-    default_narrator: VoiceMapping = field(
-        default_factory=lambda: VoiceMapping(
-            speaker="Narrator", provider="edge", voice_id="en-US-AriaNeural"
-        )
+    default_narrator: VoiceMapping = VoiceMapping(
+        speaker="Narrator", provider="edge", voice_id="en-US-AriaNeural"
     )
 
     def get_voice(self, speaker: str, gender: str = "unknown") -> VoiceMapping:
@@ -200,3 +234,12 @@ class VoiceConfig:
         if gender == "female":
             return self.default_female
         return self.default_narrator
+
+    def save(self, path: Path) -> None:
+        """Atomic write to JSON file."""
+        _atomic_write(path, self.model_dump_json(indent=2))
+
+    @classmethod
+    def load(cls, path: Path) -> VoiceConfig:
+        """Read a VoiceConfig from a JSON file."""
+        return cls.model_validate_json(path.read_text(encoding="utf-8"))

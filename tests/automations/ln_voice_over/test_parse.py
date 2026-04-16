@@ -181,7 +181,7 @@ class TestParseChapter:
 
         assert chapter.pov_character == "Ayanokouji"
 
-    def test_speaker_and_confidence_are_none(self, tmp_path: Path):
+    def test_speaker_is_none(self, tmp_path: Path):
         chapter_file = tmp_path / "chapter.txt"
         chapter_file.write_text("Chapter 1: Test\n\nSome text.\n", encoding="utf-8")
 
@@ -189,7 +189,6 @@ class TestParseChapter:
 
         for segment in chapter.segments:
             assert segment.speaker is None
-            assert segment.confidence is None
 
     def test_no_header_detected(self, tmp_path: Path):
         chapter_file = tmp_path / "chapter.txt"
