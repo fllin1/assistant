@@ -6,6 +6,10 @@ Converts raw light novel text files into multi-voice audiobooks. The pipeline sp
 
 ```
 SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
+  │        │        │         │         │         │          │
+  ▼        ▼        ▼         ▼         ▼         ▼          ▼
+chapters/ cleaned/ parsed/  extracted/ attributed/ reviewed/ audio/
+(txt)    (txt)    (json)   (json)     (json)      (json)    (mp3)
 ```
 
 Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under `~/.assistant/ln_voice_over/projects/<book-slug>/`.
@@ -32,25 +36,52 @@ lnvo clean classroom-of-the-elite-year-2
 lnvo parse classroom-of-the-elite-year-2
 
 # 3. Extract speakers (two independent sources for cross-validation)
-# Source A: Gemini Flash via OpenRouter (all chapters, sequential)
-python -m automations.ln_voice_over.scripts.run_all_extractions \
-    --model gemini-flash --no-resolve
+# Source A: Gemini Flash via OpenRouter
+lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+    --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
 
 # Source B: Claude Sonnet via /attribute-chapter skill (per chapter)
 /attribute-chapter classroom-of-the-elite-year-2 2
 
 # 4. Resolve: cross-validate sources and map to canonical names
-python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
+lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
+    --source gemini-flash_fast_20260414 \
+    --source claude-sonnet_skill_20260415
 
-# 5. Review divergences (next step — Claude skill, not yet implemented)
+# 5. Review divergences
+/review-chapter classroom-of-the-elite-year-2 2
+
 # 6. Synthesize audio (not yet implemented)
 ```
 
-## Extraction
+## Stage Details
 
-Speaker extraction determines who speaks each dialogue segment by analyzing surrounding narration for speech tags, pronouns, and conversational flow.
+### Stage 1: SPLIT — Volume to Chapters
 
-### Two Extraction Methods
+- **Input**: `raw/<book-slug>.txt` → **Output**: `chapters/chapter_01.txt`, ..., `chapters/manifest.json`
+- Detect chapter boundaries via configurable regex patterns (`config.CHAPTER_PATTERNS`)
+- `manifest.json` has `pov_character: null` — user fills it manually
+- Front matter before first header → `chapter_00.txt` or skipped
+
+### Stage 2: CLEAN — Artifact Removal
+
+- **Input**: `chapters/*.txt` → **Output**: `cleaned/*.txt`
+- Remove watermark lines, standalone page numbers
+- Collapse 3+ blank lines to 2
+- Preserve scene breaks (`***`, `---`, `* * *`, etc.)
+- Normalize encoding to UTF-8
+
+### Stage 3: PARSE — Structural Segmentation
+
+- **Input**: `cleaned/*.txt` → **Output**: `parsed/chapter_01.json`
+- Segment types: `narration`, `dialogue`, `inner_thought`, `scene_break`, `chapter_header`
+- Split at paragraph boundaries; each dialogue block = one segment
+- **No mid-sentence splitting**: `She said "hello" and walked away.` stays as one `narration` segment
+- Long narration (>500 chars) split at sentence boundaries
+
+### Stage 4: EXTRACT — Speaker Attribution
+
+Per-dialogue LLM extraction via `extraction.py`. Supports local (Ollama) and cloud (OpenRouter) models.
 
 **CLI extraction** (`lnvo extract`) — runs a local or cloud LLM per-dialogue with a configurable context window:
 
@@ -72,37 +103,33 @@ lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
 
 Both methods produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
 
-### Batch Extraction
+#### Model Registry (`config.py`)
 
-Run all chapters with a given model:
+Models are registered as `alias → (provider, model_id)`:
 
-```bash
-# All chapters with Gemini Flash
-python -m automations.ln_voice_over.scripts.run_all_extractions --model gemini-flash
+| Alias | Provider | Notes |
+|-------|----------|-------|
+| `gemini-flash` | OpenRouter | 100% accuracy on chapter 2 ground truth |
+| `gemini-flash-lite` | OpenRouter | Faster/cheaper, lower accuracy |
+| `gemma4:26b` | Ollama | Local, no API key needed |
+| `gemma4:12b` | Ollama | Smaller local model |
+| `grok-fast` | OpenRouter | Fast cloud alternative |
 
-# Specific chapters
-python -m automations.ln_voice_over.scripts.run_all_extractions \
-    --model gemini-flash --chapters 1,3,5
+#### LLM Routing (`llm.py`)
 
-# Skip extraction, just resolve + diagnose
-python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
-```
+`call_llm()` resolves the model alias via `MODEL_REGISTRY`, then dispatches to `_call_ollama()` or `_call_openrouter()`. Cloud models require `OPENROUTER_API_KEY`.
 
-## Resolution
+### Stage 5: RESOLVE — Cross-Validation & Name Resolution
 
 The resolve step cross-validates multiple extraction sources and maps raw speaker names to canonical character names from the registry.
 
 ```bash
-# Resolve a single chapter with specific sources
 lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
     --source gemini-flash_fast_20260414 \
     --source claude-sonnet_skill_20260415
-
-# Resolve all chapters (uses all available sources per chapter)
-python -m automations.ln_voice_over.scripts.run_all_extractions --resolve-only
 ```
 
-### Cross-Validation Behavior
+#### Cross-Validation Behavior
 
 When two sources are available:
 - **Both agree** (after canonical name resolution) → consensus, no flag
@@ -110,7 +137,7 @@ When two sources are available:
 - **Both say "Unknown"** → confirmed unknown (no flag — genuinely unnamed speaker)
 - **Sources disagree** → flagged as divergence, majority wins
 
-### Flags
+#### Flags
 
 The resolve step writes a `_flags.json` file alongside each attributed chapter:
 
@@ -121,11 +148,37 @@ The resolve step writes a `_flags.json` file alongside each attributed chapter:
 | `unresolved` | Name not found in character registry |
 | `missing` | No source had an attribution for this dialogue |
 
-## Review
+### Stage 6: REVIEW — Manual Correction
 
-> **Note:** The review step will be handled by a Claude skill (`/review-chapter` or similar) that reads the attributed chapter + flags, examines the surrounding narration context, and resolves the remaining divergences. This is the next feature to implement.
+- **Input**: `attributed/*.json` + `attributed/*_flags.json` → **Output**: `reviewed/*.json`
+- The `/review-chapter` Claude skill reads context and resolves divergences
+- The flags file tells you exactly which segments need attention — typically 1-3% of all dialogues
 
-The review step takes the attributed chapters (with flags) and produces final reviewed chapters. The flags file tells you exactly which segments need attention — typically 1-3% of all dialogues.
+### Stage 7: SYNTHESIZE + ASSEMBLE (not yet implemented)
+
+- **Input**: `reviewed/*.json` + `config/voices.json` → **Output**: `audio/chapters/*.mp3`
+
+#### Voice Resolution
+
+```
+scene_break     → silence (no TTS)
+chapter_header  → NARRATOR voice
+narration       → pov_character voice if set, else NARRATOR
+dialogue/thought → speaker's mapped voice → gender default → NARRATOR
+```
+
+#### Caching
+
+`cache_key = sha256(f"{voice_id}:{text}")[:16]` — content-addressable.
+Re-runs after fixing one attribution only re-synthesize changed segments.
+
+#### Assembly
+
+Concatenate with `pydub`, insert silence between segments:
+- 200ms dialogue→dialogue
+- 400ms narration↔dialogue
+- 800ms scene break
+- 1500ms chapter header
 
 ## Project Data Layout
 

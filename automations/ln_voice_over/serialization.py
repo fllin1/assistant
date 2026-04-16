@@ -35,7 +35,6 @@ def segment_to_dict(segment: Segment) -> dict:
     """Convert a Segment to a JSON-serializable dict.
 
     The segment_type enum is stored as its string value.
-    None fields (speaker, confidence) are included for schema consistency.
     """
     d = asdict(segment)
     d["segment_type"] = segment.segment_type.value
@@ -46,16 +45,13 @@ def segment_from_dict(data: dict) -> Segment:
     """Reconstruct a Segment from a dict.
 
     Converts the segment_type string back to SegmentType enum.
+    Ignores legacy fields (line_start, line_end, confidence, attribution_method).
     """
     return Segment(
         index=data["index"],
         segment_type=SegmentType(data["segment_type"]),
         text=data["text"],
-        line_start=data["line_start"],
-        line_end=data["line_end"],
         speaker=data.get("speaker"),
-        confidence=data.get("confidence"),
-        attribution_method=data.get("attribution_method"),
     )
 
 

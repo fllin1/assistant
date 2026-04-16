@@ -142,7 +142,7 @@ def parse_chapter(
 
     Returns:
         A Chapter instance with its segments tuple populated.
-        Speaker and confidence fields on segments are None at this stage.
+        Speaker field on segments is None at this stage.
     """
     text = cleaned_path.read_text(encoding="utf-8").strip()
     segments: list[Segment] = []
@@ -164,8 +164,6 @@ def parse_chapter(
                 index=seg_index,
                 segment_type=SegmentType.CHAPTER_HEADER,
                 text=first_line,
-                line_start=1,
-                line_end=1,
             )
         )
         seg_index += 1
@@ -195,8 +193,6 @@ def parse_chapter(
                         index=seg_index,
                         segment_type=SegmentType.NARRATION,
                         text=chunk,
-                        line_start=2,
-                        line_end=2,
                     )
                 )
                 seg_index += 1
@@ -206,8 +202,6 @@ def parse_chapter(
                     index=seg_index,
                     segment_type=sub_type,
                     text=sub_text,
-                    line_start=2,
-                    line_end=2,
                 )
             )
             seg_index += 1
