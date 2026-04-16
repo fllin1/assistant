@@ -48,10 +48,11 @@ def list_books() -> None:
 
 @app.command()
 def split(book_slug: str) -> None:
-    """Stage 1: Split a volume .txt into chapter files.
+    """Stage 1: Split a volume into chapter files.
 
-    Expects the volume file at:
-        ~/.assistant/ln_voice_over/projects/<book-slug>/raw/
+    Accepts two input formats (checked in order):
+    1. downloads/book.json — pre-structured JSON from /extract-book skill
+    2. raw/*.txt — raw volume text file (regex-based splitting)
 
     Outputs chapter files and manifest.json to:
         ~/.assistant/ln_voice_over/projects/<book-slug>/chapters/
@@ -59,18 +60,22 @@ def split(book_slug: str) -> None:
     from .split import split_volume, write_manifest
 
     root = PROJECTS_DIR / book_slug
-    raw_dir = root / "raw"
     output_dir = root / "chapters"
 
-    txt_files = sorted(raw_dir.glob("*.txt"))
-    if not txt_files:
-        typer.echo(f"No .txt files found in {raw_dir}")
-        raise typer.Exit(1)
-
-    # Split the first .txt file found
-    source = txt_files[0]
-    if len(txt_files) > 1:
-        typer.echo(f"Multiple .txt files found, using: {source.name}")
+    # Try JSON first (from PDF extraction), fall back to .txt
+    book_json = root / "downloads" / "book.json"
+    if book_json.exists():
+        source = book_json
+        typer.echo(f"Using extracted book: {source}")
+    else:
+        raw_dir = root / "raw"
+        txt_files = sorted(raw_dir.glob("*.txt"))
+        if not txt_files:
+            typer.echo(f"No book.json in downloads/ and no .txt files in {raw_dir}")
+            raise typer.Exit(1)
+        source = txt_files[0]
+        if len(txt_files) > 1:
+            typer.echo(f"Multiple .txt files found, using: {source.name}")
 
     chapters = split_volume(source, output_dir)
     write_manifest(chapters, output_dir)
