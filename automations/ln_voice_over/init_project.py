@@ -35,6 +35,13 @@ def create_project(slug: str) -> Path:
     Returns the project root directory.
     """
     root = project_dir(slug)
+
+    # One-time migration: attributed/ → resolved/
+    legacy = root / "attributed"
+    new = root / "resolved"
+    if legacy.exists() and not new.exists():
+        legacy.rename(new)
+
     for subdir in PROJECT_SUBDIRS:
         (root / subdir).mkdir(parents=True, exist_ok=True)
 

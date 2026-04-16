@@ -38,8 +38,8 @@ def main() -> None:
     args = parser.parse_args()
 
     project_dir = PROJECTS_DIR / args.slug
-    attributed_path = project_dir / "attributed" / f"chapter_{args.chapter_id}.json"
-    flags_path = project_dir / "attributed" / f"chapter_{args.chapter_id}_flags.json"
+    attributed_path = project_dir / "resolved" / f"chapter_{args.chapter_id}.json"
+    flags_path = project_dir / "resolved" / f"chapter_{args.chapter_id}_flags.json"
 
     if not attributed_path.exists():
         print(f"ERROR: Attributed chapter not found: {attributed_path}", file=sys.stderr)
