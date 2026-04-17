@@ -66,7 +66,7 @@ lnvo audition en-US-BrianNeural
 lnvo audition en-US-BrianNeural --text "I have no intention of losing."
 
 # Use a real dialogue line from the character's resolved chapters
-lnvo audition en-US-BrianNeural --character "Ayanokouji Kiyotaka" --book classroom-of-the-elite-year-2
+lnvo audition en-US-BrianNeural --character "Ayanokouji Kiyotaka" --book classroom-of-the-elite-year-2-v7
 ```
 
 The `--character` option searches `reviewed/` then `resolved/` chapters for a dialogue line by that character (at least 20 chars). This lets you hear how the voice sounds with actual book dialogue.
@@ -80,9 +80,9 @@ lnvo assign-voice <book-slug> "<character-name>" <voice-id>
 Example:
 
 ```bash
-lnvo assign-voice classroom-of-the-elite-year-2 "Ayanokouji Kiyotaka" en-US-AndrewNeural
-lnvo assign-voice classroom-of-the-elite-year-2 "Horikita Suzune" en-US-EmmaNeural
-lnvo assign-voice classroom-of-the-elite-year-2 "Ryuuen Kakeru" en-GB-RyanNeural
+lnvo assign-voice classroom-of-the-elite-year-2-v7 "Ayanokouji Kiyotaka" en-US-AndrewNeural
+lnvo assign-voice classroom-of-the-elite-year-2-v7 "Horikita Suzune" en-US-EmmaNeural
+lnvo assign-voice classroom-of-the-elite-year-2-v7 "Ryuuen Kakeru" en-GB-RyanNeural
 ```
 
 - The character name must match `characters.json` (canonical name or alias)

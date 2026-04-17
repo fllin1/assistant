@@ -1,24 +1,23 @@
 # Stage 0: Source Acquisition
 
-Before the pipeline can run, you need the light novel as a PDF. This document covers how to obtain it and extract text + illustrations using `opendataloader-pdf`.
+The `/setup-book` Claude skill handles the full source-acquisition flow: download an AnyFlip book as a PDF, extract page images, OCR the text, classify illustrations, and produce `source/book.json` ready for `lnvo split`.
 
-## Overview
+This doc covers the one-time prerequisite installs. Once those are in place, usage is just:
 
 ```
-AnyFlip book → PDF (via anyflip-downloader) → /setup-book skill → source/book.json + illustrations/
+/setup-book <anyflip-url> <book-slug>
 ```
 
-This replaces the old manual copy-paste workflow. The PDF is the single source of truth for both text and illustrations.
+See `.claude/commands/setup-book.md` for the skill's step-by-step logic.
 
-## Step 1: Install anyflip-downloader
+## Prerequisites
 
-The Go-based [anyflip-downloader](https://github.com/Lofter1/anyflip-downloader) handles Cloudflare protection and produces a PDF directly.
+### 1. anyflip-downloader (Go binary)
+
+[anyflip-downloader](https://github.com/Lofter1/anyflip-downloader) handles Cloudflare protection and produces a PDF directly. Install via Go:
 
 ```bash
-# Install Go if needed
-brew install go
-
-# Install the downloader
+brew install go  # if needed
 go install github.com/Lofter1/anyflip-downloader@latest
 ```
 
@@ -28,76 +27,48 @@ The binary lands in `~/go/bin/anyflip-downloader`. Add `~/go/bin` to your PATH i
 export PATH="$HOME/go/bin:$PATH"
 ```
 
-## Step 2: Download the PDF
+### 2. Java 21 (required by opendataloader-pdf)
 
 ```bash
-# Create the project first (if not already done) — bare `lnvo` opens the guided menu
-lnvo
-
-# Download — pass the anyflip book URL
-anyflip-downloader "https://anyflip.com/cnyjl/qwpk"
+brew install openjdk@21
+echo 'export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-This produces a PDF file in the current directory. Move it into the project:
+The skill prepends this PATH itself when invoking `extract_pdf.py`, so the export is only needed if you want to run the script manually.
+
+### 3. opendataloader-pdf (Python)
 
 ```bash
-mv *.pdf ~/.assistant/ln_voice_over/projects/<book-slug>/source/volume.pdf
+uv pip install opendataloader-pdf
 ```
 
-### Troubleshooting
+## Browser fallback
 
-- **Rate limited?** The downloader fetches pages sequentially. If it stalls, try again after a minute.
-- **No PDF output?** Some books have download protection. Try the browser fallback below.
+If `anyflip-downloader` fails (some books have download protection), fall back to the browser:
 
-### Fallback: Browser print-to-PDF
-
-If the Go downloader doesn't work:
-
-1. Open the book in your browser: `https://anyflip.com/cnyjl/qwpk/`
+1. Open the book in your browser: e.g. `https://anyflip.com/cnyjl/qwpk/`
 2. Use the browser's Print dialog (Cmd+P on Mac)
 3. Select "Save as PDF"
 4. Save to `~/.assistant/ln_voice_over/projects/<book-slug>/source/volume.pdf`
 
-## Step 3: Install extraction dependencies
+Then skip Step 1 of `/setup-book` and start from Step 2 (the skill auto-detects any `*.pdf` in `source/`).
 
-```bash
-# Java 21 (required by opendataloader-pdf)
-brew install openjdk@21
-echo 'export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
+## What you get
 
-# opendataloader-pdf
-uv pip install opendataloader-pdf
-```
+After `/setup-book` finishes, the project's `source/` directory contains:
 
-## Step 4: Extract text and illustrations
+- `<title>.pdf` — the downloaded PDF
+- `pages/NNN.png` — one image per page
+- `pages.json` — per-page classification (text / color_illustration / small)
+- `book.json` — the structured output: chapters with OCR'd text, front-matter illustrations, per-chapter illustrations, back-matter
 
-> **Note:** This step will be automated by the `/download-book` skill (not yet implemented). For now, the PoC script handles it.
-
-Run the extraction script:
-
-```bash
-python automations/ln_voice_over/data/poc_extract.py
-```
-
-This produces:
-- `source/book.json` — structured book with chapters and illustration metadata
-- `source/pages/` — extracted page images (cache)
-
-The output is compatible with the existing pipeline — run `lnvo split` next.
-
-## Reference: AnyFlip URL patterns
-
-| Book | AnyFlip URL |
-|------|-------------|
-| COTE Y2V7 | `https://anyflip.com/cnyjl/qwpk` |
-
-Add rows as you process more volumes.
+`lnvo split <slug>` picks up `book.json` automatically — no further configuration.
 
 ## What's next
-
-Once you have the PDF in `source/`, the rest of the pipeline runs as documented in the [README](../README.md):
 
 ```
 SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
 ```
+
+See the main [README](../README.md) for each downstream stage.
