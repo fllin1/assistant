@@ -115,7 +115,7 @@ lnvo list-books             # list all project slugs
 ### Stage 3: PARSE — Structural Segmentation
 
 - **Input**: `cleaned/*.txt` → **Output**: `parsed/chapter_01.json`
-- Segment types: `narration`, `dialogue`, `inner_thought`, `scene_break`, `chapter_header`
+- Segment types: `narration`, `dialogue`, `scene_break`, `chapter_header`
 - Split at paragraph boundaries; each dialogue block = one segment
 - **No mid-sentence splitting**: `She said "hello" and walked away.` stays as one `narration` segment
 - Long narration (>500 chars) split at sentence boundaries

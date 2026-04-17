@@ -68,7 +68,7 @@ def resolve_chapter(
     new_segments = []
 
     for seg in chapter.segments:
-        if seg.segment_type not in (SegmentType.DIALOGUE, SegmentType.INNER_THOUGHT):
+        if seg.segment_type != SegmentType.DIALOGUE:
             new_segments.append(seg)
             continue
 
