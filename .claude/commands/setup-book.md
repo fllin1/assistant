@@ -61,7 +61,7 @@ For pages classified as `small`, read the actual page image to determine if they
 - **Blank pages**
 - **Table of contents**
 
-For `text` pages whose `size_kb` in `pages.json` falls in the 1500–2000 KB band (just under the 2000 KB color threshold in `extract_pdf.py`), open the image: they're often BW illustrations or hybrid illustration+text spreads.
+The thresholds are per-PDF: `extract_pdf.py` computes `color_cutoff_kb` and `small_cutoff_kb` from this book's own median page size and writes both into `pages.json`. Keep in mind the size heuristic is only a hint — partial-bleed color illustrations on white backgrounds can be smaller than a dense text page, so they'll be classified as `text`. Trust the OCR pass in Step 4 as the ground truth, and use size as a cue for which pages to sample manually. A reasonable manual sample is: any `text` page whose `size_kb` is within ~20% of `color_cutoff_kb` (just below the boundary — often BW or hybrid illustration+text spreads).
 
 ### Step 4: OCR text pages
 
@@ -78,6 +78,7 @@ Process pages in batches. For each batch:
    - Italicized text markers if visible
 3. Skip watermark text at the bottom of pages (e.g. "Page N Goldenagato | mp4directs.com" — the exact wording varies by source)
 4. Note chapter headers (e.g., "Chapter 2: Getting Ready for the Cultural Festival")
+5. **Emit valid JSON.** The `text`, `description`, and `caption` fields will contain `"` (dialogue quotes) and `\` — escape them as `\"` and `\\` before writing the batch file. Every dialogue line like `"huh?"` must appear in the JSON as `\"huh?\"`. After writing, parse the file with `json.loads` to confirm it's valid; if parsing fails, fix the escaping and rewrite before returning.
 
 Build up the text chapter by chapter. When you encounter a new chapter header, start a new chapter entry.
 

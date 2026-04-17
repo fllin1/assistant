@@ -1,7 +1,12 @@
 """Extract page images from a PDF and classify them.
 
 Uses opendataloader-pdf to extract all pages as images, then classifies
-each page by file size heuristic (color illustration, text, etc.).
+each page by a size heuristic derived from this PDF's own distribution
+(full-bleed illustrations vs. typical text pages vs. blank/sparse pages).
+
+These are hints only — size alone cannot always separate partial-bleed
+color illustrations from dense text pages, so the /setup-book skill's
+OCR pass remains the ground truth.
 
 Requires: Java 21+, opendataloader-pdf
 
@@ -16,16 +21,24 @@ from pathlib import Path
 
 PROJECTS_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
 
-# File size thresholds for classification (in KB)
-COLOR_ILLUSTRATION_THRESHOLD_KB = 2000
-SMALL_PAGE_THRESHOLD_KB = 200
+# Multipliers applied to the per-PDF median page size. Full-bleed illustrations
+# typically weigh ~1.5-3x a typical text page; blank/sparse pages <30%.
+COLOR_MULTIPLE = 1.6
+SMALL_MULTIPLE = 0.30
 
 
-def classify_page(size_kb: float) -> str:
-    """Classify a page based on its image file size."""
-    if size_kb > COLOR_ILLUSTRATION_THRESHOLD_KB:
+def compute_thresholds(sizes: list[float]) -> tuple[float, float]:
+    """Return (color_cutoff_kb, small_cutoff_kb) scaled to this PDF's median."""
+    s = sorted(sizes)
+    median = s[len(s) // 2]
+    return median * COLOR_MULTIPLE, median * SMALL_MULTIPLE
+
+
+def classify_page(size_kb: float, color_cutoff: float, small_cutoff: float) -> str:
+    """Classify a page given this PDF's computed cutoffs."""
+    if size_kb > color_cutoff:
         return "color_illustration"
-    if size_kb < SMALL_PAGE_THRESHOLD_KB:
+    if size_kb < small_cutoff:
         return "small"  # blank, ToC, title, or sparse text — needs review
     return "text"
 
@@ -77,7 +90,7 @@ def main() -> None:
     extract_data = json.loads(extract_jsons[0].read_text(encoding="utf-8"))
     total_pages = extract_data.get("number of pages", 0)
 
-    # Rename images from imageFileN.png to NNN.png and classify
+    # First pass: rename images from imageFileN.png to NNN.png and collect sizes.
     pages = []
     for kid in extract_data.get("kids", []):
         page_num = kid["page number"]
@@ -100,9 +113,13 @@ def main() -> None:
                     "page": page_num,
                     "image_path": f"pages/{page_num:03d}.png",
                     "size_kb": round(size_kb, 1),
-                    "classification": classify_page(size_kb),
                 }
             )
+
+    # Second pass: compute per-PDF thresholds, then classify.
+    color_cutoff_kb, small_cutoff_kb = compute_thresholds([p["size_kb"] for p in pages])
+    for p in pages:
+        p["classification"] = classify_page(p["size_kb"], color_cutoff_kb, small_cutoff_kb)
 
     # Clean up temp extraction dir
     for f in tmp_dir.iterdir():
@@ -113,6 +130,8 @@ def main() -> None:
     result = {
         "source_pdf": pdf_path.name,
         "total_pages": total_pages,
+        "color_cutoff_kb": round(color_cutoff_kb, 1),
+        "small_cutoff_kb": round(small_cutoff_kb, 1),
         "pages": sorted(pages, key=lambda p: p["page"]),
     }
 
@@ -129,6 +148,8 @@ def main() -> None:
         "pages_json": str(output_path),
         "total_pages": total_pages,
         "extracted": len(pages),
+        "color_cutoff_kb": round(color_cutoff_kb, 1),
+        "small_cutoff_kb": round(small_cutoff_kb, 1),
         "classifications": classifications,
     }
     print(json.dumps(summary))
