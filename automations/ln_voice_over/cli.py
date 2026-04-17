@@ -5,11 +5,8 @@ reads from the appropriate project subdirectory and writes to its own
 output directory. Running `lnvo` alone opens an interactive picker.
 
 Usage:
-    lnvo split <book-slug>
-    lnvo clean <book-slug>
-    lnvo parse <book-slug>
-    lnvo extract <book-slug> --chapter N
-    lnvo resolve <book-slug> --chapter N --source <name>
+    lnvo
+    lnvo --help
 """
 
 from __future__ import annotations
@@ -38,14 +35,6 @@ def _main(ctx: typer.Context) -> None:
         from .interactive import interactive_menu
 
         interactive_menu()
-
-
-@app.command()
-def init() -> None:
-    """Initialize or select a project."""
-    from .init_project import interactive_init
-
-    interactive_init()
 
 
 @app.command()

@@ -28,7 +28,8 @@ Each stage reads from the previous stage's output and writes to its own director
 
 ```bash
 # 1. Create project and place your .txt volume or PDF in source/
-lnvo init
+#    (bare `lnvo` opens the guided menu; /setup-book handles PDF ingestion)
+lnvo
 
 # 2. Split, clean, parse
 lnvo split classroom-of-the-elite-year-2

@@ -12,28 +12,27 @@ You are setting up a new light novel volume for the voice-over pipeline. This co
 
 Parse `$ARGUMENTS`: the first argument is the AnyFlip URL. The optional second argument is the book slug. If no slug is given, ask the user what slug to use.
 
-### Step 1: Download the PDF
+### Step 1: Download the PDF and create the project
 
-The user needs to download the PDF using `anyflip-downloader` (a Go tool). Tell them to run:
-
-```
-~/go/bin/anyflip-downloader "<anyflip-url>"
-```
-
-This produces a PDF in the current directory. Ask the user to confirm the PDF path once downloaded.
-
-If the project doesn't exist yet, create it:
+Run the AnyFlip downloader yourself from a scratch directory so the output PDF is easy to locate:
 
 ```
-python -m automations.ln_voice_over.cli init
+mkdir -p /tmp/lnvo-<slug> && cd /tmp/lnvo-<slug> && ~/go/bin/anyflip-downloader "<anyflip-url>"
 ```
 
-Then ensure the `source/` directory exists and the PDF is placed there:
+Create (or refresh) the project folder structure via `create_project()`:
 
 ```
-mkdir -p ~/.assistant/ln_voice_over/projects/<slug>/source
-mv "<pdf-path>" ~/.assistant/ln_voice_over/projects/<slug>/source/
+python -c "from automations.ln_voice_over.init_project import create_project; print(create_project('<slug>'))"
 ```
+
+Move the downloaded PDF into the project's `source/` dir. You don't need to know the exact filename — glob it:
+
+```
+mv /tmp/lnvo-<slug>/*.pdf ~/.assistant/ln_voice_over/projects/<slug>/source/
+```
+
+`extract_pdf.py` auto-detects the first `*.pdf` in `source/`, so no further bookkeeping of the PDF filename is needed.
 
 ### Step 2: Extract page images from PDF
 
@@ -49,7 +48,7 @@ Report to the user: total pages, classification breakdown (color illustrations, 
 
 ### Step 3: Review classifications
 
-Read `source/pages.json` to understand the book structure.
+Read `source/pages.json` to understand the book structure. This step can run **in parallel with Step 4** — small-page review and OCR don't depend on each other.
 
 Typical light novel structure:
 - **Pages 1-6**: Cover + color illustrations (classified as `color_illustration`)
@@ -62,13 +61,13 @@ For pages classified as `small`, read the actual page image to determine if they
 - **Blank pages**
 - **Table of contents**
 
-For any `text` pages with unusually high file size (>1.5MB), check if they might be BW illustrations.
+For `text` pages whose `size_kb` in `pages.json` falls in the 1500–2000 KB band (just under the 2000 KB color threshold in `extract_pdf.py`), open the image: they're often BW illustrations or hybrid illustration+text spreads.
 
 ### Step 4: OCR text pages
 
 This is the core step. For each text page, read the page image and extract the text.
 
-**Important:** Launch OCR agents with `model: "sonnet"` — Opus is overkill for OCR. Split the pages into ~5 parallel agents, each handling ~50 pages.
+**Important:** Launch OCR agents with `model: "sonnet"` — Opus is overkill for OCR. Launch agents in parallel, each handling a batch of ~40–60 pages; pick the batch count from the total text-page count (a short volume may want 3 agents, a long one 8+).
 
 Process pages in batches. For each batch:
 1. Read the page images (PNG files in `source/pages/NNN.png`)
@@ -77,7 +76,7 @@ Process pages in batches. For each batch:
    - Dialogue markers (opening/closing quotes)
    - Scene breaks (*** or similar)
    - Italicized text markers if visible
-3. Skip watermark text at the bottom of pages (e.g., "Page N Goldenagato | mp4directs.com")
+3. Skip watermark text at the bottom of pages (e.g. "Page N Goldenagato | mp4directs.com" — the exact wording varies by source)
 4. Note chapter headers (e.g., "Chapter 2: Getting Ready for the Cultural Festival")
 
 Build up the text chapter by chapter. When you encounter a new chapter header, start a new chapter entry.
@@ -91,6 +90,12 @@ Write the structured JSON to `source/book.json`:
   "title": "Book Title",
   "total_pages": 289,
   "book_slug": "<slug>",
+  "front_matter": {
+    "illustrations": [
+      {"page": 1, "image_path": "pages/001.png", "classification": "cover", "description": "..."},
+      {"page": 2, "image_path": "pages/002.png", "classification": "color_illustration", "description": "..."}
+    ]
+  },
   "chapters": [
     {
       "title": "Chapter Title",
@@ -102,32 +107,33 @@ Write the structured JSON to `source/book.json`:
       ]
     }
   ],
-  "front_matter": {
+  "back_matter": {
+    "afterword": "Full afterword text, or null if absent",
     "illustrations": [
-      {"page": 1, "image_path": "pages/001.png", "classification": "cover"},
-      {"page": 2, "image_path": "pages/002.png", "classification": "color_illustration", "description": "..."}
+      {"page": 285, "image_path": "pages/285.png", "classification": "back_cover", "description": "..."}
     ]
   }
 }
 ```
 
 **Chapter detection rules:**
-- Lines matching `Chapter N:` or `Prologue` or `Epilogue` or `Afterword` start a new chapter
-- Illustrations between two text pages of the same chapter belong to that chapter
-- Illustrations before the first chapter are front matter
+- Lines matching `Chapter N:`, `Prologue`, or `Epilogue` start a new chapter.
+- Illustrations between two text pages of the same chapter belong to that chapter.
+- Illustrations before the first chapter are front matter.
+- Afterword, ads, and back-cover pages go into `back_matter`, **not** a trailing chapter. If there's no afterword, set `back_matter.afterword` to `null`.
 
 **Important:** The `text` field should contain the full chapter text with the header as the first line, followed by a blank line, then body text.
 
-### Step 6: Describe front matter illustrations
+### Step 6: Describe every illustration
 
-For each color illustration in the front matter, read the image and write a brief description (1-2 sentences). Include character names if recognizable.
+For **every** illustration — front matter, interior (inside a chapter's `illustrations[]`), and back matter — read the image and write a 1–2 sentence `description`. Include character names where recognizable. Don't leave `description` empty for interior illustrations; that field is required across the board.
 
 ### Step 7: Report
 
 Report to the user:
 - Total pages processed
 - Chapters found (with titles and page ranges)
-- Illustrations found (front matter + interior)
+- Illustrations found (front matter + interior + back matter)
 - Path to `book.json`
 
 Remind them to run `lnvo split <slug>` next — it will auto-detect the `book.json`.

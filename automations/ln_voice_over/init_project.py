@@ -9,9 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import typer
-
-from .config import PROJECT_SUBDIRS, PROJECTS_DIR, project_dir
+from .config import PROJECT_SUBDIRS, project_dir
 from .models import Character, CharacterRegistry, VoiceConfig
 
 
@@ -20,13 +18,6 @@ def slugify(name: str) -> str:
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     return slug.strip("-")
-
-
-def list_projects() -> list[str]:
-    """Return sorted slugs of existing projects in PROJECTS_DIR."""
-    if not PROJECTS_DIR.exists():
-        return []
-    return sorted(d.name for d in PROJECTS_DIR.iterdir() if d.is_dir())
 
 
 def migrate_source_dir(root: Path) -> None:
@@ -86,44 +77,3 @@ def create_project(slug: str) -> Path:
         VoiceConfig().save(voices_path)
 
     return root
-
-
-def interactive_init() -> None:
-    """Prompt user to select an existing project or create a new one."""
-    projects = list_projects()
-
-    if projects:
-        typer.echo("\nExisting projects:")
-        for i, name in enumerate(projects, 1):
-            typer.echo(f"  {i}. {name}")
-        typer.echo(f"  {len(projects) + 1}. Create new project")
-        typer.echo()
-
-        choice = typer.prompt(
-            "Select a project number",
-            type=int,
-            default=len(projects) + 1,
-        )
-
-        if 1 <= choice <= len(projects):
-            slug = projects[choice - 1]
-            root = create_project(slug)
-            typer.echo(f"\nSelected project: {slug}")
-            typer.echo(f"  {root}")
-            return
-
-    # Create new project
-    name = typer.prompt("Project name (e.g. 'Mushoku Tensei Vol 1')")
-    slug = slugify(name)
-    typer.echo(f"Slug: {slug}")
-
-    if not typer.confirm("Create this project?", default=True):
-        typer.echo("Cancelled.")
-        raise typer.Abort()
-
-    root = create_project(slug)
-    typer.echo(f"\nCreated project: {slug}")
-    typer.echo(f"  {root}")
-    for subdir in PROJECT_SUBDIRS:
-        typer.echo(f"  {root / subdir}/")
-    typer.echo(f"\nNext step: place your .txt volume or PDF in {root / 'source'}/")
