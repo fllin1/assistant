@@ -1,58 +1,98 @@
 # LN Voice Over
 
-Converts raw light novel text files into multi-voice audiobooks. The pipeline splits a volume into chapters, cleans text artifacts, parses structural segments (narration, dialogue, inner thoughts), attributes speakers via LLM, and synthesizes audio with per-character TTS voices.
+Converts a light novel into a multi-voice audiobook. Starts from an AnyFlip PDF (via the `/setup-book` skill) or a hand-prepared `.txt` volume, splits it into chapters, parses structural segments (narration, dialogue, inner thoughts), attributes speakers via LLM, and synthesizes audio with per-character TTS voices.
 
 ## Pipeline
 
 ```
-SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
-  │        │        │         │         │         │          │
-  ▼        ▼        ▼         ▼         ▼         ▼          ▼
-chapters/ cleaned/ parsed/  extracted/ resolved/ reviewed/ audio/
-(txt)    (txt)    (json)   (json)     (json)      (json)    (mp3)
+SOURCE → SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
+  │        │        │       │        │         │         │          │
+  ▼        ▼        ▼       ▼        ▼         ▼         ▼          ▼
+source/  chapters/ cleaned/ parsed/ extracted/ resolved/ reviewed/ audio/
+(pdf,    (txt)    (txt)    (json)  (json)     (json)    (json)    (mp3)
+json,
+txt)
 ```
 
 Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under `~/.assistant/ln_voice_over/projects/<book-slug>/`.
 
 | Stage | What it does | Output directory |
 |-------|-------------|-----------------|
-| **Split** | Detect chapter boundaries, split volume `.txt` into chapters | `chapters/` |
+| **Source** (`/setup-book`) | Download PDF, extract page images, OCR text, produce `book.json` | `source/` |
+| **Split** | Split the volume into chapter files (from `book.json` or `.txt`) | `chapters/` |
 | **Clean** | Remove watermarks, page numbers, collapse blank lines | `cleaned/` |
 | **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `parsed/` |
 | **Extract** | LLM-based speaker attribution per dialogue segment | `extracted/` |
 | **Resolve** | Cross-validate sources, resolve names via character registry | `resolved/` |
-| **Review** | Review and correct flagged attributions | `reviewed/` |
-| **Synthesize** | TTS per segment with per-character voices, assemble audio | `audio/` |
+| **Review** (not yet implemented) | Review and correct flagged attributions | `reviewed/` |
+| **Synthesize** (not yet implemented) | TTS per segment with per-character voices, assemble audio | `audio/` |
 
 ## Quick Start
 
+**PDF path (recommended):**
+
 ```bash
-# 1. Create project and place your .txt volume or PDF in source/
-#    (bare `lnvo` opens the guided menu; /setup-book handles PDF ingestion)
-lnvo
+# 1. Source: download + OCR + structure into book.json
+/setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2-v7
 
-# 2. Split, clean, parse
-lnvo split classroom-of-the-elite-year-2
-lnvo clean classroom-of-the-elite-year-2
-lnvo parse classroom-of-the-elite-year-2
+# 2. Split, clean, parse (bare `lnvo` opens a guided menu with a slug picker)
+lnvo split classroom-of-the-elite-year-2-v7
+lnvo clean classroom-of-the-elite-year-2-v7
+lnvo parse classroom-of-the-elite-year-2-v7
 
-# 3. Extract speakers (two independent sources for cross-validation)
-# Source A: Gemini Flash via OpenRouter
-lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+# 3. Extract speakers — two independent sources for cross-validation
+#    (a) Cloud model via OpenRouter
+lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
+#    (b) Claude Sonnet skill (per chapter, parallel agents)
+/attribute-chapter classroom-of-the-elite-year-2-v7 2
 
-# Source B: Claude Sonnet via /attribute-chapter skill (per chapter)
-/attribute-chapter classroom-of-the-elite-year-2 2
-
-# 4. Resolve: cross-validate sources and map to canonical names
-lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
+# 4. Resolve: cross-validate and map to canonical names
+lnvo resolve classroom-of-the-elite-year-2-v7 --chapter 02 \
     --source gemini-flash_fast_20260414 \
     --source claude-sonnet_skill_20260415
 
-# 5. Review divergences
-/review-chapter classroom-of-the-elite-year-2 2
+# 5. Review divergences (skill, writes to reviewed/)
+/review-chapter classroom-of-the-elite-year-2-v7 2
 
 # 6. Synthesize audio (not yet implemented)
+```
+
+**Manual `.txt` path:** drop a `.txt` file in `source/`, then start at step 2. Split detects chapter boundaries via regex patterns instead of the pre-structured JSON.
+
+## Guided Mode
+
+Typing long slugs gets old. The CLI has two UX affordances:
+
+- **Bare `lnvo`** opens an interactive menu: pick a stage, pick a book, run. If no projects exist yet, it prompts you to create one inline.
+- **Omit the slug** on any command (`lnvo split`) to get a numbered picker over existing projects. Slugs on the command line (`lnvo split my-slug`) still work and bypass the picker.
+
+## CLI Reference
+
+Pipeline stages:
+
+```
+lnvo split [book-slug]
+lnvo clean [book-slug]
+lnvo parse [book-slug]
+lnvo extract [book-slug] --chapter N [--model NAME] [--pov NAME] [--batch-size N] [--verbose]
+lnvo resolve [book-slug] --chapter N --source NAME [--source NAME ...]
+```
+
+Voice management:
+
+```
+lnvo list-voices [--provider edge|openai|kokoro] [--gender male|female]
+lnvo audition <voice-id> [--text "..."] [--character NAME --book SLUG]
+lnvo assign-voice [book-slug] <character-name> <voice-id> [--provider NAME]
+lnvo show-voices [book-slug]
+```
+
+Utility:
+
+```
+lnvo                        # guided menu
+lnvo list-books             # list all project slugs
 ```
 
 ## Stage Details
@@ -88,18 +128,18 @@ Per-dialogue LLM extraction via `extraction.py`. Supports local (Ollama) and clo
 
 ```bash
 # Gemini Flash (cloud, via OpenRouter)
-lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
 
 # Verbose mode (adds reasoning for debugging)
-lnvo extract classroom-of-the-elite-year-2 --chapter 02 \
+lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --verbose
 ```
 
 **Claude Sonnet skill** (`/attribute-chapter`) — spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap. Faster for large chapters:
 
 ```
-/attribute-chapter classroom-of-the-elite-year-2 5
+/attribute-chapter classroom-of-the-elite-year-2-v7 5
 ```
 
 Both methods produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
@@ -125,7 +165,7 @@ Models are registered as `alias → (provider, model_id)`:
 The resolve step cross-validates multiple extraction sources and maps raw speaker names to canonical character names from the registry.
 
 ```bash
-lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
+lnvo resolve classroom-of-the-elite-year-2-v7 --chapter 02 \
     --source gemini-flash_fast_20260414 \
     --source claude-sonnet_skill_20260415
 ```
@@ -153,11 +193,12 @@ The resolve step writes a `_flags.json` file alongside each resolved chapter:
 
 - **Input**: `resolved/*.json` + `resolved/*_flags.json` → **Output**: `reviewed/*.json`
 - The `/review-chapter` Claude skill reads context and resolves divergences
-- The flags file tells you exactly which segments need attention — typically 1-3% of all dialogues
+- The flags file tells you exactly which segments need attention — typically 1–3% of all dialogues
 
 ### Stage 7: SYNTHESIZE + ASSEMBLE (not yet implemented)
 
 - **Input**: `reviewed/*.json` + `config/voices.json` → **Output**: `audio/chapters/*.mp3`
+- See `docs/6-voice-assignment.md` for the voice browsing + assignment workflow (which IS implemented and ready to use)
 
 #### Voice Resolution
 
@@ -198,10 +239,11 @@ Concatenate with `pydub`, insert silence between segments:
 │       ├── gemini-flash_fast_YYYYMMDD.json
 │       ├── gemini-flash_fast_YYYYMMDD_config.json
 │       └── claude-sonnet_skill_YYYYMMDD.json
-├── resolved/              # resolved chapters + flags
+├── resolved/                # resolved chapters + flags
 │   ├── chapter_NN.json      # full chapter with speaker attributions
 │   └── chapter_NN_flags.json # divergences and issues to review
 ├── reviewed/                # user-approved final attributions
+├── illustrations/           # illustration images + manifest (from /setup-book)
 └── audio/
     ├── segments/            # cached per-segment audio files
     └── chapters/            # assembled chapter audio
@@ -226,6 +268,12 @@ The registry at `config/characters.json` maps character names and aliases for re
 
 Name matching is layered: exact match → alias match → honorific stripping (`-sensei`, `-kun`, etc.) → component match ("Kiriyama" matches "Kiriyama Ikuto") → fuzzy match (difflib).
 
+## Further Reading
+
+- `docs/0-source-acquisition.md` — prerequisites for `/setup-book` (anyflip-downloader, Java 21)
+- `docs/6-voice-assignment.md` — voice browsing, auditioning, and assignment workflow
+- `.claude/commands/setup-book.md` — the source-acquisition skill itself
+
 ## Dependencies
 
 - **typer** — CLI framework
@@ -235,5 +283,6 @@ Name matching is layered: exact match → alias match → honorific stripping (`
 - **pydub** — audio concatenation
 - **rich** — colored CLI output
 - **ffmpeg** — system dependency for audio processing
+- **opendataloader-pdf** — PDF page extraction (requires Java 21)
 
 Cloud models require `OPENROUTER_API_KEY` environment variable.
