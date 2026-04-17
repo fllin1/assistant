@@ -24,22 +24,45 @@ def list_project_slugs() -> list[str]:
     )
 
 
+def bootstrap_project() -> str:
+    """Prompt for a project name, create the folder structure, return the slug.
+
+    Used when the user needs a project and none exist (or they picked the
+    "Create new" menu entry). Recommend `/setup-book` for PDF workflows —
+    this path is for manual projects (e.g. starting from a .txt volume).
+    """
+    from .init_project import create_project, slugify
+
+    name = typer.prompt("Project name (e.g. 'Mushoku Tensei Vol 1')")
+    slug = slugify(name)
+    root = create_project(slug)
+    typer.echo(f"Created project: {slug}")
+    typer.echo(f"  {root}")
+    typer.echo(f"  Place your .txt volume or PDF in {root / 'source'}/")
+    typer.echo("  For a PDF workflow, consider running /setup-book instead.")
+    return slug
+
+
 def pick_slug(prompt: str = "Select a book") -> str:
     """Show a numbered menu of existing projects and return the chosen slug.
 
-    Exits with a helpful message if no projects exist.
+    Adds a "Create new project" option at the end. When no projects exist,
+    goes straight to the creation prompt.
     """
     slugs = list_project_slugs()
     if not slugs:
-        typer.echo("No projects found. Run `lnvo init` first.")
-        raise typer.Exit(1)
+        typer.echo("No projects found — let's create one.")
+        return bootstrap_project()
 
     typer.echo(f"\n{prompt}:")
     for i, slug in enumerate(slugs, 1):
         typer.echo(f"  {i}. {slug}")
+    typer.echo(f"  {len(slugs) + 1}. Create new project")
     typer.echo()
 
     choice = typer.prompt("Number", type=int, default=1)
+    if choice == len(slugs) + 1:
+        return bootstrap_project()
     if not 1 <= choice <= len(slugs):
         typer.echo(f"Invalid choice: {choice}")
         raise typer.Exit(1)

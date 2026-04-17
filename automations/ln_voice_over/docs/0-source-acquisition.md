@@ -31,8 +31,8 @@ export PATH="$HOME/go/bin:$PATH"
 ## Step 2: Download the PDF
 
 ```bash
-# Create the project first (if not already done)
-lnvo init
+# Create the project first (if not already done) — bare `lnvo` opens the guided menu
+lnvo
 
 # Download — pass the anyflip book URL
 anyflip-downloader "https://anyflip.com/cnyjl/qwpk"
