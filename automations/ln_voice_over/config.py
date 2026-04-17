@@ -28,8 +28,7 @@ def project_dir(slug: str) -> Path:
 PROJECT_SUBDIRS = [
     "config",
     "config/extractions",
-    "downloads",
-    "raw",
+    "source",
     "chapters",
     "cleaned",
     "parsed",
@@ -40,7 +39,12 @@ PROJECT_SUBDIRS = [
     "audio/segments",
     "audio/chapters",
 ]
-"""Subdirectories created inside each project folder."""
+"""Subdirectories created inside each project folder.
+
+`source/` holds all pipeline inputs regardless of origin — a manually-prepared
+.txt volume, a downloaded PDF + extracted page images, or a pre-structured
+book.json from the /setup-book skill. The split stage auto-detects the format.
+"""
 
 
 # ---------------------------------------------------------------------------

@@ -28,11 +28,11 @@ If the project doesn't exist yet, create it:
 python -m automations.ln_voice_over.cli init
 ```
 
-Then ensure the `downloads/` directory exists and the PDF is placed there:
+Then ensure the `source/` directory exists and the PDF is placed there:
 
 ```
-mkdir -p ~/.assistant/ln_voice_over/projects/<slug>/downloads
-mv "<pdf-path>" ~/.assistant/ln_voice_over/projects/<slug>/downloads/
+mkdir -p ~/.assistant/ln_voice_over/projects/<slug>/source
+mv "<pdf-path>" ~/.assistant/ln_voice_over/projects/<slug>/source/
 ```
 
 ### Step 2: Extract page images from PDF
@@ -43,13 +43,13 @@ Run the extraction script:
 PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" python automations/ln_voice_over/scripts/extract_pdf.py <slug>
 ```
 
-This extracts all page images to `downloads/pages/` and writes `downloads/pages.json` with initial classifications (color_illustration, text, small). Capture the JSON output for the summary.
+This extracts all page images to `source/pages/` and writes `source/pages.json` with initial classifications (color_illustration, text, small). Capture the JSON output for the summary.
 
 Report to the user: total pages, classification breakdown (color illustrations, text pages, small pages).
 
 ### Step 3: Review classifications
 
-Read `downloads/pages.json` to understand the book structure.
+Read `source/pages.json` to understand the book structure.
 
 Typical light novel structure:
 - **Pages 1-6**: Cover + color illustrations (classified as `color_illustration`)
@@ -71,7 +71,7 @@ This is the core step. For each text page, read the page image and extract the t
 **Important:** Launch OCR agents with `model: "sonnet"` — Opus is overkill for OCR. Split the pages into ~5 parallel agents, each handling ~50 pages.
 
 Process pages in batches. For each batch:
-1. Read the page images (PNG files in `downloads/pages/NNN.png`)
+1. Read the page images (PNG files in `source/pages/NNN.png`)
 2. Extract the text faithfully, preserving:
    - Paragraph breaks (double newlines)
    - Dialogue markers (opening/closing quotes)
@@ -84,7 +84,7 @@ Build up the text chapter by chapter. When you encounter a new chapter header, s
 
 ### Step 5: Produce book.json
 
-Write the structured JSON to `downloads/book.json`:
+Write the structured JSON to `source/book.json`:
 
 ```json
 {

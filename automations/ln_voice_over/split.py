@@ -1,9 +1,9 @@
 """Stage 1: SPLIT — Split a volume into individual chapter files.
 
-Supports two input formats:
-- `.txt`: Raw volume text. Chapter boundaries detected by regex patterns.
-- `.json`: Pre-structured book JSON (from /extract-book skill). Chapters
-  already split with titles; illustrations extracted to a manifest.
+Reads from a project's `source/` folder. Two input formats are supported:
+- `book.json`: Pre-structured from the /setup-book skill. Chapters already
+  split with titles; illustrations extracted to a manifest.
+- `*.txt`: Raw volume text. Chapter boundaries detected by regex patterns.
 
 Both formats produce the same output: one .txt file per chapter plus a
 manifest.json with chapter metadata. Downstream stages (clean, parse)
@@ -197,7 +197,7 @@ def _split_from_json(
     Also copies illustrations to illustrations_dir if present.
     """
     data = json.loads(source_path.read_text(encoding="utf-8"))
-    downloads_dir = source_path.parent
+    source_dir = source_path.parent
 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict] = []
@@ -220,7 +220,7 @@ def _split_from_json(
 
     # Handle illustrations
     if illustrations_dir is None:
-        illustrations_dir = downloads_dir.parent / "illustrations"
+        illustrations_dir = source_dir.parent / "illustrations"
 
     all_illustrations = []
 
@@ -239,7 +239,7 @@ def _split_from_json(
         images_dir.mkdir(parents=True, exist_ok=True)
 
         for ill in all_illustrations:
-            src = downloads_dir / ill.get("image_path", "")
+            src = source_dir / ill.get("image_path", "")
             if src.exists():
                 dest_name = f"ill_{ill.get('page', 0):03d}.png"
                 dest = images_dir / dest_name

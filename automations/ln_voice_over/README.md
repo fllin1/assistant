@@ -27,7 +27,7 @@ Each stage reads from the previous stage's output and writes to its own director
 ## Quick Start
 
 ```bash
-# 1. Create project and place your .txt volume in raw/
+# 1. Create project and place your .txt volume or PDF in source/
 lnvo init
 
 # 2. Split, clean, parse
@@ -58,8 +58,8 @@ lnvo resolve classroom-of-the-elite-year-2 --chapter 02 \
 
 ### Stage 1: SPLIT — Volume to Chapters
 
-- **Input**: `raw/<book-slug>.txt` → **Output**: `chapters/chapter_01.txt`, ..., `chapters/manifest.json`
-- Detect chapter boundaries via configurable regex patterns (`config.CHAPTER_PATTERNS`)
+- **Input**: `source/book.json` (from `/setup-book`) OR `source/*.txt` → **Output**: `chapters/chapter_01.txt`, ..., `chapters/manifest.json`
+- JSON input is pre-split with titles; `.txt` input uses regex patterns (`config.CHAPTER_PATTERNS`) to detect chapter boundaries
 - `manifest.json` has `pov_character: null` — user fills it manually
 - Front matter before first header → `chapter_00.txt` or skipped
 
@@ -188,7 +188,7 @@ Concatenate with `pydub`, insert silence between segments:
 │   ├── characters.json      # character registry (names, aliases, gender)
 │   ├── voices.json          # voice mappings per character
 │   └── extractions/         # config sidecars for extraction runs
-├── raw/                     # original volume .txt files
+├── source/                  # pipeline input: book.json, PDF, .txt, or extracted pages
 ├── chapters/                # split chapter .txt files + manifest.json
 ├── cleaned/                 # cleaned chapter .txt files
 ├── parsed/                  # structural segments as JSON
