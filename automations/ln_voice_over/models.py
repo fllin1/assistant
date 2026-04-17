@@ -32,7 +32,6 @@ class SegmentType(Enum):
 
     NARRATION = "narration"
     DIALOGUE = "dialogue"
-    INNER_THOUGHT = "inner_thought"
     SCENE_BREAK = "scene_break"
     CHAPTER_HEADER = "chapter_header"
 
