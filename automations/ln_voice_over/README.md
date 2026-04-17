@@ -148,7 +148,7 @@ The resolve step writes a `_flags.json` file alongside each resolved chapter:
 | `unresolved` | Name not found in character registry |
 | `missing` | No source had an attribution for this dialogue |
 
-### Stage 6: REVIEW — Manual Correction
+### Stage 6: REVIEW — Manual Correction (not yet implemented)
 
 - **Input**: `resolved/*.json` + `resolved/*_flags.json` → **Output**: `reviewed/*.json`
 - The `/review-chapter` Claude skill reads context and resolves divergences
