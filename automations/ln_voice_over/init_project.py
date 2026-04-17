@@ -29,6 +29,28 @@ def list_projects() -> list[str]:
     return sorted(d.name for d in PROJECTS_DIR.iterdir() if d.is_dir())
 
 
+def migrate_source_dir(root: Path) -> None:
+    """Fold legacy `raw/` and `downloads/` into a single `source/` folder.
+
+    Idempotent: safe to call on already-migrated projects. Empty legacy dirs
+    are removed; collisions keep the destination file and leave the source
+    in place for manual review.
+    """
+    source = root / "source"
+    for legacy_name in ("raw", "downloads"):
+        legacy = root / legacy_name
+        if not legacy.exists():
+            continue
+        source.mkdir(parents=True, exist_ok=True)
+        for item in legacy.iterdir():
+            dest = source / item.name
+            if dest.exists():
+                continue
+            item.rename(dest)
+        if not any(legacy.iterdir()):
+            legacy.rmdir()
+
+
 def create_project(slug: str) -> Path:
     """Create folder structure and placeholder configs. Idempotent.
 
@@ -41,6 +63,9 @@ def create_project(slug: str) -> Path:
     new = root / "resolved"
     if legacy.exists() and not new.exists():
         legacy.rename(new)
+
+    # Fold raw/ + downloads/ into source/
+    migrate_source_dir(root)
 
     for subdir in PROJECT_SUBDIRS:
         (root / subdir).mkdir(parents=True, exist_ok=True)
@@ -101,4 +126,4 @@ def interactive_init() -> None:
     typer.echo(f"  {root}")
     for subdir in PROJECT_SUBDIRS:
         typer.echo(f"  {root / subdir}/")
-    typer.echo(f"\nNext step: place your .txt volume file(s) in {root / 'raw'}/")
+    typer.echo(f"\nNext step: place your .txt volume or PDF in {root / 'source'}/")

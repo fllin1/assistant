@@ -33,23 +33,24 @@ def classify_page(size_kb: float) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract page images from a PDF.")
     parser.add_argument("slug", help="Project slug")
-    parser.add_argument("--pdf-path", help="Path to PDF (default: auto-detect in downloads/)")
+    parser.add_argument("--pdf-path", help="Path to PDF (default: auto-detect in source/)")
     args = parser.parse_args()
 
     project_dir = PROJECTS_DIR / args.slug
-    downloads_dir = project_dir / "downloads"
+    source_dir = project_dir / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
 
     # Find PDF
     if args.pdf_path:
         pdf_path = Path(args.pdf_path)
     else:
-        pdfs = sorted(downloads_dir.glob("*.pdf"))
+        pdfs = sorted(source_dir.glob("*.pdf"))
         if not pdfs:
-            print(f"ERROR: No PDF found in {downloads_dir}", file=sys.stderr)
+            print(f"ERROR: No PDF found in {source_dir}", file=sys.stderr)
             sys.exit(1)
         pdf_path = pdfs[0]
 
-    pages_dir = downloads_dir / "pages"
+    pages_dir = source_dir / "pages"
     pages_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Extracting pages from: {pdf_path.name}", file=sys.stderr)
@@ -58,7 +59,7 @@ def main() -> None:
 
     convert(
         input_path=str(pdf_path),
-        output_dir=str(downloads_dir / "_tmp_extract"),
+        output_dir=str(source_dir / "_tmp_extract"),
         format="json",
         image_output="external",
         image_format="png",
@@ -67,7 +68,7 @@ def main() -> None:
     )
 
     # Read the extraction JSON to get page count
-    tmp_dir = downloads_dir / "_tmp_extract"
+    tmp_dir = source_dir / "_tmp_extract"
     extract_jsons = list(tmp_dir.glob("*.json"))
     if not extract_jsons:
         print("ERROR: opendataloader-pdf produced no output", file=sys.stderr)
@@ -115,7 +116,7 @@ def main() -> None:
         "pages": sorted(pages, key=lambda p: p["page"]),
     }
 
-    output_path = downloads_dir / "pages.json"
+    output_path = source_dir / "pages.json"
     output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # Summary
