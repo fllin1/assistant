@@ -178,8 +178,7 @@ def extract(
     """
     import logging
 
-    from .experiments.runner import run_extraction_experiment
-    from .extraction import ExtractionConfig
+    from .extraction import ExtractionConfig, run_extraction
     from .interactive import resolve_slug
 
     book_slug = resolve_slug(book_slug)
@@ -193,7 +192,7 @@ def extract(
         use_rolling_context=rolling_context,
         fast=not verbose,
     )
-    extracted_path = run_extraction_experiment(
+    extracted_path = run_extraction(
         book_slug=book_slug,
         chapter_id=chapter,
         config=config,
