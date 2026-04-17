@@ -28,6 +28,20 @@ app = typer.Typer(
 )
 
 
+@app.callback(invoke_without_command=True)
+def _main(ctx: typer.Context) -> None:
+    """Guided menu when no subcommand is given.
+
+    Running `lnvo` with no args opens an interactive picker: choose a stage,
+    then pick a book from the existing projects. Direct invocation (e.g.
+    `lnvo split my-slug`) bypasses the menu entirely.
+    """
+    if ctx.invoked_subcommand is None:
+        from .interactive import interactive_menu
+
+        interactive_menu()
+
+
 @app.command()
 def init() -> None:
     """Initialize or select a project."""
@@ -47,7 +61,7 @@ def list_books() -> None:
 
 
 @app.command()
-def split(book_slug: str) -> None:
+def split(book_slug: str | None = typer.Argument(None)) -> None:
     """Stage 1: Split a volume into chapter files.
 
     Reads from source/, accepting two formats (checked in order):
@@ -58,8 +72,10 @@ def split(book_slug: str) -> None:
         ~/.assistant/ln_voice_over/projects/<book-slug>/chapters/
     """
     from .init_project import migrate_source_dir
+    from .interactive import resolve_slug
     from .split import split_volume, write_manifest
 
+    book_slug = resolve_slug(book_slug)
     root = PROJECTS_DIR / book_slug
     migrate_source_dir(root)
 
@@ -86,13 +102,15 @@ def split(book_slug: str) -> None:
 
 
 @app.command()
-def clean(book_slug: str) -> None:
+def clean(book_slug: str | None = typer.Argument(None)) -> None:
     """Stage 2: Clean chapter files (remove watermarks, page numbers).
 
     Reads from chapters/, writes to cleaned/.
     """
     from .clean import clean_all
+    from .interactive import resolve_slug
 
+    book_slug = resolve_slug(book_slug)
     root = PROJECTS_DIR / book_slug
     chapters_dir = root / "chapters"
     output_dir = root / "cleaned"
@@ -107,15 +125,17 @@ def clean(book_slug: str) -> None:
 
 
 @app.command()
-def parse(book_slug: str) -> None:
+def parse(book_slug: str | None = typer.Argument(None)) -> None:
     """Stage 3: Parse cleaned text into typed segments.
 
     Reads from cleaned/ + chapters/manifest.json, writes JSON to parsed/.
     """
     import json
 
+    from .interactive import resolve_slug
     from .parse import parse_chapter
 
+    book_slug = resolve_slug(book_slug)
     root = PROJECTS_DIR / book_slug
     cleaned_dir = root / "cleaned"
     output_dir = root / "parsed"
@@ -149,7 +169,7 @@ def parse(book_slug: str) -> None:
 
 @app.command(name="extract")
 def extract(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     model: str = typer.Option("gemma4:26b", help="Model (Ollama or OpenRouter)."),
     context_before: int = typer.Option(10, "--context-before", help="Segments before dialogue."),
@@ -173,7 +193,9 @@ def extract(
 
     from .experiments.runner import run_extraction_experiment
     from .extraction import ExtractionConfig
+    from .interactive import resolve_slug
 
+    book_slug = resolve_slug(book_slug)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     config = ExtractionConfig(
@@ -196,7 +218,7 @@ def extract(
 
 @app.command(name="resolve")
 def resolve(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     source: typing.Annotated[
         list[str],
@@ -213,9 +235,11 @@ def resolve(
     import json
     import logging
 
+    from .interactive import resolve_slug
     from .models import Chapter, CharacterRegistry
     from .resolution import cross_validate, load_extracted, resolve_chapter
 
+    book_slug = resolve_slug(book_slug)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     root = PROJECTS_DIR / book_slug
@@ -277,7 +301,7 @@ def resolve(
 
 @app.command()
 def review(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     chapter: int | None = typer.Option(None, help="Review only this chapter."),
     approve_all: bool = typer.Option(False, help="Approve all without review."),
 ) -> None:
@@ -401,14 +425,16 @@ def _find_character_dialogue(book_slug: str, character_name: str) -> str | None:
 
 @app.command(name="assign-voice")
 def assign_voice(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     character_name: str = typer.Argument(help="Character name (as in characters.json)."),
     voice_id: str = typer.Argument(help="Edge voice ID (e.g. en-US-DavisNeural)."),
     provider_name: str = typer.Option("edge", help="TTS provider."),
 ) -> None:
     """Assign a TTS voice to a character."""
+    from .interactive import resolve_slug
     from .models import CharacterRegistry, VoiceConfig, VoiceMapping
 
+    book_slug = resolve_slug(book_slug)
     root = PROJECTS_DIR / book_slug
     registry_path = root / "config" / "characters.json"
     voices_path = root / "config" / "voices.json"
@@ -437,10 +463,12 @@ def assign_voice(
 
 
 @app.command(name="show-voices")
-def show_voices(book_slug: str) -> None:
+def show_voices(book_slug: str | None = typer.Argument(None)) -> None:
     """Show current voice assignments for a project."""
+    from .interactive import resolve_slug
     from .models import CharacterRegistry, VoiceConfig
 
+    book_slug = resolve_slug(book_slug)
     root = PROJECTS_DIR / book_slug
     registry = CharacterRegistry.load(root / "config" / "characters.json")
     config = VoiceConfig.load(root / "config" / "voices.json")
@@ -486,7 +514,7 @@ def show_voices(book_slug: str) -> None:
 
 @app.command()
 def synthesize(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     chapter: int | None = typer.Option(None, help="Synthesize only this chapter."),
 ) -> None:
     """Stage 6: Synthesize audio and assemble chapter files.
@@ -498,7 +526,7 @@ def synthesize(
 
 @app.command(name="run-all")
 def run_all(
-    book_slug: str,
+    book_slug: str | None = typer.Argument(None),
     from_stage: str = typer.Option("split", help="Stage to start from."),
 ) -> None:
     """Run the full pipeline (or resume from a stage).
