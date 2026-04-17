@@ -1,17 +1,15 @@
 """CLI interface for the LN voice-over pipeline.
 
-Typer app with one command per pipeline stage plus a run-all command.
-Each command reads from the appropriate project subdirectory and writes
-to its own output directory.
+Typer app with one command per implemented pipeline stage. Each command
+reads from the appropriate project subdirectory and writes to its own
+output directory. Running `lnvo` alone opens an interactive picker.
 
 Usage:
-    python -m automations.ln_voice_over.cli split <book-slug>
-    python -m automations.ln_voice_over.cli clean <book-slug>
-    python -m automations.ln_voice_over.cli parse <book-slug>
-    python -m automations.ln_voice_over.cli attribute <book-slug> [--chapter N]
-    python -m automations.ln_voice_over.cli review <book-slug> [--chapter N]
-    python -m automations.ln_voice_over.cli synthesize <book-slug> [--chapter N]
-    python -m automations.ln_voice_over.cli run-all <book-slug> [--from-stage STAGE]
+    lnvo split <book-slug>
+    lnvo clean <book-slug>
+    lnvo parse <book-slug>
+    lnvo extract <book-slug> --chapter N
+    lnvo resolve <book-slug> --chapter N --source <name>
 """
 
 from __future__ import annotations
@@ -299,19 +297,6 @@ def resolve(
         typer.echo("No flags — all attributions resolved cleanly.")
 
 
-@app.command()
-def review(
-    book_slug: str | None = typer.Argument(None),
-    chapter: int | None = typer.Option(None, help="Review only this chapter."),
-    approve_all: bool = typer.Option(False, help="Approve all without review."),
-) -> None:
-    """Stage 5: Review and correct speaker attributions.
-
-    Reads from resolved/, writes to reviewed/.
-    """
-    ...
-
-
 # ---------------------------------------------------------------------------
 # Voice management commands
 # ---------------------------------------------------------------------------
@@ -510,30 +495,6 @@ def show_voices(book_slug: str | None = typer.Argument(None)) -> None:
     typer.echo(f"  Narrator:  {config.default_narrator.voice_id}")
     typer.echo(f"  Male:      {config.default_male.voice_id}")
     typer.echo(f"  Female:    {config.default_female.voice_id}")
-
-
-@app.command()
-def synthesize(
-    book_slug: str | None = typer.Argument(None),
-    chapter: int | None = typer.Option(None, help="Synthesize only this chapter."),
-) -> None:
-    """Stage 6: Synthesize audio and assemble chapter files.
-
-    Reads from reviewed/ + config/voices.json, writes to audio/.
-    """
-    ...
-
-
-@app.command(name="run-all")
-def run_all(
-    book_slug: str | None = typer.Argument(None),
-    from_stage: str = typer.Option("split", help="Stage to start from."),
-) -> None:
-    """Run the full pipeline (or resume from a stage).
-
-    Stages: split, clean, parse, attribute, review, synthesize.
-    """
-    ...
 
 
 if __name__ == "__main__":

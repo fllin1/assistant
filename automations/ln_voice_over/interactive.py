@@ -63,8 +63,6 @@ STAGES: list[tuple[str, str]] = [
     ("parse", "Stage 3: Parse cleaned text into segments"),
     ("extract", "Stage 4: Extract speaker attributions"),
     ("resolve", "Stage 4b: Resolve attributions to canonical names"),
-    ("review", "Stage 5: Review divergences"),
-    ("synthesize", "Stage 6: Synthesize audio"),
     ("show-voices", "Show voice assignments"),
     ("list-books", "List all projects"),
 ]
