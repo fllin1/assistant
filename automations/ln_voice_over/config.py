@@ -20,14 +20,37 @@ PROJECTS_DIR = DATA_DIR / "projects"
 """Root directory for all book project data."""
 
 
+def series_dir(series_slug: str) -> Path:
+    """Return the root directory for a given series."""
+    return PROJECTS_DIR / series_slug
+
+
+def volume_dir(series_slug: str, volume_slug: str) -> Path:
+    """Return the root directory for a given volume within a series."""
+    return PROJECTS_DIR / series_slug / volume_slug
+
+
 def project_dir(slug: str) -> Path:
-    """Return the root directory for a given book project."""
+    """Legacy helper returning a flat project directory.
+
+    Kept for any remaining legacy callers. New code should use
+    `series_dir()` or `volume_dir()`.
+    """
     return PROJECTS_DIR / slug
 
 
-PROJECT_SUBDIRS = [
+SERIES_SUBDIRS = [
     "config",
-    "config/extractions",
+]
+"""Subdirectories created at the series level.
+
+Config (characters.json, voices.json) lives here and is shared across all
+volumes in the series. This is the key data-model decision behind the
+nested layout: one cast, one voice map, many volumes.
+"""
+
+
+VOLUME_SUBDIRS = [
     "source",
     "chapters",
     "cleaned",
@@ -39,12 +62,17 @@ PROJECT_SUBDIRS = [
     "audio/segments",
     "audio/chapters",
 ]
-"""Subdirectories created inside each project folder.
+"""Subdirectories created inside each volume folder.
 
 `source/` holds all pipeline inputs regardless of origin — a manually-prepared
 .txt volume, a downloaded PDF + extracted page images, or a pre-structured
 book.json from the /setup-book skill. The split stage auto-detects the format.
+No `config/` here: configs are series-level only.
 """
+
+
+# Alias kept for any transitional callers that still expect a flat list.
+PROJECT_SUBDIRS = SERIES_SUBDIRS + VOLUME_SUBDIRS
 
 
 # ---------------------------------------------------------------------------
