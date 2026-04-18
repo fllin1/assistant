@@ -1,11 +1,29 @@
-# Stage 6a: Voice Assignment
+# Stage 7: Voice Assignment
 
-Before synthesizing audio, each character needs a TTS voice. This guide covers browsing, auditioning, and assigning voices using the CLI.
+Before synthesizing audio, each character needs a TTS voice. This guide covers the two paths available: the `/assign-voices` Claude Code skill (recommended) and the CLI commands it wraps.
 
-## Overview
+Voice assignments live in **`<series>/config/voices.json`** and are shared across all volumes in the series — pick a voice once, it applies everywhere.
+
+## Recommended Path: `/assign-voices`
 
 ```
-characters.json (who speaks) + Edge TTS voices (how they sound) → voices.json (mapping)
+/assign-voices <series>/<volume>
+```
+
+The skill loads the character registry and dialogue counts from reviewed chapters, classifies each character into a tier (S/A/B/C/D), and proposes a voice cast following the strategy in the [tier strategy](#tier-strategy) section. It presents the proposed table and applies the approved assignments via the CLI. See `.claude/commands/assign-voices.md` for the full protocol.
+
+To audition voices (the skill can't do this — TTS audio doesn't reach the agent):
+
+```bash
+lnvo audition <voice-id> --character "<name>" --book <series>/<volume>
+```
+
+Then rerun `/assign-voices` to swap any voices you didn't like.
+
+## CLI Path (manual)
+
+```
+characters.json (who speaks) + TTS voices (how they sound) → voices.json (mapping)
 ```
 
 Voice resolution at synthesis time follows this fallback chain:
@@ -66,7 +84,7 @@ lnvo audition en-US-BrianNeural
 lnvo audition en-US-BrianNeural --text "I have no intention of losing."
 
 # Use a real dialogue line from the character's resolved chapters
-lnvo audition en-US-BrianNeural --character "Ayanokouji Kiyotaka" --book classroom-of-the-elite-year-2-v7
+lnvo audition en-US-BrianNeural --character "Ayanokouji Kiyotaka" --book classroom-of-the-elite-year-2/v7
 ```
 
 The `--character` option searches `reviewed/` then `resolved/` chapters for a dialogue line by that character (at least 20 chars). This lets you hear how the voice sounds with actual book dialogue.
@@ -74,25 +92,25 @@ The `--character` option searches `reviewed/` then `resolved/` chapters for a di
 ## Step 3: Assign Voices
 
 ```bash
-lnvo assign-voice <book-slug> "<character-name>" <voice-id>
+lnvo assign-voice <series>/<volume> "<character-name>" <voice-id>
 ```
 
 Example:
 
 ```bash
-lnvo assign-voice classroom-of-the-elite-year-2-v7 "Ayanokouji Kiyotaka" en-US-AndrewNeural
-lnvo assign-voice classroom-of-the-elite-year-2-v7 "Horikita Suzune" en-US-EmmaNeural
-lnvo assign-voice classroom-of-the-elite-year-2-v7 "Ryuuen Kakeru" en-GB-RyanNeural
+lnvo assign-voice classroom-of-the-elite-year-2/v7 "Ayanokouji Kiyotaka" en-US-AndrewNeural
+lnvo assign-voice classroom-of-the-elite-year-2/v7 "Horikita Suzune" en-US-EmmaNeural
+lnvo assign-voice classroom-of-the-elite-year-2/v7 "Ryuuen Kakeru" en-GB-RyanNeural
 ```
 
 - The character name must match `characters.json` (canonical name or alias)
 - Re-running the command for the same character updates the assignment
-- Assignments are saved to `config/voices.json`
+- Assignments are saved to the **series-level** `<series>/config/voices.json` (every volume sees the same mapping)
 
 ## Step 4: Review Assignments
 
 ```bash
-lnvo show-voices <book-slug>
+lnvo show-voices <series>/<volume>
 ```
 
 Output groups characters into:
@@ -136,13 +154,27 @@ The gender defaults and narrator voice are set in `config/voices.json`. To chang
 | **OpenAI TTS** | 10 | ~$15/1M chars | Excellent | Requires `OPENAI_API_KEY` |
 | **Kokoro TTS** | 27 (20 American + 7 British) | Free | Very good | Local, no API key, ~350MB model |
 
-Use `--provider edge|openai|kokoro` with `list-voices`, `audition`, and `assign-voice --provider-name`.
+Use `--provider edge|openai|kokoro` with `list-voices`, `audition`, and `assign-voice`.
+
+## Tier Strategy
+
+Dialogue counts from reviewed chapters drive voice priority:
+
+| Tier | Lines   | Strategy                                                                |
+|------|--------:|-------------------------------------------------------------------------|
+| S    | 500+    | OpenAI voice. Protagonist/narrator — distinct, pleasant (heard constantly). |
+| A    | 100–499 | OpenAI voice. Major character — unique and well-matched.                 |
+| B    | 20–99   | Kokoro American voice, matched to personality.                           |
+| C    | 5–19    | Kokoro (any) or Edge en-US voice.                                        |
+| D    | <5      | Skip — gender default suffices.                                          |
+
+The `/assign-voices` skill uses these thresholds automatically.
 
 ---
 
 ## Classroom of the Elite — Year 2 Volume 7
 
-Book slug: `classroom-of-the-elite-year-2-v7`
+Project slug: `classroom-of-the-elite-year-2/v7`
 
 10 chapters covering the cultural festival arc and its aftermath. POV alternates between Ayanokouji (7 chapters), Horikita (2 chapters), and Hasebe (1 chapter).
 

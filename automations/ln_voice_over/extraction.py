@@ -16,9 +16,9 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .config import PROJECTS_DIR
 from .llm import LLMClient
 from .models import Chapter, Segment, SegmentType
+from .project import resolve_volume
 
 logger = logging.getLogger(__name__)
 
@@ -248,10 +248,14 @@ def run_extraction(
         batch_start: Index into the dialogue list to start from.
         batch_size: Number of dialogues to process.
 
+    Args:
+        book_slug: `<series>/<volume>` slug or legacy flat slug.
+
     Returns:
         Path to the saved extraction file.
     """
-    root = PROJECTS_DIR / book_slug
+    resolved = resolve_volume(book_slug)
+    root = resolved.volume_path
     parsed_path = root / "parsed" / f"chapter_{chapter_id}.json"
     chapter = Chapter.load(parsed_path)
 
@@ -299,14 +303,6 @@ def run_extraction(
     }
     config_path = extracted_dir / f"{base_name}_config.json"
     config_path.write_text(json.dumps(config_data, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    # Also save config to project config/extractions/ for easy auditing
-    config_extractions_dir = root / "config" / "extractions"
-    config_extractions_dir.mkdir(parents=True, exist_ok=True)
-    config_copy_path = config_extractions_dir / f"chapter_{chapter_id}_{base_name}.json"
-    config_copy_path.write_text(
-        json.dumps(config_data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
 
     logger.info("Extracted %d attributions → %s", len(flat), extracted_path)
     return extracted_path

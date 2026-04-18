@@ -1,12 +1,15 @@
 """CLI interface for the LN voice-over pipeline.
 
 Typer app with one command per implemented pipeline stage. Each command
-reads from the appropriate project subdirectory and writes to its own
+reads from the appropriate volume subdirectory and writes to its own
 output directory. Running `lnvo` alone opens an interactive picker.
 
-Usage:
-    lnvo
-    lnvo --help
+Every command accepts a positional `book` argument in one of three forms:
+  * ``<series>/<volume>`` — canonical nested form (e.g. ``cote-y2/v7``).
+  * ``<series>-v<N>`` — legacy flat slug (still works; auto-split).
+  * ``<series>`` — implies volume ``v1`` for standalone books.
+
+Omit the argument to get an interactive picker over existing projects.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ import typing
 
 import typer
 
-from .config import PROJECTS_DIR
+from .project import resolve_volume
 
 app = typer.Typer(
     name="lnvo",
@@ -25,12 +28,7 @@ app = typer.Typer(
 
 @app.callback(invoke_without_command=True)
 def _main(ctx: typer.Context) -> None:
-    """Guided menu when no subcommand is given.
-
-    Running `lnvo` with no args opens an interactive picker: choose a stage,
-    then pick a book from the existing projects. Direct invocation (e.g.
-    `lnvo split my-slug`) bypasses the menu entirely.
-    """
+    """Guided menu when no subcommand is given."""
     if ctx.invoked_subcommand is None:
         from .interactive import interactive_menu
 
@@ -39,31 +37,36 @@ def _main(ctx: typer.Context) -> None:
 
 @app.command()
 def list_books() -> None:
-    """
-    Lists all book slug names in the ~/.assistant/ln_voice_over/ dir.
-    """
-    for project in PROJECTS_DIR.iterdir():
-        if not project.name.startswith("."):
-            typer.echo(project.name)
+    """List all projects grouped as `<series>/<volume>`."""
+    from .project import list_series, list_volumes
+
+    any_found = False
+    for series_slug in list_series():
+        volumes = list_volumes(series_slug)
+        if not volumes:
+            typer.echo(f"{series_slug}/ (no volumes)")
+            continue
+        for vol in volumes:
+            typer.echo(f"{series_slug}/{vol}")
+            any_found = True
+    if not any_found:
+        typer.echo("(no projects found)")
 
 
 @app.command()
-def split(book_slug: str | None = typer.Argument(None)) -> None:
+def split(book: str | None = typer.Argument(None)) -> None:
     """Stage 1: Split a volume into chapter files.
 
-    Reads from source/, accepting two formats (checked in order):
+    Reads from volume source/, accepting two formats (checked in order):
     1. source/book.json — pre-structured JSON from /setup-book skill
     2. source/*.txt — raw volume text file (regex-based splitting)
-
-    Outputs chapter files and manifest.json to:
-        ~/.assistant/ln_voice_over/projects/<book-slug>/chapters/
     """
     from .init_project import migrate_source_dir
-    from .interactive import resolve_slug
+    from .interactive import resolve_book_arg
     from .split import split_volume, write_manifest
 
-    book_slug = resolve_slug(book_slug)
-    root = PROJECTS_DIR / book_slug
+    resolved = resolve_volume(resolve_book_arg(book))
+    root = resolved.volume_path
     migrate_source_dir(root)
 
     source_dir = root / "source"
@@ -89,16 +92,13 @@ def split(book_slug: str | None = typer.Argument(None)) -> None:
 
 
 @app.command()
-def clean(book_slug: str | None = typer.Argument(None)) -> None:
-    """Stage 2: Clean chapter files (remove watermarks, page numbers).
-
-    Reads from chapters/, writes to cleaned/.
-    """
+def clean(book: str | None = typer.Argument(None)) -> None:
+    """Stage 2: Clean chapter files (remove watermarks, page numbers)."""
     from .clean import clean_all
-    from .interactive import resolve_slug
+    from .interactive import resolve_book_arg
 
-    book_slug = resolve_slug(book_slug)
-    root = PROJECTS_DIR / book_slug
+    resolved = resolve_volume(resolve_book_arg(book))
+    root = resolved.volume_path
     chapters_dir = root / "chapters"
     output_dir = root / "cleaned"
 
@@ -112,18 +112,15 @@ def clean(book_slug: str | None = typer.Argument(None)) -> None:
 
 
 @app.command()
-def parse(book_slug: str | None = typer.Argument(None)) -> None:
-    """Stage 3: Parse cleaned text into typed segments.
-
-    Reads from cleaned/ + chapters/manifest.json, writes JSON to parsed/.
-    """
+def parse(book: str | None = typer.Argument(None)) -> None:
+    """Stage 3: Parse cleaned text into typed segments."""
     import json
 
-    from .interactive import resolve_slug
+    from .interactive import resolve_book_arg
     from .parse import parse_chapter
 
-    book_slug = resolve_slug(book_slug)
-    root = PROJECTS_DIR / book_slug
+    resolved = resolve_volume(resolve_book_arg(book))
+    root = resolved.volume_path
     cleaned_dir = root / "cleaned"
     output_dir = root / "parsed"
     manifest_path = root / "chapters" / "manifest.json"
@@ -156,7 +153,7 @@ def parse(book_slug: str | None = typer.Argument(None)) -> None:
 
 @app.command(name="extract")
 def extract(
-    book_slug: str | None = typer.Argument(None),
+    book: str | None = typer.Argument(None),
     chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     model: str = typer.Option("gemma4:26b", help="Model (Ollama or OpenRouter)."),
     context_before: int = typer.Option(10, "--context-before", help="Segments before dialogue."),
@@ -171,17 +168,13 @@ def extract(
         False, "--verbose", help="Verbose mode: LLM returns speaker + reasoning JSON."
     ),
 ) -> None:
-    """Run Step 1: speaker mention extraction.
-
-    Extracts who speaks each dialogue using LLM analysis of narration context.
-    Results saved to extracted/chapter_NN/<model>_<mode>_<date>.json.
-    """
+    """Stage 4: Speaker mention extraction via LLM."""
     import logging
 
     from .extraction import ExtractionConfig, run_extraction
-    from .interactive import resolve_slug
+    from .interactive import resolve_book_arg
 
-    book_slug = resolve_slug(book_slug)
+    resolved = resolve_volume(resolve_book_arg(book))
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     config = ExtractionConfig(
@@ -193,7 +186,7 @@ def extract(
         fast=not verbose,
     )
     extracted_path = run_extraction(
-        book_slug=book_slug,
+        book_slug=f"{resolved.series_slug}/{resolved.volume_slug}",
         chapter_id=chapter,
         config=config,
         batch_start=batch_start,
@@ -204,7 +197,7 @@ def extract(
 
 @app.command(name="resolve")
 def resolve(
-    book_slug: str | None = typer.Argument(None),
+    book: str | None = typer.Argument(None),
     chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
     source: typing.Annotated[
         list[str],
@@ -213,37 +206,30 @@ def resolve(
         ),
     ] = ...,
 ) -> None:
-    """Resolve raw speaker names to canonical character names.
-
-    Loads extraction results from extracted/chapter_NN/, resolves names
-    against the character registry, and writes resolved chapter + flags.
-    """
+    """Stage 5: Resolve raw speaker names against the series character registry."""
     import json
     import logging
 
-    from .interactive import resolve_slug
-    from .models import Chapter, CharacterRegistry
+    from .interactive import resolve_book_arg
+    from .models import Chapter
+    from .project import load_characters
     from .resolution import cross_validate, load_extracted, resolve_chapter
 
-    book_slug = resolve_slug(book_slug)
+    resolved = resolve_volume(resolve_book_arg(book))
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    root = PROJECTS_DIR / book_slug
+    root = resolved.volume_path
     parsed_path = root / "parsed" / f"chapter_{chapter}.json"
     extracted_dir = root / "extracted" / f"chapter_{chapter}"
-    registry_path = root / "config" / "characters.json"
     output_dir = root / "resolved"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not parsed_path.exists():
         typer.echo(f"Parsed chapter not found: {parsed_path}")
         raise typer.Exit(1)
-    if not registry_path.exists():
-        typer.echo(f"Character registry not found: {registry_path}")
-        raise typer.Exit(1)
 
     ch = Chapter.load(parsed_path)
-    registry = CharacterRegistry.load(registry_path)
+    registry = load_characters(resolved.series_slug)
 
     # Load sources
     sources: dict[str, dict[str, str]] = {}
@@ -339,8 +325,8 @@ def audition(
     voice_id: str = typer.Argument(help="Voice name (e.g. en-US-GuyNeural, nova)."),
     text: str | None = typer.Option(None, help="Custom sample text."),
     character: str | None = typer.Option(None, help="Character name to find sample dialogue."),
-    book: str | None = typer.Option(None, help="Book slug (required with --character)."),
-    provider_name: str = typer.Option("edge", "--provider", help="TTS provider (edge/openai)."),
+    book: str | None = typer.Option(None, help="Project slug (required with --character)."),
+    provider_name: str = typer.Option("edge", "--provider", help="TTS provider."),
 ) -> None:
     """Preview a voice by synthesizing sample text and playing it."""
     import subprocess
@@ -373,11 +359,12 @@ def audition(
     subprocess.run(["afplay", tmp_path], check=True)
 
 
-def _find_character_dialogue(book_slug: str, character_name: str) -> str | None:
+def _find_character_dialogue(book_arg: str, character_name: str) -> str | None:
     """Find a sample dialogue line from a character in resolved chapters."""
     from .models import Chapter
 
-    root = PROJECTS_DIR / book_slug
+    resolved = resolve_volume(book_arg)
+    root = resolved.volume_path
     # Check reviewed first, then resolved
     for stage_dir in [root / "reviewed", root / "resolved"]:
         if not stage_dir.exists():
@@ -398,57 +385,58 @@ def _find_character_dialogue(book_slug: str, character_name: str) -> str | None:
 
 @app.command(name="assign-voice")
 def assign_voice(
-    book_slug: str | None = typer.Argument(None),
+    book: str | None = typer.Argument(None),
     character_name: str = typer.Argument(help="Character name (as in characters.json)."),
-    voice_id: str = typer.Argument(help="Edge voice ID (e.g. en-US-DavisNeural)."),
-    provider_name: str = typer.Option("edge", help="TTS provider."),
+    voice_id: str = typer.Argument(help="Voice ID (e.g. en-US-GuyNeural, nova, af_heart)."),
+    provider_name: str = typer.Option("edge", "--provider", help="TTS provider."),
 ) -> None:
-    """Assign a TTS voice to a character."""
-    from .interactive import resolve_slug
-    from .models import CharacterRegistry, VoiceConfig, VoiceMapping
+    """Assign a TTS voice to a character. Writes to the series-level config."""
+    from .interactive import resolve_book_arg
+    from .models import VoiceMapping
+    from .project import load_characters, load_voices
 
-    book_slug = resolve_slug(book_slug)
-    root = PROJECTS_DIR / book_slug
-    registry_path = root / "config" / "characters.json"
-    voices_path = root / "config" / "voices.json"
+    resolved = resolve_volume(resolve_book_arg(book))
+    voices_path = resolved.series_path / "config" / "voices.json"
 
-    registry = CharacterRegistry.load(registry_path)
+    registry = load_characters(resolved.series_slug)
     char = registry.find(character_name)
     if not char:
         typer.echo(f"Character '{character_name}' not found in registry.")
         raise typer.Exit(1)
 
-    config = VoiceConfig.load(voices_path)
+    config = load_voices(resolved.series_slug)
 
-    # Check for existing mapping
     existing = [m for m in config.mappings if m.speaker == char.name]
     if existing:
         typer.echo(f"Updating: {char.name} was {existing[0].voice_id} → {voice_id}")
 
     new_mapping = VoiceMapping(speaker=char.name, provider=provider_name, voice_id=voice_id)
-
-    # Replace or append
     new_mappings = (*[m for m in config.mappings if m.speaker != char.name], new_mapping)
     config = config.model_copy(update={"mappings": new_mappings})
 
     config.save(voices_path)
-    typer.echo(f"Assigned {char.name} → {voice_id} ({provider_name})")
+    typer.echo(
+        f"Assigned {char.name} → {voice_id} ({provider_name}) in series {resolved.series_slug}"
+    )
 
 
 @app.command(name="show-voices")
-def show_voices(book_slug: str | None = typer.Argument(None)) -> None:
-    """Show current voice assignments for a project."""
-    from .interactive import resolve_slug
-    from .models import CharacterRegistry, VoiceConfig
+def show_voices(book: str | None = typer.Argument(None)) -> None:
+    """Show current voice assignments from the series-level config."""
+    from .interactive import resolve_book_arg
+    from .project import load_characters, load_voices
 
-    book_slug = resolve_slug(book_slug)
-    root = PROJECTS_DIR / book_slug
-    registry = CharacterRegistry.load(root / "config" / "characters.json")
-    config = VoiceConfig.load(root / "config" / "voices.json")
+    resolved = resolve_volume(resolve_book_arg(book))
+    registry = load_characters(resolved.series_slug)
+    config = load_voices(resolved.series_slug)
+
+    typer.echo(
+        f"Series: {resolved.series_slug}  (showing assignments for volume "
+        f"{resolved.volume_slug})\n"
+    )
 
     assigned_names = {m.speaker for m in config.mappings}
 
-    # Assigned characters
     if config.mappings:
         typer.echo("Assigned:")
         for m in sorted(config.mappings, key=lambda x: x.speaker):
@@ -456,7 +444,6 @@ def show_voices(book_slug: str | None = typer.Argument(None)) -> None:
     else:
         typer.echo("No voices assigned yet.")
 
-    # Unassigned, grouped by role
     unassigned_main = [
         c
         for c in registry.characters
@@ -478,7 +465,6 @@ def show_voices(book_slug: str | None = typer.Argument(None)) -> None:
             fallback = config.get_voice(c.name, c.gender)
             typer.echo(f"  {c.name:30s} ({c.gender:6s}) → fallback: {fallback.voice_id}")
 
-    # Defaults
     typer.echo("\nDefaults:")
     typer.echo(f"  Narrator:  {config.default_narrator.voice_id}")
     typer.echo(f"  Male:      {config.default_male.voice_id}")

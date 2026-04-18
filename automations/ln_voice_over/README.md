@@ -2,30 +2,46 @@
 
 Converts a light novel into a multi-voice audiobook. Starts from an AnyFlip PDF (via the `/setup-book` skill) or a hand-prepared `.txt` volume, splits it into chapters, parses structural segments (narration, dialogue, inner thoughts), attributes speakers via LLM, and synthesizes audio with per-character TTS voices.
 
+## Series & Volumes
+
+Projects are organized as `<series>/<volume>`. The character registry and voice assignments live at the **series** level, shared across every volume — so that voices stay consistent across a multi-volume light novel. Each volume has its own pipeline I/O.
+
+```
+~/.assistant/ln_voice_over/projects/
+└── classroom-of-the-elite-year-2/          ← SERIES
+    ├── config/
+    │   ├── characters.json                  (shared cast)
+    │   └── voices.json                      (shared voice assignments)
+    ├── v6/                                  ← VOLUME
+    │   └── source/ chapters/ cleaned/ ...
+    ├── v7/
+    └── v9/
+```
+
+Standalone books use the same shape with a single volume (e.g. `spice-and-wolf/v1/`). See `docs/7-series-layout.md` for details.
+
 ## Pipeline
 
 ```
-SOURCE → SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
-  │        │        │       │        │         │         │          │
-  ▼        ▼        ▼       ▼        ▼         ▼         ▼          ▼
-source/  chapters/ cleaned/ parsed/ extracted/ resolved/ reviewed/ audio/
-(pdf,    (txt)    (txt)    (json)  (json)     (json)    (json)    (mp3)
-json,
-txt)
+SOURCE → SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → VOICE-ASSIGN → SYNTHESIZE
+  │        │        │       │        │         │         │          │              │
+  ▼        ▼        ▼       ▼        ▼         ▼         ▼          ▼              ▼
+source/  chapters/ cleaned/ parsed/ extracted/ resolved/ reviewed/ voices.json  audio/
 ```
 
-Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under `~/.assistant/ln_voice_over/projects/<book-slug>/`.
+Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under the volume root; voice assignments live in the series-level `config/voices.json`.
 
 | Stage | What it does | Output directory |
 |-------|-------------|-----------------|
-| **Source** (`/setup-book`) | Download PDF, extract page images, OCR text, produce `book.json` | `source/` |
-| **Split** | Split the volume into chapter files (from `book.json` or `.txt`) | `chapters/` |
-| **Clean** | Remove watermarks, page numbers, collapse blank lines | `cleaned/` |
-| **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `parsed/` |
-| **Extract** | LLM-based speaker attribution per dialogue segment | `extracted/` |
-| **Resolve** | Cross-validate sources, resolve names via character registry | `resolved/` |
-| **Review** (not yet implemented) | Review and correct flagged attributions | `reviewed/` |
-| **Synthesize** (not yet implemented) | TTS per segment with per-character voices, assemble audio | `audio/` |
+| **Source** (`/setup-book`) | Download PDF, extract page images, OCR text, produce `book.json` | `<volume>/source/` |
+| **Split** | Split the volume into chapter files (from `book.json` or `.txt`) | `<volume>/chapters/` |
+| **Clean** | Remove watermarks, page numbers, collapse blank lines | `<volume>/cleaned/` |
+| **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `<volume>/parsed/` |
+| **Extract** | LLM-based speaker attribution per dialogue segment | `<volume>/extracted/` |
+| **Resolve** | Cross-validate sources, resolve names via character registry | `<volume>/resolved/` |
+| **Review** (`/review-chapter`) | Review and correct flagged attributions | `<volume>/reviewed/` |
+| **Voice Assign** (`/assign-voices`) | Propose + apply per-character voice mappings | `<series>/config/voices.json` |
+| **Synthesize** (not yet implemented) | TTS per segment with per-character voices, assemble audio | `<volume>/audio/` |
 
 ## Quick Start
 
@@ -33,66 +49,81 @@ Each stage reads from the previous stage's output and writes to its own director
 
 ```bash
 # 1. Source: download + OCR + structure into book.json
-/setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2-v7
+/setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2/v7
 
-# 2. Split, clean, parse (bare `lnvo` opens a guided menu with a slug picker)
-lnvo split classroom-of-the-elite-year-2-v7
-lnvo clean classroom-of-the-elite-year-2-v7
-lnvo parse classroom-of-the-elite-year-2-v7
+# 2. Split, clean, parse (bare `lnvo` opens a guided menu with a picker)
+lnvo split classroom-of-the-elite-year-2/v7
+lnvo clean classroom-of-the-elite-year-2/v7
+lnvo parse classroom-of-the-elite-year-2/v7
 
 # 3. Extract speakers — two independent sources for cross-validation
 #    (a) Cloud model via OpenRouter
-lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
+lnvo extract classroom-of-the-elite-year-2/v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
 #    (b) Claude Sonnet skill (per chapter, parallel agents)
-/attribute-chapter classroom-of-the-elite-year-2-v7 2
+/attribute-chapter classroom-of-the-elite-year-2/v7 2
 
 # 4. Resolve: cross-validate and map to canonical names
-lnvo resolve classroom-of-the-elite-year-2-v7 --chapter 02 \
+lnvo resolve classroom-of-the-elite-year-2/v7 --chapter 02 \
     --source gemini-flash_fast_20260414 \
     --source claude-sonnet_skill_20260415
 
 # 5. Review divergences (skill, writes to reviewed/)
-/review-chapter classroom-of-the-elite-year-2-v7 2
+/review-chapter classroom-of-the-elite-year-2/v7 2
 
-# 6. Synthesize audio (not yet implemented)
+# 6. Assign voices (skill, writes to series config/voices.json)
+/assign-voices classroom-of-the-elite-year-2/v7
+
+# 7. Synthesize audio (not yet implemented)
 ```
 
-**Manual `.txt` path:** drop a `.txt` file in `source/`, then start at step 2. Split detects chapter boundaries via regex patterns instead of the pre-structured JSON.
+The legacy flat slug form (`classroom-of-the-elite-year-2-v7`) is still accepted and auto-split into `<series>/<volume>` under the hood. New projects should use the `series/volume` form directly.
+
+**Manual `.txt` path:** drop a `.txt` file in `<series>/<volume>/source/`, then start at step 2. Split detects chapter boundaries via regex patterns instead of the pre-structured JSON.
 
 ## Guided Mode
 
-Typing long slugs gets old. The CLI has two UX affordances:
+Typing long slugs gets old. The CLI has three UX affordances:
 
-- **Bare `lnvo`** opens an interactive menu: pick a stage, pick a book, run. If no projects exist yet, it prompts you to create one inline.
-- **Omit the slug** on any command (`lnvo split`) to get a numbered picker over existing projects. Slugs on the command line (`lnvo split my-slug`) still work and bypass the picker.
+- **Bare `lnvo`** opens an interactive menu: pick a stage, pick a series, pick a volume, run.
+- **Omit the book argument** on any command (`lnvo split`) to get a 2-step picker over existing series and volumes. An argument on the command line (`lnvo split <series>/<volume>`) bypasses the picker.
+- **Shorthand accepted:** `<series>/<volume>`, legacy `<series>-v<N>`, or just `<series>` (volume defaults to `v1`).
 
 ## CLI Reference
 
 Pipeline stages:
 
 ```
-lnvo split [book-slug]
-lnvo clean [book-slug]
-lnvo parse [book-slug]
-lnvo extract [book-slug] --chapter N [--model NAME] [--pov NAME] [--batch-size N] [--verbose]
-lnvo resolve [book-slug] --chapter N --source NAME [--source NAME ...]
+lnvo split [<series>/<volume>]
+lnvo clean [<series>/<volume>]
+lnvo parse [<series>/<volume>]
+lnvo extract [<series>/<volume>] --chapter N [--model NAME] [--pov NAME] [--batch-size N] [--verbose]
+lnvo resolve [<series>/<volume>] --chapter N --source NAME [--source NAME ...]
 ```
 
-Voice management:
+Voice management (all write to / read from the **series-level** config):
 
 ```
 lnvo list-voices [--provider edge|openai|kokoro] [--gender male|female]
-lnvo audition <voice-id> [--text "..."] [--character NAME --book SLUG]
-lnvo assign-voice [book-slug] <character-name> <voice-id> [--provider NAME]
-lnvo show-voices [book-slug]
+lnvo audition <voice-id> [--text "..."] [--character NAME --book <series>/<volume>]
+lnvo assign-voice [<series>/<volume>] <character-name> <voice-id> [--provider NAME]
+lnvo show-voices [<series>/<volume>]
 ```
 
 Utility:
 
 ```
 lnvo                        # guided menu
-lnvo list-books             # list all project slugs
+lnvo list-books             # list all <series>/<volume> pairs
+```
+
+Skills:
+
+```
+/setup-book       # source acquisition from AnyFlip
+/attribute-chapter # speaker attribution via Claude Sonnet
+/review-chapter   # resolve flagged divergences
+/assign-voices    # propose + apply per-character voice cast
 ```
 
 ## Stage Details
@@ -128,18 +159,18 @@ Per-dialogue LLM extraction via `extraction.py`. Supports local (Ollama) and clo
 
 ```bash
 # Gemini Flash (cloud, via OpenRouter)
-lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
+lnvo extract classroom-of-the-elite-year-2/v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --batch-size 9999
 
 # Verbose mode (adds reasoning for debugging)
-lnvo extract classroom-of-the-elite-year-2-v7 --chapter 02 \
+lnvo extract classroom-of-the-elite-year-2/v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --verbose
 ```
 
 **Claude Sonnet skill** (`/attribute-chapter`) — spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap. Faster for large chapters:
 
 ```
-/attribute-chapter classroom-of-the-elite-year-2-v7 5
+/attribute-chapter classroom-of-the-elite-year-2/v7 5
 ```
 
 Both methods produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
@@ -165,7 +196,7 @@ Models are registered as `alias → (provider, model_id)`:
 The resolve step cross-validates multiple extraction sources and maps raw speaker names to canonical character names from the registry.
 
 ```bash
-lnvo resolve classroom-of-the-elite-year-2-v7 --chapter 02 \
+lnvo resolve classroom-of-the-elite-year-2/v7 --chapter 02 \
     --source gemini-flash_fast_20260414 \
     --source claude-sonnet_skill_20260415
 ```
@@ -189,16 +220,21 @@ The resolve step writes a `_flags.json` file alongside each resolved chapter:
 | `unresolved` | Name not found in character registry |
 | `missing` | No source had an attribution for this dialogue |
 
-### Stage 6: REVIEW — Manual Correction (not yet implemented)
+### Stage 6: REVIEW — Manual Correction
 
 - **Input**: `resolved/*.json` + `resolved/*_flags.json` → **Output**: `reviewed/*.json`
 - The `/review-chapter` Claude skill reads context and resolves divergences
 - The flags file tells you exactly which segments need attention — typically 1–3% of all dialogues
 
-### Stage 7: SYNTHESIZE + ASSEMBLE (not yet implemented)
+### Stage 7: VOICE ASSIGN — Per-character Voice Mapping
 
-- **Input**: `reviewed/*.json` + `config/voices.json` → **Output**: `audio/chapters/*.mp3`
-- See `docs/6-voice-assignment.md` for the voice browsing + assignment workflow (which IS implemented and ready to use)
+- **Input**: series `config/characters.json` + dialogue counts from all reviewed volumes → **Output**: series `config/voices.json`
+- The `/assign-voices` skill is the one-command path; see `docs/6-voice-assignment.md` for the underlying CLI (`lnvo list-voices`, `lnvo audition`, `lnvo assign-voice`, `lnvo show-voices`) and the tiered assignment strategy.
+- Written once per series, not per volume. Adding a new volume that introduces new speakers? Rerun `/assign-voices` — existing assignments are preserved and only the newly-seen characters get proposals.
+
+### Stage 8: SYNTHESIZE + ASSEMBLE (not yet implemented)
+
+- **Input**: `reviewed/*.json` + series `config/voices.json` → **Output**: `audio/chapters/*.mp3`
 
 #### Voice Resolution
 
@@ -225,33 +261,33 @@ Concatenate with `pydub`, insert silence between segments:
 ## Project Data Layout
 
 ```
-~/.assistant/ln_voice_over/projects/<book-slug>/
-├── config/
-│   ├── characters.json      # character registry (names, aliases, gender)
-│   ├── voices.json          # voice mappings per character
-│   └── extractions/         # config sidecars for extraction runs
-├── source/                  # pipeline input: book.json, PDF, .txt, or extracted pages
-├── chapters/                # split chapter .txt files + manifest.json
-├── cleaned/                 # cleaned chapter .txt files
-├── parsed/                  # structural segments as JSON
-├── extracted/
-│   └── chapter_NN/          # flat {index: speaker} JSONs per source
-│       ├── gemini-flash_fast_YYYYMMDD.json
-│       ├── gemini-flash_fast_YYYYMMDD_config.json
-│       └── claude-sonnet_skill_YYYYMMDD.json
-├── resolved/                # resolved chapters + flags
-│   ├── chapter_NN.json      # full chapter with speaker attributions
-│   └── chapter_NN_flags.json # divergences and issues to review
-├── reviewed/                # user-approved final attributions
-├── illustrations/           # illustration images + manifest (from /setup-book)
-└── audio/
-    ├── segments/            # cached per-segment audio files
-    └── chapters/            # assembled chapter audio
+~/.assistant/ln_voice_over/projects/<series-slug>/
+├── config/                         ← SERIES LEVEL (shared across volumes)
+│   ├── characters.json             # character registry (names, aliases, gender)
+│   └── voices.json                 # voice mappings per character
+└── <volume-slug>/                  ← VOLUME LEVEL (per-volume pipeline I/O)
+    ├── source/                     # pipeline input: book.json, PDF, .txt
+    ├── chapters/                   # split chapter .txt files + manifest.json
+    ├── cleaned/                    # cleaned chapter .txt files
+    ├── parsed/                     # structural segments as JSON
+    ├── extracted/
+    │   └── chapter_NN/              # flat {index: speaker} JSONs per source
+    │       ├── gemini-flash_fast_YYYYMMDD.json
+    │       ├── gemini-flash_fast_YYYYMMDD_config.json
+    │       └── claude-sonnet_skill_YYYYMMDD.json
+    ├── resolved/                    # resolved chapters + flags
+    │   ├── chapter_NN.json
+    │   └── chapter_NN_flags.json
+    ├── reviewed/                    # user-approved final attributions
+    ├── illustrations/               # illustration images + manifest (/setup-book)
+    └── audio/
+        ├── segments/                # cached per-segment audio files
+        └── chapters/                # assembled chapter audio
 ```
 
 ## Character Registry
 
-The registry at `config/characters.json` maps character names and aliases for resolution:
+The registry at `<series>/config/characters.json` maps character names and aliases for resolution:
 
 ```json
 {
@@ -272,7 +308,9 @@ Name matching is layered: exact match → alias match → honorific stripping (`
 
 - `docs/0-source-acquisition.md` — prerequisites for `/setup-book` (anyflip-downloader, Java 21)
 - `docs/6-voice-assignment.md` — voice browsing, auditioning, and assignment workflow
+- `docs/7-series-layout.md` — the nested `<series>/<volume>/` directory layout and config sharing
 - `.claude/commands/setup-book.md` — the source-acquisition skill itself
+- `.claude/commands/assign-voices.md` — the voice-casting skill
 
 ## Dependencies
 
