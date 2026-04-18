@@ -1,45 +1,56 @@
 # Setup Book — Download, Extract, and Prepare a Light Novel Volume
 
-Download a light novel PDF from AnyFlip, extract page images, OCR text, classify illustrations, and produce a structured `book.json` ready for `lnvo split`.
+Take a light novel PDF (downloaded from AnyFlip or pre-supplied), extract page images, OCR text, classify illustrations, and produce a structured `book.json` ready for `lnvo split`.
 
-**Usage:** `/setup-book <anyflip-url> [book-slug]`
+**Usage:**
+- `/setup-book <anyflip-url> <series>/<volume>` — download from AnyFlip, then process.
+- `/setup-book <series>/<volume>` — process a PDF already sitting in `<series>/<volume>/source/`.
 
-Example: `/setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2-v6`
+Examples:
+- `/setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2/v6`
+- `/setup-book classroom-of-the-elite-year-2/v10` — when the PDF is already in `source/`
 
 ## Instructions
 
-You are setting up a new light novel volume for the voice-over pipeline. This covers the full flow: download the PDF, create the project, extract pages, OCR text, and produce the structured input for the rest of the pipeline.
+You are setting up a new light novel volume for the voice-over pipeline. This covers the full flow: optionally download the PDF, create the project, extract pages, OCR text, and produce the structured input for the rest of the pipeline.
 
-Parse `$ARGUMENTS`: the first argument is the AnyFlip URL. The optional second argument is the book slug. If no slug is given, ask the user what slug to use.
+Parse `$ARGUMENTS`. Detect which form you got:
+- If the first token starts with `http://` or `https://`, it's the AnyFlip URL and the second token is the slug.
+- Otherwise the only argument is the slug, and the PDF is expected to already be in `<series>/<volume>/source/`.
 
-### Step 1: Download the PDF and create the project
+If you can't tell or the slug is missing, ask the user.
 
-Run the AnyFlip downloader yourself from a scratch directory so the output PDF is easy to locate:
+### Step 1: Ensure the PDF is in place and the project exists
 
-```
-mkdir -p /tmp/lnvo-<slug> && cd /tmp/lnvo-<slug> && ~/go/bin/anyflip-downloader "<anyflip-url>"
-```
-
-Create (or refresh) the project folder structure via `create_project()`:
+Create (or refresh) the project folder structure via `create_project()`. The slug is `<series>/<volume>`:
 
 ```
-python -c "from automations.ln_voice_over.init_project import create_project; print(create_project('<slug>'))"
+python -c "from automations.ln_voice_over.init_project import create_project; print(create_project('<series>', '<volume>'))"
 ```
 
-Move the downloaded PDF into the project's `source/` dir. You don't need to know the exact filename — glob it:
+**If you have an AnyFlip URL**, download the PDF from a scratch directory and move it into `source/`:
 
 ```
-mv /tmp/lnvo-<slug>/*.pdf ~/.assistant/ln_voice_over/projects/<slug>/source/
+mkdir -p /tmp/lnvo-<volume> && cd /tmp/lnvo-<volume> && ~/go/bin/anyflip-downloader "<anyflip-url>"
+mv /tmp/lnvo-<volume>/*.pdf ~/.assistant/ln_voice_over/projects/<series>/<volume>/source/
 ```
 
-`extract_pdf.py` auto-detects the first `*.pdf` in `source/`, so no further bookkeeping of the PDF filename is needed.
+**If you have no URL**, just verify a PDF is already present:
+
+```
+ls ~/.assistant/ln_voice_over/projects/<series>/<volume>/source/*.pdf
+```
+
+If no PDF is found, stop and tell the user where to drop it (`source/` of the volume) before re-running the skill.
+
+`extract_pdf.py` auto-detects the first `*.pdf` in `source/`, so the filename doesn't matter.
 
 ### Step 2: Extract page images from PDF
 
 Run the extraction script:
 
 ```
-PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" python automations/ln_voice_over/scripts/extract_pdf.py <slug>
+PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" python automations/ln_voice_over/scripts/extract_pdf.py <series>/<volume>
 ```
 
 This extracts all page images to `source/pages/` and writes `source/pages.json` with initial classifications (color_illustration, text, small). Capture the JSON output for the summary.
@@ -90,7 +101,7 @@ Write the structured JSON to `source/book.json`:
 {
   "title": "Book Title",
   "total_pages": 289,
-  "book_slug": "<slug>",
+  "book_slug": "<series>/<volume>",
   "front_matter": {
     "illustrations": [
       {"page": 1, "image_path": "pages/001.png", "classification": "cover", "description": "..."},
@@ -137,4 +148,4 @@ Report to the user:
 - Illustrations found (front matter + interior + back matter)
 - Path to `book.json`
 
-Remind them to run `lnvo split <slug>` next — it will auto-detect the `book.json`.
+Remind them to run `lnvo split <series>/<volume>` next — it will auto-detect the `book.json`.
