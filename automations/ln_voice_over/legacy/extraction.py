@@ -16,13 +16,13 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .llm import LLMClient
-from .models import Chapter, Segment, SegmentType
-from .project import resolve_volume
+from ..llm import LLMClient
+from ..models import Chapter, Segment, SegmentType
+from ..project import resolve_volume
 
 logger = logging.getLogger(__name__)
 
-PROMPTS_DIR = Path(__file__).parent / "prompts"
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 
 @dataclass(frozen=True)
