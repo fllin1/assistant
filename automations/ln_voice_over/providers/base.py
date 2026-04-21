@@ -26,9 +26,7 @@ class TTSProvider(Protocol):
         """Provider identifier (e.g., "edge", "elevenlabs")."""
         ...
 
-    def synthesize(
-        self, text: str, voice_id: str, **settings: object
-    ) -> bytes:
+    def synthesize(self, text: str, voice_id: str, **settings: object) -> bytes:
         """Convert text to audio bytes.
 
         Args:
@@ -38,7 +36,9 @@ class TTSProvider(Protocol):
                 (speed, pitch, stability, etc.).
 
         Returns:
-            Raw audio bytes (MP3 format preferred).
+            Raw audio bytes in WAV format (PCM). WAV keeps the pipeline
+            lossless from the provider onward; any upstream lossy step
+            (e.g. Edge only serves MP3) is decoded inside the provider.
 
         Raises:
             TTSSynthesisError: If the provider fails to generate audio.

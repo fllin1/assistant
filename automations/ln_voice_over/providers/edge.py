@@ -18,6 +18,7 @@ List all available voices: edge-tts --list-voices
 from __future__ import annotations
 
 import asyncio
+import io
 
 import edge_tts
 
@@ -37,10 +38,12 @@ class EdgeTTSProvider:
         return "edge"
 
     def synthesize(self, text: str, voice_id: str, **settings: object) -> bytes:
-        """Synthesize text to MP3 audio bytes using Edge TTS.
+        """Synthesize text to WAV audio bytes using Edge TTS.
 
-        Creates an edge_tts.Communicate instance, runs the async
-        synthesis, and collects the audio bytes.
+        Edge only exposes MP3 from its stream, so we decode that MP3 to
+        WAV once inside the provider to keep the downstream pipeline
+        PCM-native. The decode itself is lossless; the only lossy step
+        is Edge's server-side MP3 encode which we can't avoid.
 
         Args:
             text: Text to synthesize.
@@ -49,7 +52,7 @@ class EdgeTTSProvider:
                 pitch (str, e.g. "+5Hz"), volume (str, e.g. "-10%").
 
         Returns:
-            MP3 audio bytes.
+            WAV audio bytes.
 
         Raises:
             TTSSynthesisError: If edge-tts fails.
@@ -68,14 +71,26 @@ class EdgeTTSProvider:
             return b"".join(chunks)
 
         try:
-            audio = asyncio.run(_synthesize())
+            mp3_bytes = asyncio.run(_synthesize())
         except Exception as e:
             raise TTSSynthesisError(f"Edge TTS failed for voice '{voice_id}': {e}") from e
 
-        if not audio:
+        if not mp3_bytes:
             raise TTSSynthesisError(f"Edge TTS returned empty audio for voice '{voice_id}'")
 
-        return audio
+        # Decode Edge's MP3 to WAV once. Import pydub lazily so the rest
+        # of the providers (Kokoro/OpenAI paths) don't pay the import cost.
+        from pydub import AudioSegment
+
+        try:
+            segment = AudioSegment.from_mp3(io.BytesIO(mp3_bytes))
+            wav_buffer = io.BytesIO()
+            segment.export(wav_buffer, format="wav")
+            return wav_buffer.getvalue()
+        except Exception as e:
+            raise TTSSynthesisError(
+                f"Edge TTS: failed to decode MP3 to WAV for voice '{voice_id}': {e}"
+            ) from e
 
 
 async def list_edge_voices(

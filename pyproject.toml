@@ -13,9 +13,11 @@ dependencies = [
     "ollama>=0.4.0",
     "edge-tts>=7.2.8",
     "pydub>=0.25.1",
+    "pyloudnorm>=0.1.1",
     "kokoro>=0.9.4",
     "soundfile>=0.13.1",
     "pydantic>=2.12.5",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
