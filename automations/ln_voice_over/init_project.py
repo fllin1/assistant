@@ -102,14 +102,6 @@ def create_project(series_slug: str, volume_slug: str = "v1") -> Path:
     for subdir in VOLUME_SUBDIRS:
         (vol_root / subdir).mkdir(parents=True, exist_ok=True)
 
-    # One-time per-volume migrations from the older flat layout
-    legacy_attributed = vol_root / "attributed"
-    new_resolved = vol_root / "resolved"
-    if legacy_attributed.exists() and not any(new_resolved.iterdir()):
-        for item in legacy_attributed.iterdir():
-            item.rename(new_resolved / item.name)
-        legacy_attributed.rmdir()
-
     migrate_source_dir(vol_root)
 
     _ensure_series_configs(series_root)

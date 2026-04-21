@@ -1,10 +1,10 @@
 """Prepare a voice-assignment plan for a series or specific volume.
 
-Aggregates dialogue-line counts per character across reviewed chapters
-(falling back to resolved/), classifies each into tiers S/A/B/C/D, and
-reports the list alongside currently-assigned voices and the available
-voice catalog. The `/assign-voices` skill consumes the JSON output and
-proposes voice assignments following the strategy in `docs/6-voice-assignment.md`.
+Aggregates dialogue-line counts per character across reviewed chapters,
+classifies each into tiers S/A/B/C/D, and reports the list alongside
+currently-assigned voices and the available voice catalog. The
+`/assign-voices` skill consumes the JSON output and proposes voice
+assignments following the strategy in `docs/6-voice-assignment.md`.
 
 Usage:
     python -m automations.ln_voice_over.scripts.prepare_voice_assignment \\
@@ -12,7 +12,7 @@ Usage:
 
 When a volume is given, the dialogue counts come from that volume only.
 When only a series is given, counts aggregate across every volume that
-has reviewed/ or resolved/ chapters.
+has reviewed/ chapters.
 """
 
 from __future__ import annotations
@@ -71,21 +71,16 @@ def classify_tier(line_count: int) -> str:
 
 
 def count_dialogue_per_speaker(volume_path: Path) -> Counter[str]:
-    """Count dialogue segments per speaker in a volume's reviewed or resolved chapters.
+    """Count dialogue segments per speaker in a volume's reviewed chapters.
 
-    Prefers reviewed/ (corrected by human) over resolved/ (LLM output).
     Returns a Counter keyed by speaker name.
     """
     stage_dir = volume_path / "reviewed"
-    if not stage_dir.exists() or not any(stage_dir.glob("chapter_*.json")):
-        stage_dir = volume_path / "resolved"
     if not stage_dir.exists():
         return Counter()
 
     counts: Counter[str] = Counter()
     for path in sorted(stage_dir.glob("chapter_*.json")):
-        if path.name.endswith("_flags.json"):
-            continue
         chapter = Chapter.load(path)
         for seg in chapter.segments:
             if seg.segment_type == SegmentType.DIALOGUE and seg.speaker:
