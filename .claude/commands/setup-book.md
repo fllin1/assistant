@@ -1,3 +1,7 @@
+---
+argument-hint: [<anyflip-url>] <series>/<volume>
+---
+
 # Setup Book — Download, Extract, and Prepare a Light Novel Volume
 
 Take a light novel PDF (downloaded from AnyFlip or pre-supplied), extract page images, OCR text, classify illustrations, and produce a structured `book.json` ready for `lnvo split`.
