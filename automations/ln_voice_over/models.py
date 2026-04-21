@@ -63,11 +63,18 @@ class Chapter(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     chapter_number: int
+    subchapter: int | None = None
     title: str
     source_file: str
     pov_character: str | None
     segments: tuple[Segment, ...]
     reviewed: bool = False
+
+    @property
+    def chapter_id(self) -> str:
+        """Canonical filename-safe identifier (e.g. `"07"` or `"07_1"`)."""
+        base = f"{self.chapter_number:02d}"
+        return f"{base}_{self.subchapter}" if self.subchapter is not None else base
 
     def save(self, path: Path) -> None:
         """Atomic write to JSON file."""
@@ -222,6 +229,10 @@ class VoiceConfig(BaseModel):
     default_narrator: VoiceMapping = VoiceMapping(
         speaker="Narrator", provider="edge", voice_id="en-US-AriaNeural"
     )
+    # Voice used for chapter_header segments. Lets the protagonist "host"
+    # the book's structure while POV characters narrate their own scenes.
+    # Falls back to default_narrator when unset.
+    host: VoiceMapping | None = None
 
     def get_voice(self, speaker: str, gender: str = "unknown") -> VoiceMapping:
         """Resolve a speaker to a voice mapping with fallback logic."""

@@ -1,10 +1,15 @@
-"""Prepare chapter chunks for parallel speaker attribution.
+"""Prepare shifted-overlap chunks for the judge-pass re-attribution.
 
-Reads a parsed chapter JSON, splits segments into overlapping chunks,
-writes each chunk to a temp directory, and prints metadata as JSON.
+The judge re-attributes a chapter with different chunk boundaries than the
+original `/attribute-speakers` pass so disagreements surface real uncertainty
+rather than shared context. Concretely: the first chunk is half-width
+(segments 0..40) and subsequent chunks run at the normal 80/20 cadence
+offset by 40 (40..120, 100..180, ...). Output lands in
+`judge/chapter_<id>/chunk_*.json` — a dedicated directory so /attribute-speakers
+artefacts never collide with the judge's.
 
 Usage:
-    python -m automations.ln_voice_over.scripts.prepare_chunks <slug> <chapter_number>
+    python -m automations.ln_voice_over.scripts.prepare_judge_chunks <slug> <chapter>
 """
 
 import json
@@ -17,9 +22,10 @@ from automations.ln_voice_over.split import chapter_id, normalize_chapter_arg
 PROJECTS_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
 CHUNK_SIZE = 80
 OVERLAP = 20
+JUDGE_OFFSET = 40  # shift judge chunks by half a chunk-size vs the original pass
 
 
-def main():
+def main() -> None:
     slug = sys.argv[1]
     chapter_raw = sys.argv[2]
 
@@ -33,70 +39,69 @@ def main():
     ]
     chapter_path = next((p for p in candidates if p.exists()), None)
     if not chapter_path:
-        print(f"ERROR: No chapter file found for '{chapter_raw}' in {parsed_dir}", file=sys.stderr)
+        print(f"ERROR: No parsed chapter for '{chapter_raw}' in {parsed_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Read manifest for POV character
     manifest_path = project_dir / "chapters" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-
     entry = next((e for e in manifest if chapter_id(e) == padded), None)
     if entry is None:
         print(f"ERROR: Chapter '{chapter_raw}' not in manifest", file=sys.stderr)
         sys.exit(1)
-    # null is valid (third-person chapter with no first-person narrator)
     pov_character = entry["pov_character"]
 
-    # Load chapter via model
     chapter = Chapter.load(chapter_path)
     segments = chapter.segments
     total = len(segments)
     dialogue_count = sum(1 for s in segments if s.segment_type == SegmentType.DIALOGUE)
 
-    # Split into chunks with overlap — write as raw JSON dicts for agent consumption
-    tmp_dir = project_dir / "tmp_chunks"
-    tmp_dir.mkdir(exist_ok=True)
+    judge_dir = project_dir / "judge" / f"chapter_{padded}"
+    judge_dir.mkdir(parents=True, exist_ok=True)
+    # Wipe any prior judge chunks so re-runs start clean.
+    for old in judge_dir.glob("chunk_*.json"):
+        old.unlink()
+
+    # Produce shifted chunks: first is [0..JUDGE_OFFSET], rest run 80/20 starting at JUDGE_OFFSET.
+    chunk_bounds: list[tuple[int, int]] = []
+    if total <= JUDGE_OFFSET:
+        chunk_bounds.append((0, total))
+    else:
+        chunk_bounds.append((0, JUDGE_OFFSET))
+        start = JUDGE_OFFSET
+        while start < total:
+            end = min(start + CHUNK_SIZE, total)
+            chunk_bounds.append((start, end))
+            if end == total:
+                break
+            start += CHUNK_SIZE - OVERLAP
 
     chunks = []
-    start = 0
-    chunk_idx = 0
-    while start < total:
-        end = min(start + CHUNK_SIZE, total)
+    for idx, (start, end) in enumerate(chunk_bounds):
         chunk_segments = [s.model_dump() for s in segments[start:end]]
-        # Serialize enum values for agent readability
         for s in chunk_segments:
             s["segment_type"] = s["segment_type"].value
 
-        chunk_path = tmp_dir / f"chunk_{chunk_idx}.json"
-        output_path = tmp_dir / f"chunk_{chunk_idx}_output.json"
-
+        chunk_path = judge_dir / f"chunk_{idx}.json"
         chunk_path.write_text(json.dumps(chunk_segments, indent=2, ensure_ascii=False))
 
         chunks.append(
             {
-                "chunk_idx": chunk_idx,
+                "chunk_idx": idx,
                 "chunk_path": str(chunk_path),
-                "output_path": str(output_path),
                 "start_index": segments[start].index,
                 "end_index": segments[end - 1].index,
             }
         )
 
-        chunk_idx += 1
-        start += CHUNK_SIZE - OVERLAP
-
-    # Chapter number for file naming (preserve as-is for alphanumeric like "04a")
-    chapter_file_id = chapter_path.stem.replace("chapter_", "")
-
     result = {
         "slug": slug,
         "chapter_raw": chapter_raw,
-        "chapter_file_id": chapter_file_id,
+        "chapter_id": padded,
         "pov_character": pov_character,
         "total_segments": total,
         "dialogue_count": dialogue_count,
         "chunks": chunks,
-        "tmp_dir": str(tmp_dir),
+        "judge_dir": str(judge_dir),
     }
     print(json.dumps(result))
 

@@ -56,7 +56,6 @@ VOLUME_SUBDIRS = [
     "cleaned",
     "parsed",
     "extracted",
-    "resolved",
     "reviewed",
     "illustrations/images",
     "audio/segments",
@@ -90,6 +89,14 @@ CHAPTER_PATTERNS: list[re.Pattern[str]] = [
 ]
 """Regex patterns that mark the start of a new chapter.
 Each pattern is tested against the start of a line."""
+
+SUBCHAPTER_PATTERN: re.Pattern[str] = re.compile(r"^\s*(\d+)\.(\d+)\s*$")
+"""Bare `N.M` on its own line — a sub-chapter boundary inside a main chapter.
+
+The published books mark POV-shifting sub-chapters this way: a bare `7.1` line,
+blank line, then body text (no inline title). Treated as a boundary only when
+the chapter has ≥ 2 such markers with matching major and strictly-increasing
+minor starting from 1. See split._subdivide_by_subchapter."""
 
 # ---------------------------------------------------------------------------
 # Stage 2: CLEAN — Artifact removal
@@ -160,11 +167,11 @@ MODEL_REGISTRY: dict[str, tuple[str, str]] = {
 DEFAULT_TTS_PROVIDER = "edge"
 
 SILENCE_DURATIONS_MS: dict[str, int] = {
-    "dialogue_to_dialogue": 200,
-    "narration_to_dialogue": 400,
-    "dialogue_to_narration": 400,
-    "scene_break": 800,
-    "chapter_header": 1500,
-    "default": 300,
+    "dialogue_to_dialogue": 100,
+    "narration_to_dialogue": 200,
+    "dialogue_to_narration": 200,
+    "scene_break": 400,
+    "chapter_header": 1000,
+    "default": 150,
 }
 """Silence inserted between segments during assembly (milliseconds)."""

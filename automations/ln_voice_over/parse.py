@@ -125,7 +125,11 @@ def split_long_narration(text: str, max_chars: int = 500) -> list[str]:
 
 
 def parse_chapter(
-    cleaned_path: Path, chapter_number: int, title: str, pov_character: str | None = None
+    cleaned_path: Path,
+    chapter_number: int,
+    title: str,
+    pov_character: str | None = None,
+    subchapter: int | None = None,
 ) -> Chapter:
     """Parse a cleaned chapter file into a Chapter with typed segments.
 
@@ -139,6 +143,8 @@ def parse_chapter(
         chapter_number: Chapter number from the manifest.
         title: Chapter title from the manifest.
         pov_character: POV character name (from manifest), or None.
+        subchapter: Sub-chapter index when the source splits a publisher
+            chapter on `N.M` POV markers, else None.
 
     Returns:
         A Chapter instance with its segments tuple populated.
@@ -174,6 +180,7 @@ def parse_chapter(
     if not body:
         return Chapter(
             chapter_number=chapter_number,
+            subchapter=subchapter,
             title=title,
             source_file=cleaned_path.name,
             pov_character=pov_character,
@@ -208,6 +215,7 @@ def parse_chapter(
 
     return Chapter(
         chapter_number=chapter_number,
+        subchapter=subchapter,
         title=title,
         source_file=cleaned_path.name,
         pov_character=pov_character,
