@@ -14,11 +14,15 @@ Omit the argument to get an interactive picker over existing projects.
 
 from __future__ import annotations
 
-import typing
-
 import typer
+from dotenv import load_dotenv
 
 from .project import resolve_volume
+
+# Load .env from cwd upward on `lnvo` startup so OPENAI_API_KEY /
+# OPENROUTER_API_KEY are in os.environ before any provider or llm call
+# reaches for them. No-op if .env is absent.
+load_dotenv()
 
 app = typer.Typer(
     name="lnvo",
@@ -132,6 +136,8 @@ def parse(book: str | None = typer.Argument(None)) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    from .split import chapter_id
+
     count = 0
     for entry in manifest:
         cleaned_path = cleaned_dir / entry["file"]
@@ -142,10 +148,11 @@ def parse(book: str | None = typer.Argument(None)) -> None:
         chapter = parse_chapter(
             cleaned_path,
             chapter_number=entry["number"],
+            subchapter=entry.get("subchapter"),
             title=entry["title"],
             pov_character=entry.get("pov_character"),
         )
-        chapter.save(output_dir / f"chapter_{entry['number']:02d}.json")
+        chapter.save(output_dir / f"chapter_{chapter_id(entry)}.json")
         count += 1
 
     typer.echo(f"Parsed {count} chapter(s) → {output_dir}")
@@ -195,80 +202,78 @@ def extract(
     typer.echo(f"Extraction saved → {extracted_path}")
 
 
-@app.command(name="resolve")
-def resolve(
+@app.command()
+def synthesize(
     book: str | None = typer.Argument(None),
-    chapter: str = typer.Option(..., help="Chapter ID (e.g. 2, 04a)."),
-    source: typing.Annotated[
-        list[str],
-        typer.Option(
-            "--source", help="Source filenames in extracted/chapter_NN/ (without .json)."
-        ),
-    ] = ...,
+    chapter: str | None = typer.Option(None, help="Chapter ID (e.g. 02, 04a). Omit for all."),
+    parallel: int = typer.Option(4, help="Max concurrent TTS calls."),
+    normalize: bool = typer.Option(True, help="Per-segment LUFS normalization."),
+    narration_speed: float = typer.Option(1.15, help="Speed multiplier for narration."),
+    dialogue_speed: float = typer.Option(1.20, help="Speed multiplier for dialogue."),
+    header_speed: float = typer.Option(1.15, help="Speed multiplier for chapter headers."),
+    verbose: bool = typer.Option(False, help="Print per-segment provider/voice/speed detail."),
 ) -> None:
-    """Stage 5: Resolve raw speaker names against the series character registry."""
-    import json
+    """Stage 8: Synthesize audio from reviewed chapters."""
     import logging
 
     from .interactive import resolve_book_arg
-    from .models import Chapter
-    from .project import load_characters
-    from .resolution import cross_validate, load_extracted, resolve_chapter
+    from .models import Chapter, SegmentType
+    from .project import load_characters, load_voices
+    from .synthesize import assemble_chapter
 
     resolved = resolve_volume(resolve_book_arg(book))
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    root = resolved.volume_path
-    parsed_path = root / "parsed" / f"chapter_{chapter}.json"
-    extracted_dir = root / "extracted" / f"chapter_{chapter}"
-    output_dir = root / "resolved"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    speed_policy = {
+        SegmentType.NARRATION: narration_speed,
+        SegmentType.DIALOGUE: dialogue_speed,
+        SegmentType.CHAPTER_HEADER: header_speed,
+    }
 
-    if not parsed_path.exists():
-        typer.echo(f"Parsed chapter not found: {parsed_path}")
+    root = resolved.volume_path
+    reviewed_dir = root / "reviewed"
+    audio_dir = root / "audio"
+
+    if not reviewed_dir.exists():
+        typer.echo(f"Reviewed directory not found: {reviewed_dir}. Complete review first.")
         raise typer.Exit(1)
 
-    ch = Chapter.load(parsed_path)
+    if chapter:
+        target = reviewed_dir / f"chapter_{chapter}.json"
+        if not target.exists():
+            typer.echo(f"Reviewed chapter not found: {target}. Complete review first.")
+            raise typer.Exit(1)
+        paths = [target]
+    else:
+        # Skip chapter_00* (front matter) — no dialogue/speakers there.
+        paths = sorted(
+            p for p in reviewed_dir.glob("chapter_*.json") if not p.name.startswith("chapter_00")
+        )
+        if not paths:
+            typer.echo(f"No reviewed chapters found in {reviewed_dir}.")
+            raise typer.Exit(1)
+
+    voices = load_voices(resolved.series_slug)
     registry = load_characters(resolved.series_slug)
 
-    # Load sources
-    sources: dict[str, dict[str, str]] = {}
-    for s in source:
-        path = extracted_dir / f"{s}.json"
-        if not path.exists():
-            typer.echo(f"Source not found: {path}")
-            raise typer.Exit(1)
-        sources[s] = load_extracted(path)
-        typer.echo(f"Loaded {s}: {len(sources[s])} entries")
-
-    # Cross-validate if multiple sources, otherwise use single source directly
-    confirmed_unknowns: set[str] = set()
-    if len(sources) > 1:
-        attributions, divergences, confirmed_unknowns = cross_validate(sources, registry)
-        typer.echo(f"Cross-validation: {len(divergences)} divergences")
-    else:
-        attributions = next(iter(sources.values()))
-        divergences = []
-
-    # Resolve names to canonical
-    attributed, flags = resolve_chapter(
-        ch, attributions, registry, confirmed_unknowns=confirmed_unknowns
-    )
-    flags.extend(divergences)
-
-    # Save
-    out_path = output_dir / f"chapter_{chapter}.json"
-    attributed.save(out_path)
-    typer.echo(f"Attributed chapter → {out_path}")
-
-    if flags:
-        flags_path = output_dir / f"chapter_{chapter}_flags.json"
-        flags_path.write_text(
-            json.dumps(flags, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    for path in paths:
+        ch = Chapter.load(path)
+        if verbose:
+            typer.echo(
+                f'\nchapter {ch.chapter_number:02d} "{ch.title}" '
+                f"(POV: {ch.pov_character or '-'}, {len(ch.segments)} segments)"
+            )
+        out = assemble_chapter(
+            ch,
+            voices=voices,
+            registry=registry,
+            audio_dir=audio_dir,
+            parallel=parallel,
+            normalize=normalize,
+            speed_policy=speed_policy,
+            verbose=verbose,
         )
-        typer.echo(f"{len(flags)} flags → {flags_path}")
-    else:
-        typer.echo("No flags — all attributions resolved cleanly.")
+        typer.echo(f"  chapter {ch.chapter_number:02d} -> {out}")
 
 
 # ---------------------------------------------------------------------------
@@ -360,26 +365,22 @@ def audition(
 
 
 def _find_character_dialogue(book_arg: str, character_name: str) -> str | None:
-    """Find a sample dialogue line from a character in resolved chapters."""
+    """Find a sample dialogue line from a character in reviewed chapters."""
     from .models import Chapter
 
     resolved = resolve_volume(book_arg)
-    root = resolved.volume_path
-    # Check reviewed first, then resolved
-    for stage_dir in [root / "reviewed", root / "resolved"]:
-        if not stage_dir.exists():
-            continue
-        for path in sorted(stage_dir.glob("chapter_*.json")):
-            if path.name.endswith("_flags.json"):
-                continue
-            chapter = Chapter.load(path)
-            for seg in chapter.segments:
-                if (
-                    seg.speaker
-                    and seg.speaker.lower() == character_name.lower()
-                    and len(seg.text) > 20
-                ):
-                    return seg.text
+    stage_dir = resolved.volume_path / "reviewed"
+    if not stage_dir.exists():
+        return None
+    for path in sorted(stage_dir.glob("chapter_*.json")):
+        chapter = Chapter.load(path)
+        for seg in chapter.segments:
+            if (
+                seg.speaker
+                and seg.speaker.lower() == character_name.lower()
+                and len(seg.text) > 20
+            ):
+                return seg.text
     return None
 
 

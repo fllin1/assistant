@@ -107,7 +107,7 @@ def _looks_like_series(path: Path) -> bool:
     directory at the top level is a strong signal that we're looking at an
     un-migrated flat project.
     """
-    legacy_markers = {"chapters", "source", "cleaned", "parsed", "extracted", "resolved"}
+    legacy_markers = {"chapters", "source", "cleaned", "parsed", "extracted", "reviewed"}
     names = {c.name for c in path.iterdir() if c.is_dir()}
     if legacy_markers & names:
         return False
