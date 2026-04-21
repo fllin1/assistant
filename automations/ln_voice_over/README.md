@@ -38,7 +38,7 @@ Each stage reads from the previous stage's output and writes to its own director
 | **Clean** | Remove watermarks, page numbers, collapse blank lines | `<volume>/cleaned/` |
 | **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `<volume>/parsed/` |
 | **Extract** | LLM-based speaker attribution per dialogue segment | `<volume>/extracted/` |
-| **Review** (`/review-chapter`) | Judge re-attribution, flag diffs, resolve with Opus, write canonical chapter | `<volume>/reviewed/` |
+| **Review** (`/review-attribution`) | Judge re-attribution, flag diffs, resolve with Opus, write canonical chapter | `<volume>/reviewed/` |
 | **Voice Assign** (`/assign-voices`) | Propose + apply per-character voice mappings | `<series>/config/voices.json` |
 | **Synthesize** (`lnvo synthesize`) | TTS per segment with per-character voices, assemble audio | `<volume>/audio/` |
 
@@ -59,7 +59,7 @@ lnvo parse classroom-of-the-elite-year-2/v7
 /attribute-speakers classroom-of-the-elite-year-2/v7 2
 
 # 4. Review: judge pass catches disagreements, Opus resolves them, writes reviewed/
-/review-chapter classroom-of-the-elite-year-2/v7 2
+/review-attribution classroom-of-the-elite-year-2/v7 2
 
 # 5. Assign voices (skill, writes to series config/voices.json)
 /assign-voices classroom-of-the-elite-year-2/v7
@@ -113,7 +113,7 @@ Skills:
 ```
 /setup-book       # source acquisition from AnyFlip
 /attribute-speakers # speaker attribution via Claude Sonnet
-/review-chapter   # resolve flagged divergences
+/review-attribution   # resolve flagged divergences
 /assign-voices    # propose + apply per-character voice cast
 ```
 
@@ -145,9 +145,17 @@ Skills:
 
 ### Stage 4: EXTRACT — Speaker Attribution
 
-Per-dialogue LLM extraction via `extraction.py`. Supports local (Ollama) and cloud (OpenRouter) models.
+**Recommended path: the `/attribute-speakers` Claude Sonnet skill.** It spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap, merges the results, and writes a flat `{index: speaker}` JSON to `extracted/chapter_NN/`. The skill also auto-detects POV and persists it to the manifest as a side effect.
 
-**CLI extraction** (`lnvo extract`) — runs a local or cloud LLM per-dialogue with a configurable context window:
+```
+/attribute-speakers classroom-of-the-elite-year-2/v7 5
+```
+
+#### Legacy path: `lnvo extract`
+
+Per-dialogue LLM attribution via a local Ollama model or a cloud OpenRouter model. Empirically this path is far less accurate than the skill on today's cheap/local models, so it's kept as a preserved alternative rather than a working option — see `legacy/README.md`. Expect to revisit it when local model quality catches up.
+
+The orchestrator lives at `legacy/extraction.py`; the reusable primitives (`llm.py`, `config.MODEL_REGISTRY`) stay at the module root so any future attribution module can call them directly.
 
 ```bash
 # Gemini Flash (cloud, via OpenRouter)
@@ -159,13 +167,7 @@ lnvo extract classroom-of-the-elite-year-2/v7 --chapter 02 \
     --model gemini-flash --pov "Ayanokouji Kiyotaka" --verbose
 ```
 
-**Claude Sonnet skill** (`/attribute-speakers`) — spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap. Faster for large chapters:
-
-```
-/attribute-speakers classroom-of-the-elite-year-2/v7 5
-```
-
-Both methods produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
+Both paths produce the same output format: a flat `{index: speaker}` JSON in `extracted/chapter_NN/`.
 
 #### Model Registry (`config.py`)
 
@@ -186,7 +188,7 @@ Models are registered as `alias → (provider, model_id)`:
 ### Stage 5: REVIEW — Judge Pass + Canonical Chapter
 
 - **Input**: `extracted/chapter_NN/*.json` (one Sonnet attribution per chapter) → **Output**: `reviewed/chapter_NN.json`
-- The `/review-chapter` skill re-attributes each chapter with a shifted-overlap chunking to break any echo-chamber effect, diffs the new pass against the original, then resolves each disagreement with Opus + near-context. Name canonicalisation (against the series `characters.json` registry) happens inside the judge — there is no separate resolve stage
+- The `/review-attribution` skill re-attributes each chapter with a shifted-overlap chunking to break any echo-chamber effect, diffs the new pass against the original, then resolves each disagreement with Opus + near-context. Name canonicalisation (against the series `characters.json` registry) happens inside the judge — there is no separate resolve stage
 
 ### Stage 7: VOICE ASSIGN — Per-character Voice Mapping
 
@@ -198,7 +200,7 @@ Models are registered as `alias → (provider, model_id)`:
 
 - **Input**: `reviewed/*.json` + series `config/voices.json` + series `config/characters.json` → **Output**: `audio/segments/<cache_key>.wav` (per-segment cache) + `audio/chapters/chapter_NN.wav` (assembled) + `audio/chapters/chapter_NN.manifest.json` (segment→voice→file map)
 - **Format: WAV end-to-end.** Providers return WAV (OpenAI native, Kokoro native, Edge decodes its MP3 stream once inside the provider). Cache, normalization, concatenation, and final export all stay PCM — no lossy re-encodes. Final chapter files are larger (~10× MP3) but editable in any DAW without generation loss.
-- Hard-requires the chapter be in `reviewed/` — run `/review-chapter` first.
+- Hard-requires the chapter be in `reviewed/` — run `/review-attribution` first.
 - Skips `chapter_00*` (front matter) when no `--chapter` is passed.
 
 ```bash
