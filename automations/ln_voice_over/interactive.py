@@ -3,9 +3,9 @@
 Provides numbered-menu pickers used when the user omits positional args
 (e.g. `lnvo split` with no slug) or runs `lnvo` with no subcommand at all.
 
-The pickers are two-step: choose a series, then choose a volume. A
-"Create new volume in existing series" option appears at each level,
-alongside a "Create new series" option.
+The pickers are two-step: choose a series, then choose a volume. Creation
+is only offered as a fallback when no series / no volumes exist — the
+recommended path for new volumes is the `/setup-book` skill.
 """
 
 from __future__ import annotations
@@ -54,21 +54,19 @@ def add_volume_to(series_slug: str) -> str:
 
 
 def pick_series(prompt: str = "Select a series") -> str:
-    """Numbered menu of existing series; creates a new one if none exist."""
+    """Numbered menu of existing series. Bootstraps one only when none exist."""
     series = list_series()
     if not series:
         typer.echo("No projects found — let's create one.")
-        return _create_new_series_pair()
+        pair = bootstrap_project()
+        return pair.split("/")[0]
 
     typer.echo(f"\n{prompt}:")
     for i, slug in enumerate(series, 1):
         typer.echo(f"  {i}. {slug}")
-    typer.echo(f"  {len(series) + 1}. Create new series")
     typer.echo()
 
     choice = typer.prompt("Number", type=int, default=1)
-    if choice == len(series) + 1:
-        return _create_new_series_pair()
     if not 1 <= choice <= len(series):
         typer.echo(f"Invalid choice: {choice}")
         raise typer.Exit(1)
@@ -76,20 +74,8 @@ def pick_series(prompt: str = "Select a series") -> str:
     return series[choice - 1]
 
 
-def _create_new_series_pair() -> str:
-    """Create a new series + initial volume, returning the `series` slug.
-
-    Used by pick_series when the user picks "Create new series". The
-    caller will still run pick_volume(series) afterwards, but since the
-    new volume we just made will be the only one, it's the obvious pick.
-    """
-    pair = bootstrap_project()
-    series_slug = pair.split("/")[0]
-    return series_slug
-
-
 def pick_volume(series_slug: str, prompt: str = "Select a volume") -> str:
-    """Numbered menu of volumes in a series, or create a new one."""
+    """Numbered menu of volumes in a series. Bootstraps one only when empty."""
     volumes = list_volumes(series_slug)
     if not volumes:
         typer.echo(f"No volumes in {series_slug} yet — let's create one.")
@@ -99,13 +85,9 @@ def pick_volume(series_slug: str, prompt: str = "Select a volume") -> str:
     typer.echo(f"\n{prompt} in {series_slug}:")
     for i, vol in enumerate(volumes, 1):
         typer.echo(f"  {i}. {vol}")
-    typer.echo(f"  {len(volumes) + 1}. Create new volume in this series")
     typer.echo()
 
     choice = typer.prompt("Number", type=int, default=1)
-    if choice == len(volumes) + 1:
-        pair = add_volume_to(series_slug)
-        return pair.split("/")[1]
     if not 1 <= choice <= len(volumes):
         typer.echo(f"Invalid choice: {choice}")
         raise typer.Exit(1)
