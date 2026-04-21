@@ -25,7 +25,7 @@ Parse `$ARGUMENTS`: first token is the book slug. Remaining tokens: `chapter` (o
 
 ### Single-chapter mode
 
-Run the eight steps below once for the given chapter.
+Run the seven steps below once for the given chapter.
 
 #### Step 0: Skip check
 
@@ -92,7 +92,7 @@ Prints the save path and total attributed.
 python -m automations.ln_voice_over.scripts.diff_attributions <slug> <chapter_id>
 ```
 
-Capture the JSON — it has `flag_count` and `flags[]`. If `flag_count == 0`, skip to Step 7 with corrections = `[]`.
+Capture the JSON — it has `flag_count` and `flags[]`. If `flag_count == 0`, skip to Step 6 with corrections = `[]`.
 
 Report `"N disagreements to resolve"`.
 
@@ -127,18 +127,9 @@ No prose outside the fenced block, no tool calls.
 
 Parse each JSON reply. Collect `{index, speaker, reason, original_speaker, judge_speaker, segment_text}`.
 
-#### Step 6: Manual validation (temporary)
+Build the corrections list as `[{index, speaker}, …]` directly from the Opus verdicts, filtering out entries where `speaker == original_speaker` (those are no-ops after canonicalisation and only add noise to the report sidecar).
 
-For each Opus verdict, ask the user via `AskUserQuestion`:
-
-- Question: `"[<index>] '<segment_text first 80 chars>' — accept Opus verdict?"`
-- Options: `["Accept: <opus_speaker>", "Keep original: <original_speaker>", "Keep judge: <judge_speaker>"]` — drop duplicates if the Opus verdict equals a candidate.
-
-Build the corrections list as `[{index, speaker}, …]` using the chosen speaker. Skip entries where the chosen speaker equals the already-canonicalised original (those are no-ops).
-
-This validation step is temporary. Once we trust the judge + Opus combo across a few volumes we'll remove it and run auto-pilot.
-
-#### Step 7: Apply corrections
+#### Step 6: Apply corrections
 
 ```
 python -m automations.ln_voice_over.scripts.apply_corrections '<slug>' '<chapter_id>' '<corrections_json>'
@@ -146,13 +137,13 @@ python -m automations.ln_voice_over.scripts.apply_corrections '<slug>' '<chapter
 
 The script merges the parsed chapter + original attributions + corrections into `reviewed/chapter_<id>.json`, sets `reviewed=True`, and writes a `chapter_<id>_report.json` sidecar.
 
-#### Step 8: Report
+#### Step 7: Report
 
 Report to the user:
 - save path
 - flag count (disagreements found)
 - corrections applied (with before → after for each)
-- accepted-as-is count (judge verdict = original)
+- accepted-as-is count (Opus verdict matched the original — no correction needed)
 
 ### Volume mode
 
@@ -162,7 +153,7 @@ When no chapter argument is supplied:
 
 2. For each entry, derive the chapter id from the `file` field (`chapter_07.txt` → `07`, `chapter_07_1.txt` → `07_1`). Skip entries with no `extracted/chapter_<id>/claude-sonnet_skill_*.json` (nothing to review — run `/attribute-speakers` first).
 
-3. Run **Steps 0–8** for every remaining entry in order. The Step 0 `AskUserQuestion` is the skip gate for already-reviewed chapters (default Skip).
+3. Run **Steps 0–7** for every remaining entry in order. The Step 0 `AskUserQuestion` is the skip gate for already-reviewed chapters (default Skip).
 
 4. After the loop, print a volume summary: one line per chapter stating `reviewed | skipped | no attribution`, plus totals.
 
