@@ -175,11 +175,11 @@ def extract(
         False, "--verbose", help="Verbose mode: LLM returns speaker + reasoning JSON."
     ),
 ) -> None:
-    """Stage 4: Speaker mention extraction via LLM."""
+    """Stage 4 (LEGACY): Per-dialogue LLM attribution. Superseded by /attribute-speakers. Kept for future use with improved local models."""
     import logging
 
-    from .extraction import ExtractionConfig, run_extraction
     from .interactive import resolve_book_arg
+    from .legacy.extraction import ExtractionConfig, run_extraction
 
     resolved = resolve_volume(resolve_book_arg(book))
     logging.basicConfig(level=logging.INFO, format="%(message)s")
