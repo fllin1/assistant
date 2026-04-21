@@ -1,3 +1,7 @@
+---
+argument-hint: <series-slug>[/<volume-slug>]
+---
+
 # Assign Voices — Propose a Voice Cast for a Series or Volume
 
 Propose and apply per-character TTS voice assignments for a light-novel series, following the tiered strategy from `automations/ln_voice_over/docs/6-voice-assignment.md`.

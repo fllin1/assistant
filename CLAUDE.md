@@ -89,6 +89,6 @@ The library starts flat — modules are added as we build them. Structure emerge
 - After completing a feature: remind to commit.
 - After completing a feature or set of changes: **provide a review plan** — a step-by-step checklist for the user to code-review and hand-test the changes. Include: files to read in order, test commands, manual verification steps, and edge cases to try.
 - Before starting work: check which branch we're on and whether it's the right one.
-- Every feature must be linked to a GitHub Issue. If no issue exists, create one before starting work. Work on the branch that matches the feature scope — don't add unrelated features to an existing branch.
+- Every feature in `src/assistant/` must be linked to a GitHub Issue. If no issue exists, create one before starting work. Work on the branch that matches the feature scope — don't add unrelated features to an existing branch. Changes scoped to `automations/` do **not** require an issue.
 - When in doubt about scope, ask — don't expand silently.
 - Do not commit unless the user explicitly tells you to.

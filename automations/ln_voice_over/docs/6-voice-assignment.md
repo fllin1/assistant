@@ -83,11 +83,11 @@ lnvo audition en-US-BrianNeural
 # Custom text
 lnvo audition en-US-BrianNeural --text "I have no intention of losing."
 
-# Use a real dialogue line from the character's resolved chapters
+# Use a real dialogue line from the character's reviewed chapters
 lnvo audition en-US-BrianNeural --character "Ayanokouji Kiyotaka" --book classroom-of-the-elite-year-2/v7
 ```
 
-The `--character` option searches `reviewed/` then `resolved/` chapters for a dialogue line by that character (at least 20 chars). This lets you hear how the voice sounds with actual book dialogue.
+The `--character` option searches the volume's `reviewed/` chapters for a dialogue line by that character (at least 20 chars). This lets you hear how the voice sounds with actual book dialogue.
 
 ## Step 3: Assign Voices
 

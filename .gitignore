@@ -10,6 +10,10 @@ wheels/
 .venv
 .envrc
 
+# Secrets — real keys never committed; .env.example is the template.
+.env
+.env.local
+
 # Claude Code local settings (personal, not committed)
 .claude/settings.local.json
 .DS_Store
