@@ -37,11 +37,8 @@ def _get_pipeline():
     return _pipeline
 
 
-def _audio_tensor_to_mp3(audio: torch.Tensor, sample_rate: int = _SAMPLE_RATE) -> bytes:
-    """Convert a 1D float audio tensor to MP3 bytes via pydub."""
-    from pydub import AudioSegment
-
-    # Convert to 16-bit PCM WAV in memory
+def _audio_tensor_to_wav(audio: torch.Tensor, sample_rate: int = _SAMPLE_RATE) -> bytes:
+    """Convert a 1D float audio tensor to 16-bit PCM WAV bytes."""
     audio_np = (audio.numpy() * 32767).astype("int16")
     wav_buffer = io.BytesIO()
     with wave.open(wav_buffer, "wb") as wav_file:
@@ -49,13 +46,7 @@ def _audio_tensor_to_mp3(audio: torch.Tensor, sample_rate: int = _SAMPLE_RATE) -
         wav_file.setsampwidth(2)
         wav_file.setframerate(sample_rate)
         wav_file.writeframes(struct.pack(f"<{len(audio_np)}h", *audio_np))
-
-    wav_buffer.seek(0)
-    segment = AudioSegment.from_wav(wav_buffer)
-
-    mp3_buffer = io.BytesIO()
-    segment.export(mp3_buffer, format="mp3")
-    return mp3_buffer.getvalue()
+    return wav_buffer.getvalue()
 
 
 class KokoroTTSProvider:
@@ -67,7 +58,7 @@ class KokoroTTSProvider:
         return "kokoro"
 
     def synthesize(self, text: str, voice_id: str, **settings: object) -> bytes:
-        """Synthesize text to MP3 audio bytes using Kokoro TTS.
+        """Synthesize text to WAV audio bytes using Kokoro TTS.
 
         Args:
             text: Text to synthesize.
@@ -75,7 +66,7 @@ class KokoroTTSProvider:
             **settings: Optional params — speed (float, default 1.0).
 
         Returns:
-            MP3 audio bytes.
+            WAV audio bytes (24 kHz, 16-bit mono PCM).
 
         Raises:
             TTSSynthesisError: If synthesis fails.
@@ -93,7 +84,7 @@ class KokoroTTSProvider:
                 raise TTSSynthesisError(f"Kokoro returned no audio for voice '{voice_id}'")
 
             audio = torch.cat(chunks)
-            return _audio_tensor_to_mp3(audio)
+            return _audio_tensor_to_wav(audio)
         except TTSSynthesisError:
             raise
         except Exception as e:

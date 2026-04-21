@@ -45,7 +45,7 @@ class OpenAITTSProvider:
         return "openai"
 
     def synthesize(self, text: str, voice_id: str, **settings: object) -> bytes:
-        """Synthesize text to MP3 audio bytes using OpenAI TTS.
+        """Synthesize text to WAV audio bytes using OpenAI TTS.
 
         Args:
             text: Text to synthesize.
@@ -53,7 +53,7 @@ class OpenAITTSProvider:
             **settings: Optional params — speed (float, 0.25 to 4.0).
 
         Returns:
-            MP3 audio bytes.
+            WAV audio bytes (24 kHz, 16-bit PCM).
 
         Raises:
             TTSSynthesisError: If the API call fails.
@@ -62,7 +62,7 @@ class OpenAITTSProvider:
             "model": self._model,
             "voice": voice_id,
             "input": text,
-            "response_format": "mp3",
+            "response_format": "wav",
         }
         if "speed" in settings:
             kwargs["speed"] = float(settings["speed"])  # type: ignore[arg-type]
