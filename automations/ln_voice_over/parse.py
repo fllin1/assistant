@@ -1,11 +1,13 @@
-"""Stage 3: PARSE — Split cleaned text into typed segments.
+"""Stage 2: PARSE — clean and segment chapter text.
 
-Reads cleaned chapter text and splits it into narration and dialogue segments.
-The chapter header (first line) is extracted, then the remaining text is
-stitched into a continuous block (double newlines in cleaned files are page
-break artifacts, not real paragraph boundaries). Inline dialogue is extracted
-at quote boundaries, and long narration chunks are split at sentence boundaries
-for TTS quality.
+Reads a raw chapter `.txt` file, strips watermarks / page numbers / excess
+blank lines (cleanup previously done by the standalone `clean` stage —
+folded in here because parse was its only consumer), then splits the text
+into narration and dialogue segments. The chapter header (first line) is
+extracted, the remaining text is stitched into a continuous block (double
+newlines in source files are page-break artifacts, not real paragraph
+boundaries), inline dialogue is extracted at quote boundaries, and long
+narration chunks are split at sentence boundaries for TTS quality.
 """
 
 from __future__ import annotations
@@ -13,8 +15,72 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .config import CHAPTER_PATTERNS, MAX_SEGMENT_CHARS
+from .config import (
+    CHAPTER_PATTERNS,
+    INLINE_WATERMARK_PATTERNS,
+    MAX_CONSECUTIVE_BLANK_LINES,
+    MAX_SEGMENT_CHARS,
+    PAGE_NUMBER_PATTERNS,
+    SCENE_BREAK_PATTERNS,
+    WATERMARK_PATTERNS,
+)
 from .models import Chapter, Segment, SegmentType
+
+
+def _strip_inline_watermarks(line: str, patterns: list[re.Pattern[str]]) -> str:
+    for p in patterns:
+        line = p.sub("", line)
+    return line
+
+
+def _is_watermark_line(line: str, patterns: list[str]) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return any(p in stripped for p in patterns)
+
+
+def _is_page_number(line: str, patterns: list[re.Pattern[str]]) -> bool:
+    return any(p.search(line) for p in patterns)
+
+
+def _is_scene_break(line: str, patterns: list[re.Pattern[str]]) -> bool:
+    return any(p.search(line) for p in patterns)
+
+
+def _collapse_blank_lines(text: str, max_consecutive: int = 2) -> str:
+    """Collapse runs of blank lines exceeding max_consecutive."""
+    lines = text.split("\n")
+    result = []
+    blank_count = 0
+    for line in lines:
+        if line.strip() == "":
+            blank_count += 1
+            if blank_count <= max_consecutive:
+                result.append(line)
+        else:
+            blank_count = 0
+            result.append(line)
+    return "\n".join(result)
+
+
+def _clean_chapter_text(text: str) -> str:
+    """Strip watermarks/page numbers, preserve scene breaks, collapse blank-line runs."""
+    cleaned = []
+    for line in text.split("\n"):
+        if _is_scene_break(line, SCENE_BREAK_PATTERNS):
+            cleaned.append(line.rstrip())
+            continue
+        line = _strip_inline_watermarks(line, INLINE_WATERMARK_PATTERNS)
+        if _is_watermark_line(line, WATERMARK_PATTERNS):
+            continue
+        if _is_page_number(line, PAGE_NUMBER_PATTERNS):
+            continue
+        cleaned.append(line.rstrip())
+
+    result = "\n".join(cleaned)
+    result = _collapse_blank_lines(result, MAX_CONSECUTIVE_BLANK_LINES)
+    return result.strip() + "\n"
 
 
 def _is_chapter_header(text: str) -> bool:
@@ -125,21 +191,23 @@ def split_long_narration(text: str, max_chars: int = 500) -> list[str]:
 
 
 def parse_chapter(
-    cleaned_path: Path,
+    chapter_path: Path,
     chapter_number: int,
     title: str,
     pov_character: str | None = None,
     subchapter: int | None = None,
 ) -> Chapter:
-    """Parse a cleaned chapter file into a Chapter with typed segments.
+    """Parse a chapter .txt file into a Chapter with typed segments.
 
-    Extracts the chapter header from the first line, then stitches the
-    remaining text into a continuous block (double newlines in cleaned
-    files are page break artifacts). Dialogue is extracted at quote
-    boundaries and long narration is split at sentence boundaries.
+    Reads the raw chapter file (from `chapters/`), applies cleanup
+    (watermark / page-number stripping, blank-line collapse), extracts
+    the chapter header from the first line, then stitches the remaining
+    text into a continuous block (double newlines in source files are
+    page-break artifacts). Dialogue is extracted at quote boundaries
+    and long narration is split at sentence boundaries.
 
     Args:
-        cleaned_path: Path to the cleaned chapter .txt file.
+        chapter_path: Path to the chapter .txt file (from chapters/).
         chapter_number: Chapter number from the manifest.
         title: Chapter title from the manifest.
         pov_character: POV character name (from manifest), or None.
@@ -150,7 +218,7 @@ def parse_chapter(
         A Chapter instance with its segments tuple populated.
         Speaker field on segments is None at this stage.
     """
-    text = cleaned_path.read_text(encoding="utf-8").strip()
+    text = _clean_chapter_text(chapter_path.read_text(encoding="utf-8")).strip()
     segments: list[Segment] = []
     seg_index = 0
 
@@ -182,7 +250,7 @@ def parse_chapter(
             chapter_number=chapter_number,
             subchapter=subchapter,
             title=title,
-            source_file=cleaned_path.name,
+            source_file=chapter_path.name,
             pov_character=pov_character,
             segments=tuple(segments),
         )
@@ -217,7 +285,7 @@ def parse_chapter(
         chapter_number=chapter_number,
         subchapter=subchapter,
         title=title,
-        source_file=cleaned_path.name,
+        source_file=chapter_path.name,
         pov_character=pov_character,
         segments=tuple(segments),
     )

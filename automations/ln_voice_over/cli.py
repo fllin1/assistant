@@ -96,28 +96,8 @@ def split(book: str | None = typer.Argument(None)) -> None:
 
 
 @app.command()
-def clean(book: str | None = typer.Argument(None)) -> None:
-    """Stage 2: Clean chapter files (remove watermarks, page numbers)."""
-    from .clean import clean_all
-    from .interactive import resolve_book_arg
-
-    resolved = resolve_volume(resolve_book_arg(book))
-    root = resolved.volume_path
-    chapters_dir = root / "chapters"
-    output_dir = root / "cleaned"
-
-    txt_files = sorted(chapters_dir.glob("*.txt"))
-    if not txt_files:
-        typer.echo(f"No chapter files found in {chapters_dir}")
-        raise typer.Exit(1)
-
-    results = clean_all(chapters_dir, output_dir)
-    typer.echo(f"Cleaned {len(results)} chapter(s) → {output_dir}")
-
-
-@app.command()
 def parse(book: str | None = typer.Argument(None)) -> None:
-    """Stage 3: Parse cleaned text into typed segments."""
+    """Stage 2: Parse chapter text into typed segments (includes cleanup)."""
     import json
 
     from .interactive import resolve_book_arg
@@ -125,9 +105,9 @@ def parse(book: str | None = typer.Argument(None)) -> None:
 
     resolved = resolve_volume(resolve_book_arg(book))
     root = resolved.volume_path
-    cleaned_dir = root / "cleaned"
+    chapters_dir = root / "chapters"
     output_dir = root / "parsed"
-    manifest_path = root / "chapters" / "manifest.json"
+    manifest_path = chapters_dir / "manifest.json"
 
     if not manifest_path.exists():
         typer.echo(f"No manifest found at {manifest_path}. Run 'split' first.")
@@ -140,13 +120,13 @@ def parse(book: str | None = typer.Argument(None)) -> None:
 
     count = 0
     for entry in manifest:
-        cleaned_path = cleaned_dir / entry["file"]
-        if not cleaned_path.exists():
-            typer.echo(f"Skipping {entry['file']} — not found in cleaned/")
+        chapter_path = chapters_dir / entry["file"]
+        if not chapter_path.exists():
+            typer.echo(f"Skipping {entry['file']} — not found in chapters/")
             continue
 
         chapter = parse_chapter(
-            cleaned_path,
+            chapter_path,
             chapter_number=entry["number"],
             subchapter=entry.get("subchapter"),
             title=entry["title"],
@@ -175,7 +155,11 @@ def extract(
         False, "--verbose", help="Verbose mode: LLM returns speaker + reasoning JSON."
     ),
 ) -> None:
-    """Stage 4 (LEGACY): Per-dialogue LLM attribution. Superseded by /attribute-speakers. Kept for future use with improved local models."""
+    """Stage 3 (LEGACY): Per-dialogue LLM attribution.
+
+    Superseded by the `/attribute-speakers` skill. Kept for future use
+    with improved local models; see `legacy/README.md`.
+    """
     import logging
 
     from .interactive import resolve_book_arg
@@ -213,7 +197,7 @@ def synthesize(
     header_speed: float = typer.Option(1.15, help="Speed multiplier for chapter headers."),
     verbose: bool = typer.Option(False, help="Print per-segment provider/voice/speed detail."),
 ) -> None:
-    """Stage 8: Synthesize audio from reviewed chapters."""
+    """Stage 6: Synthesize audio from reviewed chapters."""
     import logging
 
     from .interactive import resolve_book_arg
