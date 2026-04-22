@@ -53,7 +53,6 @@ nested layout: one cast, one voice map, many volumes.
 VOLUME_SUBDIRS = [
     "source",
     "chapters",
-    "cleaned",
     "parsed",
     "extracted",
     "reviewed",
@@ -99,7 +98,7 @@ the chapter has ≥ 2 such markers with matching major and strictly-increasing
 minor starting from 1. See split._subdivide_by_subchapter."""
 
 # ---------------------------------------------------------------------------
-# Stage 2: CLEAN — Artifact removal
+# Stage 2: PARSE — cleanup + segment classification
 # ---------------------------------------------------------------------------
 
 WATERMARK_PATTERNS: list[str] = [
@@ -135,15 +134,11 @@ cleaning and become SCENE_BREAK segments during parsing."""
 MAX_CONSECUTIVE_BLANK_LINES = 2
 """Collapse runs of blank lines longer than this."""
 
-# ---------------------------------------------------------------------------
-# Stage 3: PARSE — Segment classification
-# ---------------------------------------------------------------------------
-
 MAX_SEGMENT_CHARS = 500
 """Long narration blocks exceeding this are split at sentence boundaries."""
 
 # ---------------------------------------------------------------------------
-# Stage 4: ATTRIBUTE — LLM settings
+# ATTRIBUTE — LLM settings
 # ---------------------------------------------------------------------------
 
 DEFAULT_LLM_MODEL = "gemma4:26b"
@@ -161,7 +156,7 @@ MODEL_REGISTRY: dict[str, tuple[str, str]] = {
 """Model alias → (provider, model_id). Provider is "ollama" or "openrouter"."""
 
 # ---------------------------------------------------------------------------
-# Stage 6: SYNTHESIZE — TTS and assembly
+# SYNTHESIZE — TTS and assembly
 # ---------------------------------------------------------------------------
 
 DEFAULT_TTS_PROVIDER = "edge"

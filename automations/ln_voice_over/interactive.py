@@ -114,10 +114,9 @@ def resolve_book_arg(book: str | None) -> str:
 # a display label to the Typer command name registered in `cli.py`.
 STAGES: list[tuple[str, str]] = [
     ("split", "Stage 1: Split volume into chapters"),
-    ("clean", "Stage 2: Clean chapter files"),
-    ("parse", "Stage 3: Parse cleaned text into segments"),
-    ("extract", "Stage 4: Extract speaker attributions"),
-    ("resolve", "Stage 5: Resolve attributions to canonical names"),
+    ("parse", "Stage 2: Parse chapter text into segments"),
+    ("extract", "Stage 3: Extract speaker attributions"),
+    ("resolve", "Stage 4: Resolve attributions to canonical names"),
     ("show-voices", "Show voice assignments"),
     ("list-books", "List all projects"),
 ]

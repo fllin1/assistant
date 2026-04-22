@@ -9,7 +9,7 @@ Projects are organized as nested directories under `~/.assistant/ln_voice_over/p
     │   ├── characters.json                  (shared cast)
     │   └── voices.json                      (shared voice assignments)
     ├── v6/                                  ← VOLUME
-    │   └── source/ chapters/ cleaned/ parsed/ extracted/ reviewed/ audio/ illustrations/
+    │   └── source/ chapters/ parsed/ extracted/ reviewed/ audio/ illustrations/
     ├── v7/
     │   └── ...
     └── v9/
@@ -28,7 +28,7 @@ Running the pipeline on multiple volumes of one light novel is the common case. 
 |---------|------------------------------------------------------------------------------|
 | Series  | `config/characters.json` — character registry (shared cast)                  |
 | Series  | `config/voices.json` — voice mappings (per-character TTS voice)              |
-| Volume  | `source/`, `chapters/`, `cleaned/`, `parsed/`, `extracted/`, `reviewed/`, `illustrations/`, `audio/` |
+| Volume  | `source/`, `chapters/`, `parsed/`, `extracted/`, `reviewed/`, `illustrations/`, `audio/` |
 
 ### Config is series-level only
 

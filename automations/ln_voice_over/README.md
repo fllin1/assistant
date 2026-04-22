@@ -13,7 +13,7 @@ Projects are organized as `<series>/<volume>`. The character registry and voice 
     │   ├── characters.json                  (shared cast)
     │   └── voices.json                      (shared voice assignments)
     ├── v6/                                  ← VOLUME
-    │   └── source/ chapters/ cleaned/ ...
+    │   └── source/ chapters/ parsed/ ...
     ├── v7/
     └── v9/
 ```
@@ -23,10 +23,10 @@ Standalone books use the same shape with a single volume (e.g. `spice-and-wolf/v
 ## Pipeline
 
 ```
-SOURCE → SPLIT → CLEAN → PARSE → EXTRACT → REVIEW → VOICE-ASSIGN → SYNTHESIZE
-  │        │        │       │        │        │          │              │
-  ▼        ▼        ▼       ▼        ▼        ▼          ▼              ▼
-source/  chapters/ cleaned/ parsed/ extracted/ reviewed/ voices.json  audio/
+SOURCE → SPLIT → PARSE → EXTRACT → REVIEW → VOICE-ASSIGN → SYNTHESIZE
+  │        │       │        │        │          │              │
+  ▼        ▼       ▼        ▼        ▼          ▼              ▼
+source/  chapters/ parsed/ extracted/ reviewed/ voices.json  audio/
 ```
 
 Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under the volume root; voice assignments live in the series-level `config/voices.json`.
@@ -35,8 +35,7 @@ Each stage reads from the previous stage's output and writes to its own director
 |-------|-------------|-----------------|
 | **Source** (`/setup-book`) | Download PDF, extract page images, OCR text, produce `book.json` | `<volume>/source/` |
 | **Split** | Split the volume into chapter files (from `book.json` or `.txt`) | `<volume>/chapters/` |
-| **Clean** | Remove watermarks, page numbers, collapse blank lines | `<volume>/cleaned/` |
-| **Parse** | Segment text into typed blocks (narration, dialogue, etc.) | `<volume>/parsed/` |
+| **Parse** | Clean artifacts + segment text into typed blocks (narration, dialogue, etc.) | `<volume>/parsed/` |
 | **Extract** | LLM-based speaker attribution per dialogue segment | `<volume>/extracted/` |
 | **Review** (`/review-attribution`) | Judge re-attribution, flag diffs, resolve with Opus, write canonical chapter | `<volume>/reviewed/` |
 | **Voice Assign** (`/assign-voices`) | Propose + apply per-character voice mappings | `<series>/config/voices.json` |
@@ -50,9 +49,8 @@ Each stage reads from the previous stage's output and writes to its own director
 # 1. Source: download + OCR + structure into book.json
 /setup-book https://anyflip.com/cnyjl/fhfw/ classroom-of-the-elite-year-2/v7
 
-# 2. Split, clean, parse (bare `lnvo` opens a guided menu with a picker)
+# 2. Split + parse (bare `lnvo` opens a guided menu with a picker)
 lnvo split classroom-of-the-elite-year-2/v7
-lnvo clean classroom-of-the-elite-year-2/v7
 lnvo parse classroom-of-the-elite-year-2/v7
 
 # 3. Extract speakers — Claude Sonnet skill (per chapter, parallel agents; auto-detects POV)
@@ -86,7 +84,6 @@ Pipeline stages:
 
 ```
 lnvo split [<series>/<volume>]
-lnvo clean [<series>/<volume>]
 lnvo parse [<series>/<volume>]
 lnvo extract [<series>/<volume>] --chapter N [--model NAME] [--pov NAME] [--batch-size N] [--verbose]
 lnvo synthesize [<series>/<volume>] [--chapter N] [--parallel N] [--no-normalize]
@@ -127,23 +124,16 @@ Skills:
 - Front matter before first header → `chapter_00.txt` or skipped
 - **Sub-chapters**: when a main chapter contains bare `N.M` marker lines (the publisher's POV-shift convention — e.g. `7.1`/`7.2`/`7.3`/`7.4`), split emits one manifest row per sub (`subchapter: M`) and writes `chapter_NN_M.txt`. Triggered only when ≥ 2 markers exist with strictly-increasing minors whose major matches the chapter number; otherwise the chapter stays whole
 
-### Stage 2: CLEAN — Artifact Removal
+### Stage 2: PARSE — Cleanup + Structural Segmentation
 
-- **Input**: `chapters/*.txt` → **Output**: `cleaned/*.txt`
-- Remove watermark lines, standalone page numbers
-- Collapse 3+ blank lines to 2
-- Preserve scene breaks (`***`, `---`, `* * *`, etc.)
-- Normalize encoding to UTF-8
-
-### Stage 3: PARSE — Structural Segmentation
-
-- **Input**: `cleaned/*.txt` → **Output**: `parsed/chapter_01.json`
+- **Input**: `chapters/*.txt` → **Output**: `parsed/chapter_01.json`
+- Cleanup in-stage: strip watermarks and standalone page numbers, collapse 3+ blank lines to 2, preserve scene breaks (`***`, `---`, `* * *`, etc.), normalize UTF-8
 - Segment types: `narration`, `dialogue`, `scene_break`, `chapter_header`
 - Split at paragraph boundaries; each dialogue block = one segment
 - **No mid-sentence splitting**: `She said "hello" and walked away.` stays as one `narration` segment
 - Long narration (>500 chars) split at sentence boundaries
 
-### Stage 4: EXTRACT — Speaker Attribution
+### Stage 3: EXTRACT — Speaker Attribution
 
 **Recommended path: the `/attribute-speakers` Claude Sonnet skill.** It spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap, merges the results, and writes a flat `{index: speaker}` JSON to `extracted/chapter_NN/`. The skill also auto-detects POV and persists it to the manifest as a side effect.
 
@@ -185,18 +175,18 @@ Models are registered as `alias → (provider, model_id)`:
 
 `call_llm()` resolves the model alias via `MODEL_REGISTRY`, then dispatches to `_call_ollama()` or `_call_openrouter()`. Cloud models require `OPENROUTER_API_KEY`.
 
-### Stage 5: REVIEW — Judge Pass + Canonical Chapter
+### Stage 4: REVIEW — Judge Pass + Canonical Chapter
 
 - **Input**: `extracted/chapter_NN/*.json` (one Sonnet attribution per chapter) → **Output**: `reviewed/chapter_NN.json`
 - The `/review-attribution` skill re-attributes each chapter with a shifted-overlap chunking to break any echo-chamber effect, diffs the new pass against the original, then resolves each disagreement with Opus + near-context. Name canonicalisation (against the series `characters.json` registry) happens inside the judge — there is no separate resolve stage
 
-### Stage 7: VOICE ASSIGN — Per-character Voice Mapping
+### Stage 5: VOICE ASSIGN — Per-character Voice Mapping
 
 - **Input**: series `config/characters.json` + dialogue counts from all reviewed volumes → **Output**: series `config/voices.json`
 - The `/assign-voices` skill is the one-command path; see `docs/6-voice-assignment.md` for the underlying CLI (`lnvo list-voices`, `lnvo audition`, `lnvo assign-voice`, `lnvo show-voices`) and the tiered assignment strategy.
 - Written once per series, not per volume. Adding a new volume that introduces new speakers? Rerun `/assign-voices` — existing assignments are preserved and only the newly-seen characters get proposals.
 
-### Stage 8: SYNTHESIZE + ASSEMBLE
+### Stage 6: SYNTHESIZE + ASSEMBLE
 
 - **Input**: `reviewed/*.json` + series `config/voices.json` + series `config/characters.json` → **Output**: `audio/segments/<cache_key>.wav` (per-segment cache) + `audio/chapters/chapter_NN.wav` (assembled) + `audio/chapters/chapter_NN.manifest.json` (segment→voice→file map)
 - **Format: WAV end-to-end.** Providers return WAV (OpenAI native, Kokoro native, Edge decodes its MP3 stream once inside the provider). Cache, normalization, concatenation, and final export all stay PCM — no lossy re-encodes. Final chapter files are larger (~10× MP3) but editable in any DAW without generation loss.
@@ -251,8 +241,7 @@ Requires `ffmpeg` on PATH: even though the pipeline is WAV-native, the Edge prov
 └── <volume-slug>/                  ← VOLUME LEVEL (per-volume pipeline I/O)
     ├── source/                     # pipeline input: book.json, PDF, .txt
     ├── chapters/                   # split chapter .txt files + manifest.json
-    ├── cleaned/                    # cleaned chapter .txt files
-    ├── parsed/                     # structural segments as JSON
+    ├── parsed/                     # structural segments as JSON (includes cleanup)
     ├── extracted/
     │   └── chapter_NN/              # flat {index: speaker} JSONs per source
     │       └── claude-sonnet_skill_YYYYMMDD.json
@@ -310,7 +299,7 @@ cp .env.example .env
 # edit .env — add OPENAI_API_KEY and/or OPENROUTER_API_KEY
 ```
 
-- `OPENAI_API_KEY` — required for OpenAI TTS voices in stage 8 (`lnvo synthesize`).
-- `OPENROUTER_API_KEY` — required for cloud extraction models in stage 4 (`lnvo extract`) and cross-validation in stage 5 (`lnvo resolve`).
+- `OPENAI_API_KEY` — required for OpenAI TTS voices in stage 6 (`lnvo synthesize`).
+- `OPENROUTER_API_KEY` — required for cloud extraction models in stage 3 (`lnvo extract`, legacy path) and any future `llm.py` callers.
 
 `.env` is gitignored; `.env.example` is committed as the template.
