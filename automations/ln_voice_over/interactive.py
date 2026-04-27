@@ -115,9 +115,6 @@ def resolve_book_arg(book: str | None) -> str:
 STAGES: list[tuple[str, str]] = [
     ("split", "Stage 1: Split volume into chapters"),
     ("parse", "Stage 2: Parse chapter text into segments"),
-    ("extract", "Stage 3: Extract speaker attributions"),
-    ("resolve", "Stage 4: Resolve attributions to canonical names"),
-    ("show-voices", "Show voice assignments"),
     ("list-books", "List all projects"),
 ]
 

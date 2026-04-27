@@ -2,8 +2,8 @@
 
 Creates the folder structure and placeholder config files for a new volume
 under `~/.assistant/ln_voice_over/projects/<series>/<volume>/`. The series
-directory holds the shared config (characters.json, voices.json); each
-volume directory holds the pipeline I/O (source, chapters, ...).
+directory holds the shared character registry; each volume directory holds
+the pipeline I/O (source, chapters, ...).
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from .config import SERIES_SUBDIRS, VOLUME_SUBDIRS, series_dir, volume_dir
-from .models import Character, CharacterRegistry, VoiceConfig
+from .models import Character, CharacterRegistry
 
 
 def slugify(name: str) -> str:
@@ -62,10 +62,10 @@ def migrate_source_dir(root: Path) -> None:
 
 
 def _ensure_series_configs(series_root: Path) -> None:
-    """Create placeholder characters.json + voices.json at the series level.
+    """Create a placeholder characters.json at the series level.
 
-    Idempotent: if files already exist they're left alone (even if they
-    contain real content from a previous volume's assignment work).
+    Idempotent: if the file already exists it's left alone (even if it
+    contains real content from previous work).
     """
     chars_path = series_root / "config" / "characters.json"
     if not chars_path.exists():
@@ -77,10 +77,6 @@ def _ensure_series_configs(series_root: Path) -> None:
             role="main",
         )
         CharacterRegistry(characters=(example,)).save(chars_path)
-
-    voices_path = series_root / "config" / "voices.json"
-    if not voices_path.exists():
-        VoiceConfig().save(voices_path)
 
 
 def create_project(series_slug: str, volume_slug: str = "v1") -> Path:
