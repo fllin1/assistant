@@ -59,18 +59,21 @@ Your chunk (JSON array of segments, narration + dialogue interleaved):
 For each DIALOGUE segment, determine who is speaking using:
 1. Speech tags in the narration AFTER the dialogue ("said Horikita", "she replied", "I asked").
 2. Speech tags BEFORE — careful, a tag before may describe the PREVIOUS dialogue.
-3. "I said/replied/asked" = {pov_character}.
+3. "I said/replied/asked" = {pov_character} speaking actual quoted dialogue → use the POV character's name.
 4. Pronouns → resolve from scene context.
 5. Conversation alternation in multi-party scenes.
-6. If the quoted text is embedded in narration (not actual speech), use "Narrator".
-7. If the speaker is unnamed / staff / bystander, use "Unknown".
+6. If the quoted text is embedded in narration (not actual speech) — e.g. `"experiments"` — use "Narrator".
+7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the POV character's name.
+8. If the speaker is unnamed / staff / bystander, use "Unknown".
 
 Reply with **only** a JSON object mapping dialogue segment index (string) to speaker name, wrapped in a single fenced `json` block. Include EVERY dialogue segment. Use names as they appear in the text ("Horikita", "Chabashira-sensei") — the pipeline canonicalises downstream.
 
-Example:
+Example (POV = Ayanokouji):
 ```json
-{"40": "Horikita", "43": "Narrator", "47": "I"}
+{"40": "Horikita", "43": "Narrator", "47": "Ayanokouji", "51": "Narrator"}
 ```
+
+Index 43 is an embedded quote. Index 51 is a long mis-tagged narration block. Index 47 is Ayanokouji's actual dialogue.
 
 No explanation, no prose, no tool calls.
 
@@ -115,10 +118,14 @@ You are resolving a single dialogue attribution disagreement in a light novel. T
 **Candidate A (original Sonnet pass):** `{original_speaker}`
 **Candidate B (judge pass):** `{judge_speaker}`
 
-Use speech tags ("said X", "she replied"), conversation alternation, and who is physically present in the scene. Reply with a JSON object:
+Use speech tags ("said X", "she replied"), conversation alternation, and who is physically present in the scene.
+
+**Convention reminder**: a long first-person inner-monologue or exposition block (>300 chars, no speech tag) that the parser tagged as "dialogue" is mis-tagged narration — speaker is **"Narrator"**, NOT the POV character's name. The POV character's name only belongs on actual quoted dialogue they speak.
+
+Reply with a JSON object:
 
 ```json
-{"speaker": "<canonical name, or Narrator / Unknown / I>", "reason": "<one short sentence>"}
+{"speaker": "<canonical name, or Narrator / Unknown>", "reason": "<one short sentence>"}
 ```
 
 No prose outside the fenced block, no tool calls.
