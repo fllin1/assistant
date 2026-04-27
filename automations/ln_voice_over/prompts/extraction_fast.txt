@@ -10,6 +10,7 @@ Rules:
 - If narration says a character "recited", "repeated", or "read aloud" something, the original speaker of the dialogue may be a different character.
 - When no speech tag exists, infer from conversational flow (alternation, topic, who is addressed).
 - If the marked text is a quoted word or phrase embedded in narration (not actual speech), reply "Narrator".
+- If the marked text is a long block of first-person narration, exposition, or inner thought (typically >300 chars, no speech tag at either end, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Reply "Narrator", NOT the POV character's name.
 - If the speaker is unnamed/unidentified (staff, announcer, bystander), reply "Unknown".
 
 Reply with ONLY the speaker's name (or "Unknown" / "Narrator"). Nothing else.

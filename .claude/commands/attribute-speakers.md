@@ -87,27 +87,30 @@ Your chunk (JSON array of segments, narration + dialogue interleaved):
 For each DIALOGUE segment, determine who is speaking by:
 1. Checking narration AFTER the dialogue for speech tags ("said Horikita", "she replied", "I asked").
 2. Checking narration BEFORE — but a tag before may describe the PREVIOUS dialogue.
-3. "I said/replied/asked" = {pov_character}.
+3. "I said/replied/asked" = {pov_character} is speaking actual quoted dialogue → use the POV character's name.
 4. Resolving pronouns ("he/she said") from context.
 5. Inferring from conversation flow when no tag exists.
-6. If the marked text is a quoted word or phrase embedded in narration (not actual speech), use "Narrator".
-7. If the speaker is unnamed/unidentified (staff, announcer, bystander), use "Unknown".
+6. If the marked text is a quoted word or phrase embedded in narration (not actual speech) — e.g. `"experiments"`, `"child of in vitro fertilization"` — use "Narrator".
+7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the POV character's name. The POV character is the narrator at the voice level, but the data label distinction matters: "Narrator" = narration; POV character name = actual spoken dialogue.
+8. If the speaker is unnamed/unidentified (staff, announcer, bystander), use "Unknown".
 
 Reply with **only** a JSON object mapping dialogue segment index (string) to speaker name, wrapped in a single fenced `json` block. Use character names as they appear in the text (e.g. "Horikita", "Chabashira-sensei", "Mii-chan"). Include EVERY dialogue segment.
 
-Example:
+Example (POV = Ayanokouji):
 
 ```json
-{"3": "Chabashira-sensei", "6": "Horikita", "8": "Narrator", "11": "I"}
+{"3": "Chabashira-sensei", "6": "Horikita", "8": "Narrator", "11": "Ayanokouji", "14": "Narrator"}
 ```
 
-Where "I" means the narrator ({pov_character}). No explanation, no prose, no tool calls — just the fenced JSON block.
+Index 8 is an embedded quoted phrase inside narration. Index 14 is a long mis-tagged narration block. Index 11 is Ayanokouji speaking actual dialogue ("I said …" → POV character's name).
+
+No explanation, no prose, no tool calls — just the fenced JSON block.
 
 ---
 
 If the chapter has more than 8 chunks, run remaining chunks in a second batch after the first completes.
 
-If `pov_character` is `null` (third-person chapter), the `"I = {pov_character}"` line reads as `"I = None"` — harmless because a third-person chapter shouldn't produce any `"I"` speakers. Pass it through as-is.
+If `pov_character` is `null` (third-person chapter), the substituted prompt reads as `The narrator ("I") is None.` — harmless because a third-person chapter shouldn't produce any `"I"` speakers, and rule 7 (mis-tagged narration → "Narrator") still applies. Pass it through as-is.
 
 #### Step 3: Merge and save
 
