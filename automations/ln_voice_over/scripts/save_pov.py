@@ -13,6 +13,8 @@ import json
 import sys
 from pathlib import Path
 
+from automations.ln_voice_over.split import chapter_id, normalize_chapter_arg
+
 
 def main():
     manifest_path = Path(sys.argv[1])
@@ -21,8 +23,9 @@ def main():
 
     parsed = None if pov_value.strip().lower() in ("null", "none", "") else pov_value.strip()
 
+    padded = normalize_chapter_arg(chapter_raw)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    entry = next((e for e in manifest if str(e["number"]) == chapter_raw), None)
+    entry = next((e for e in manifest if chapter_id(e) == padded), None)
     if entry is None:
         print(f"ERROR: Chapter '{chapter_raw}' not in manifest", file=sys.stderr)
         sys.exit(1)
