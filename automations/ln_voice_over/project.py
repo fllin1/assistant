@@ -1,14 +1,14 @@
 """Series/volume path resolution and config loaders.
 
 A "project" in the ln_voice_over pipeline is a `<series>/<volume>` pair.
-Character registries and voice assignments live at the series level so
-that all volumes of the same light novel share one cast. Chapters,
-extractions, audio, etc. live at the volume level.
+The character registry lives at the series level so all volumes of the
+same light novel share one cast. Chapters, extractions, reviewed output,
+etc. live at the volume level.
 
 This module is the one place that knows how to turn a CLI argument —
 whether `classroom-of-the-elite-year-2/v7` or the legacy
 `classroom-of-the-elite-year-2-v7` — into canonical paths, and how to
-load the series-level configs.
+load the series-level character registry.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .config import PROJECTS_DIR, series_dir, volume_dir
 from .init_project import split_legacy_slug
-from .models import CharacterRegistry, VoiceConfig
+from .models import CharacterRegistry
 
 
 @dataclass(frozen=True)
@@ -67,12 +67,6 @@ def load_characters(series_slug: str) -> CharacterRegistry:
     """Load the series-level character registry."""
     path = series_dir(series_slug) / "config" / "characters.json"
     return CharacterRegistry.load(path)
-
-
-def load_voices(series_slug: str) -> VoiceConfig:
-    """Load the series-level voice config."""
-    path = series_dir(series_slug) / "config" / "voices.json"
-    return VoiceConfig.load(path)
 
 
 def list_series() -> list[str]:

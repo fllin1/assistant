@@ -3,7 +3,7 @@
 All models are pydantic BaseModel with frozen config — immutable after
 creation. Use .model_copy(update={...}) to create modified copies.
 
-Models with file I/O needs (Chapter, CharacterRegistry, VoiceConfig) have
+Models with file I/O needs (Chapter, CharacterRegistry) have
 .save(path) / .load(path) classmethods for JSON round-trip with atomic writes.
 """
 
@@ -187,69 +187,4 @@ class CharacterRegistry(BaseModel):
     @classmethod
     def load(cls, path: Path) -> CharacterRegistry:
         """Read a CharacterRegistry from a JSON file."""
-        return cls.model_validate_json(path.read_text(encoding="utf-8"))
-
-
-class VoiceMapping(BaseModel):
-    """Maps a speaker to a TTS voice.
-
-    Attributes:
-        speaker: Character.name or "Narrator".
-        provider: TTS provider key ("edge", "elevenlabs", "openai").
-        voice_id: Provider-specific voice identifier.
-        settings: Optional provider-specific params (speed, pitch, etc.).
-    """
-
-    model_config = ConfigDict(frozen=True, extra="ignore")
-
-    speaker: str
-    provider: str
-    voice_id: str
-    settings: dict | None = None
-
-
-class VoiceConfig(BaseModel):
-    """Complete voice configuration for a project.
-
-    Resolution order in get_voice():
-    1. Exact speaker match in mappings
-    2. Gender-based default (default_male / default_female)
-    3. default_narrator as final fallback
-    """
-
-    model_config = ConfigDict(frozen=True, extra="ignore")
-
-    mappings: tuple[VoiceMapping, ...] = ()
-    default_male: VoiceMapping = VoiceMapping(
-        speaker="__default_male__", provider="edge", voice_id="en-US-GuyNeural"
-    )
-    default_female: VoiceMapping = VoiceMapping(
-        speaker="__default_female__", provider="edge", voice_id="en-US-JennyNeural"
-    )
-    default_narrator: VoiceMapping = VoiceMapping(
-        speaker="Narrator", provider="edge", voice_id="en-US-AriaNeural"
-    )
-    # Voice used for chapter_header segments. Lets the protagonist "host"
-    # the book's structure while POV characters narrate their own scenes.
-    # Falls back to default_narrator when unset.
-    host: VoiceMapping | None = None
-
-    def get_voice(self, speaker: str, gender: str = "unknown") -> VoiceMapping:
-        """Resolve a speaker to a voice mapping with fallback logic."""
-        for mapping in self.mappings:
-            if mapping.speaker == speaker:
-                return mapping
-        if gender == "male":
-            return self.default_male
-        if gender == "female":
-            return self.default_female
-        return self.default_narrator
-
-    def save(self, path: Path) -> None:
-        """Atomic write to JSON file."""
-        _atomic_write(path, self.model_dump_json(indent=2))
-
-    @classmethod
-    def load(cls, path: Path) -> VoiceConfig:
-        """Read a VoiceConfig from a JSON file."""
         return cls.model_validate_json(path.read_text(encoding="utf-8"))
