@@ -35,12 +35,6 @@ def build_reviewed_chapter(
     reviewed_segments: list[Segment] = []
 
     for segment in parsed_chapter.segments:
-        original_speaker = _canonicalise_attribution(
-            original_attributions.get(str(segment.index)),
-            parsed_chapter,
-            registry,
-        )
-
         if segment.segment_type in (SegmentType.CHAPTER_HEADER, SegmentType.NARRATION):
             reviewed_segments.append(segment.model_copy(update={"speaker": "Narrator"}))
             continue
@@ -49,6 +43,11 @@ def build_reviewed_chapter(
             reviewed_segments.append(segment.model_copy(update={"speaker": None}))
             continue
 
+        original_speaker = _canonicalise_attribution(
+            original_attributions.get(str(segment.index)),
+            parsed_chapter,
+            registry,
+        )
         speaker = overrides.get(segment.index, original_speaker)
         if segment.index in overrides and speaker != original_speaker:
             changes.append({"index": segment.index, "old": original_speaker, "new": speaker})
