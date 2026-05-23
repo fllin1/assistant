@@ -1,6 +1,6 @@
 # LN Voice Over
 
-Turns a light novel into a per-chapter JSON of typed segments (narration, dialogue, scene breaks, chapter headers) with each line attributed to a speaker. Starts from an AnyFlip PDF (via the `/setup-book` skill) or a hand-prepared `.txt` volume. The voice-casting + TTS-synthesis layer has been removed pending a rework; the pipeline currently ends at `reviewed/chapter_NN.json`.
+Turns a light novel into per-chapter JSON of typed segments (narration, dialogue, scene breaks, chapter headers), attributes each line to a speaker, and can synthesize reviewed chapters into WAV audio through the companion voice-tuning project.
 
 ## Series & Volumes
 
@@ -22,10 +22,10 @@ Standalone books use the same shape with a single volume (e.g. `spice-and-wolf/v
 ## Pipeline
 
 ```
-SOURCE → SPLIT → PARSE → EXTRACT → REVIEW
-  │        │       │        │        │
-  ▼        ▼       ▼        ▼        ▼
-source/  chapters/ parsed/ extracted/ reviewed/
+SOURCE → SPLIT → PARSE → EXTRACT → REVIEW → SYNTHESIS
+  │        │       │        │        │          │
+  ▼        ▼       ▼        ▼        ▼          ▼
+source/  chapters/ parsed/ extracted/ reviewed/ audio/
 ```
 
 Each stage reads from the previous stage's output and writes to its own directory. All intermediate data is stored as inspectable text/JSON files under the volume root.
@@ -37,6 +37,7 @@ Each stage reads from the previous stage's output and writes to its own director
 | **Parse** (`lnvo parse`) | Clean artifacts + segment text into typed blocks (narration, dialogue, etc.) | `<volume>/parsed/` |
 | **Extract** (`/attribute-speakers`) | Claude Sonnet skill: parallel agents attribute each dialogue line | `<volume>/extracted/` |
 | **Review** (`/review-attribution`) | Judge re-attribution, flag diffs, resolve with Opus, write canonical chapter | `<volume>/reviewed/` |
+| **Synthesis** (`lnvo synthesize`) | Validate canonical reviewed data, render TTS stems, concatenate chapter WAV | `<volume>/audio/` |
 
 ## Quick Start
 
@@ -55,6 +56,10 @@ lnvo parse classroom-of-the-elite-year-2/v7
 
 # 4. Review: judge pass catches disagreements, Opus resolves them, writes reviewed/
 /review-attribution classroom-of-the-elite-year-2/v7 2
+
+# 5. Import accepted cast, then synthesize reviewed audio
+lnvo voice-map import classroom-of-the-elite-year-2
+lnvo synthesize classroom-of-the-elite-year-2/v7 2
 ```
 
 The legacy flat slug form (`classroom-of-the-elite-year-2-v7`) is still accepted and auto-split into `<series>/<volume>` under the hood. New projects should use the `series/volume` form directly.
@@ -76,6 +81,8 @@ lnvo                        # guided menu
 lnvo list-books             # list all <series>/<volume> pairs
 lnvo split [<series>/<volume>]
 lnvo parse [<series>/<volume>]
+lnvo voice-map import <series>
+lnvo synthesize <series>/<volume> <chapter_id>
 ```
 
 Skills:
@@ -118,12 +125,20 @@ The `/attribute-speakers` Claude Sonnet skill spawns parallel Sonnet agents that
 - **Input**: `extracted/chapter_NN/*.json` (one Sonnet attribution per chapter) → **Output**: `reviewed/chapter_NN.json`
 - The `/review-attribution` skill re-attributes each chapter with a shifted-overlap chunking to break any echo-chamber effect, diffs the new pass against the original, then resolves each disagreement with Opus + near-context. Name canonicalisation (against the series `characters.json` registry) happens inside the judge — there is no separate resolve stage.
 
+### Stage 5: SYNTHESIS — Reviewed Chapter to WAV
+
+- **Input**: `reviewed/chapter_NN[_M].json` + series `config/voice_mapping.json` → **Output**: `audio/chapter_NN[_M].wav`
+- `lnvo voice-map import <series>` imports accepted cast rows from `/Users/regiswoof/_workspace/tools/voice-tuning/voice-tuning.db` into the series voice mapping.
+- `lnvo synthesize <series>/<volume> <chapter_id>` performs strict preflight before audio: reviewed speaker grammar, narrator detection, voice mapping coverage, and voice-tuning engine availability must all pass.
+- Dialogue text has only one balanced outer quote pair stripped before TTS; narration and chapter headers are passed verbatim.
+
 ## Project Data Layout
 
 ```
 ~/.assistant/ln_voice_over/projects/<series-slug>/
 ├── config/                         ← SERIES LEVEL (shared across volumes)
-│   └── characters.json             # character registry (names, aliases, gender)
+│   ├── characters.json             # character registry (names, aliases, gender)
+│   └── voice_mapping.json           # accepted synthesis voices
 └── <volume-slug>/                  ← VOLUME LEVEL (per-volume pipeline I/O)
     ├── source/                     # pipeline input: book.json, PDF, .txt
     ├── chapters/                   # split chapter .txt files + manifest.json
@@ -132,7 +147,8 @@ The `/attribute-speakers` Claude Sonnet skill spawns parallel Sonnet agents that
     │   └── chapter_NN/             # flat {index: speaker} JSONs per source
     │       └── claude-sonnet_skill_YYYYMMDD.json
     ├── reviewed/                   # canonical final attributions
-    └── illustrations/              # illustration images + manifest (/setup-book)
+    ├── illustrations/              # illustration images + manifest (/setup-book)
+    └── audio/                      # synthesis cache, stems, manifests, chapter WAVs
 ```
 
 ## Character Registry
@@ -168,3 +184,4 @@ Name matching is layered: exact match → alias match → honorific stripping (`
 - **pydantic** — data models
 - **python-dotenv** — env loading
 - **opendataloader-pdf** — PDF page extraction, used by `/setup-book` (requires Java 21)
+- **voice-tuning** — companion TTS execution project for Kokoro, Orpheus, and Hume
