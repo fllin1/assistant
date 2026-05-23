@@ -73,10 +73,10 @@ A separate, AI-generated artifact (e.g. `<series>/config/voice_proposals.json` o
 
 **Synthesis output**:
 The downstream of REVIEW. For each `reviewed/chapter_NN[_M].json`, synthesis produces:
-1. Per-segment WAV stems under `<volume>/audio/chapter_NN[_M]/segment_<index>.wav`. Each stem is content-addressed (cache key from engine, voice_id, params, text), so re-runs after a Speaker edit re-render only the affected segments.
+1. Content-addressed WAV stems under `<volume>/audio/cache/<cache-key>.wav`, plus per-chapter stem copies under `<volume>/audio/chapter_NN[_M]/segment_<index>.wav`. The cache key comes from engine version, engine, voice_id, params, text, and segment type, so re-runs after a Speaker edit re-render only the affected segments.
 2. A concatenated per-chapter WAV at `<volume>/audio/chapter_NN[_M].wav`, produced from the stems by an audio-policy step (pause/silence between segments, chapter-header treatment, scene-break rendering when present).
 
-WAV throughout — no MP3 in the pipeline. Stems are not deleted after concat; they are the cache.
+WAV throughout — no MP3 in the pipeline. Cached stems are not deleted after concat.
 
 **Audio policy — gap rule**: type-aware. Concat inserts silence between consecutive segments based on the segment-type transition (e.g. `chapter_header → narration`: long beat; `narration → dialogue`: medium; `dialogue → dialogue`: short; `dialogue → narration`: medium). Per-character pause overrides are deferred — the type-aware baseline ships first; if specific characters need bespoke pacing, that's added on top once the baseline is audible. Concrete millisecond values to be tuned by ear; the structure is config-driven (a small policy table at the volume or series level).
 
@@ -125,7 +125,7 @@ Gaps are handled **accumulate-then-batch**, not pause-on-encounter. The rule app
 - **Sub-chapter trigger as heuristic vs. definition** — resolved: the `N.M` marker is treated as **definitional**, not heuristic. Empirical spot-check on `classroom-of-the-elite-year-2/v4` showed the trigger never produced a wrong split and chapters without splits had no internal Narrator drift. If a future volume disproves this, the resolution is to revisit the rule, not to silently work around it.
 - **Historical `pov_character: null` manifests** — resolved: old null overloaded "not yet detected" and "omniscient." The **Chapter** now carries both `narrator_status` and `narrator`; only `narrator_status = "detected"` + `narrator = null` means **Omniscient narrator**. Migration maps old null values to `status="unset"` because that is the only information-preserving default.
 - **`chapter_header` segments wrapped in literal quote marks** — open: empirically the `text` field of `chapter_header` segments contains a leading and trailing `"` (e.g. `'"Chapter 1: Amasawa Ichika\'s Soliloquy"'`). This is a PARSE artifact, not a contract; chapter headings aren't dialogue and shouldn't be quoted. Fix in PARSE; downstream synthesis should not have to strip quotes from headers.
-- **Quote marks in `dialogue.text`** — open: dialogue `text` includes the surrounding quote characters. Whether synthesis strips them, leaves them, or treats them as a voice cue is a downstream policy decision (deferred to the synthesis design).
+- **Quote marks in `dialogue.text`** — resolved: synthesis strips exactly one balanced outer quote pair from `dialogue` text before TTS. Embedded quotes remain content, and non-dialogue segments are passed verbatim.
 - **Kushida public/private as two Characters** — resolved (option B): a character with multiple voice-relevant modes is represented as multiple **Characters** in the registry, each with a distinct canonical name and a distinct **Voice mapping** entry. Attribution decides the mode at attribution time using a context rule grounded in cross-volume source analysis (see **Mode-disambiguation rule** below). The "two canonical names refer to the same underlying person" relationship is implicit for now; if cross-volume character bookkeeping ever needs it, an explicit alias mechanism can be added.
 
   **Mode-disambiguation rule (Kushida Kikyou):**

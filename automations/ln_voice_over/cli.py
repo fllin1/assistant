@@ -17,7 +17,7 @@ from __future__ import annotations
 import typer
 from dotenv import load_dotenv
 
-from .project import resolve_volume
+from .project import load_characters, resolve_volume
 
 # Load .env if present. No-op when absent; kept for future callers.
 load_dotenv()
@@ -35,6 +35,8 @@ app = typer.Typer(
         "Output: <volume>/reviewed/chapter_NN.json"
     ),
 )
+voice_map_app = typer.Typer(help="Manage accepted series voice mappings.")
+app.add_typer(voice_map_app, name="voice-map")
 
 
 @app.callback(invoke_without_command=True)
@@ -62,6 +64,33 @@ def list_books() -> None:
             any_found = True
     if not any_found:
         typer.echo("(no projects found)")
+
+
+@voice_map_app.command("import")
+def import_voice_map(
+    series: str = typer.Argument(..., help="Series slug, e.g. classroom-of-the-elite-year-2"),
+    voice_tuning_root: str | None = typer.Option(
+        None,
+        "--voice-tuning-root",
+        help="Path to the companion voice-tuning project.",
+    ),
+) -> None:
+    """Import accepted voice-tuning cast rows into series voice_mapping.json."""
+    from pathlib import Path
+
+    from .voice_mapping import (
+        DEFAULT_VOICE_TUNING_ROOT,
+        import_voice_mapping_from_voice_tuning,
+        save_voice_mapping,
+        voice_mapping_path,
+    )
+
+    root = Path(voice_tuning_root) if voice_tuning_root else DEFAULT_VOICE_TUNING_ROOT
+    registry = load_characters(series)
+    mapping = import_voice_mapping_from_voice_tuning(registry, root)
+    output_path = voice_mapping_path(series)
+    save_voice_mapping(output_path, mapping)
+    typer.echo(f"Wrote {len(mapping)} voice mapping entries → {output_path}")
 
 
 @app.command()
@@ -150,6 +179,71 @@ def parse(book: str | None = typer.Argument(None)) -> None:
         count += 1
 
     typer.echo(f"Parsed {count} chapter(s) → {output_dir}")
+
+
+@app.command()
+def synthesize(
+    book: str = typer.Argument(..., help="Volume slug, e.g. classroom-of-the-elite-year-2/v7"),
+    chapter_id: str = typer.Argument(..., help="Chapter id, e.g. 01, 04_1, or chapter_01"),
+    voice_tuning_root: str | None = typer.Option(
+        None,
+        "--voice-tuning-root",
+        help="Path to the companion voice-tuning project.",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Render without prompting."),
+) -> None:
+    """Stage 5: Render a reviewed chapter to WAV audio."""
+    from pathlib import Path
+
+    from .models import Chapter
+    from .synthesis import (
+        SynthesisError,
+        SynthesisPreflightError,
+        VoiceTuningBridge,
+        build_synthesis_plan,
+        format_render_plan,
+        render_synthesis_plan,
+        reviewed_chapter_path,
+    )
+    from .voice_mapping import DEFAULT_VOICE_TUNING_ROOT, load_voice_mapping, voice_mapping_path
+
+    resolved = resolve_volume(book)
+    registry = load_characters(resolved.series_slug)
+    chapter_path = reviewed_chapter_path(resolved.volume_path, chapter_id)
+    if not chapter_path.exists():
+        typer.echo(f"No reviewed chapter found at {chapter_path}")
+        raise typer.Exit(1)
+
+    root = Path(voice_tuning_root) if voice_tuning_root else DEFAULT_VOICE_TUNING_ROOT
+    bridge = VoiceTuningBridge(root)
+    try:
+        engine_infos = bridge.inspect_engines()
+        plan = build_synthesis_plan(
+            Chapter.load(chapter_path),
+            registry,
+            load_voice_mapping(voice_mapping_path(resolved.series_slug)),
+            resolved.volume_path,
+            chapter_id,
+            engine_infos,
+        )
+    except SynthesisPreflightError as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(1) from exc
+    except SynthesisError as exc:
+        typer.echo(f"SYNTHESIS failed: {exc}")
+        raise typer.Exit(1) from exc
+
+    typer.echo(format_render_plan(plan))
+    if not yes and not typer.confirm("Render audio now?"):
+        typer.echo("Aborted before rendering.")
+        raise typer.Exit(0)
+
+    try:
+        render_synthesis_plan(plan, bridge)
+    except SynthesisError as exc:
+        typer.echo(f"SYNTHESIS failed: {exc}")
+        raise typer.Exit(1) from exc
+    typer.echo(f"Wrote {plan.output_path}")
 
 
 if __name__ == "__main__":

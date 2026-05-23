@@ -134,3 +134,26 @@ MAX_CONSECUTIVE_BLANK_LINES = 2
 
 MAX_SEGMENT_CHARS = 500
 """Long narration blocks exceeding this are split at sentence boundaries."""
+
+
+# ---------------------------------------------------------------------------
+# Stage 5: SYNTHESIS — audio pacing policy
+# ---------------------------------------------------------------------------
+
+DEFAULT_AUDIO_GAP_MS = 350
+"""Fallback silence inserted between adjacent synthesized segments."""
+
+SCENE_BREAK_SILENCE_MS = 1200
+"""Silence rendered for structural scene-break segments."""
+
+AUDIO_GAP_MS_BY_TRANSITION = {
+    ("chapter_header", "narration"): 900,
+    ("chapter_header", "dialogue"): 700,
+    ("narration", "dialogue"): 450,
+    ("dialogue", "narration"): 450,
+    ("dialogue", "dialogue"): 250,
+    ("narration", "narration"): 350,
+    ("scene_break", "narration"): 650,
+    ("scene_break", "dialogue"): 650,
+}
+"""Type-aware silence policy between consecutive segment types."""
