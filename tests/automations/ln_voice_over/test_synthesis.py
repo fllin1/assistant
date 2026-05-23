@@ -325,8 +325,26 @@ class FakeBridge:
     def inspect_engines(self) -> dict[str, EngineInfo]:
         return engine_infos()
 
-    def render_segments(self, requests: list[dict[str, Any]]) -> dict[int, bytes]:
+    def render_segments(
+        self,
+        requests: list[dict[str, Any]],
+        progress: Any | None = None,
+    ) -> dict[int, bytes]:
         self.render_calls.append(requests)
+        if progress:
+            total = len(requests)
+            for ordinal, request in enumerate(requests, start=1):
+                progress(
+                    {
+                        "event": "render_segment_start",
+                        "ordinal": ordinal,
+                        "total": total,
+                        "index": request["index"],
+                        "engine": request["engine"],
+                        "voice_key": request["voice_key"],
+                        "text_chars": len(request["text"]),
+                    }
+                )
         return {int(request["index"]): tiny_wav() for request in requests}
 
 
@@ -396,3 +414,6 @@ def test_synthesize_cli_yes_renders_non_empty_wav(
     assert output_path.stat().st_size > 44
     assert manifest_path.exists()
     assert fake.render_calls
+    assert "Rendering 1 uncached segment(s)..." in result.output
+    assert "Rendering 1/1: segment 0 (kokoro, Horikita Suzune, 6 chars)" in result.output
+    assert "Concatenating" in result.output

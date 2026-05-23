@@ -7,8 +7,10 @@ import hashlib
 import json
 import shutil
 import subprocess
+import threading
 import wave
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,8 @@ from .voice_mapping import VoiceMapping, VoiceMappingEntry
 DEFAULT_SAMPLE_RATE = 24_000
 DEFAULT_SAMPLE_WIDTH = 2
 DEFAULT_CHANNELS = 1
+ProgressEvent = dict[str, Any]
+ProgressCallback = Callable[[ProgressEvent], None]
 
 QUOTE_PAIRS = (
     ('"', '"'),
@@ -130,7 +134,11 @@ print(json.dumps(payload))
             for name, value in payload.items()
         }
 
-    def render_segments(self, requests: list[dict[str, Any]]) -> dict[int, bytes]:
+    def render_segments(
+        self,
+        requests: list[dict[str, Any]],
+        progress: ProgressCallback | None = None,
+    ) -> dict[int, bytes]:
         """Render TTS WAV bytes through voice-tuning engines."""
         script = """
 import asyncio
@@ -143,7 +151,18 @@ from backend.engines.registry import get_engine
 async def main():
     payload = json.load(sys.stdin)
     rendered = []
-    for item in payload["segments"]:
+    segments = payload["segments"]
+    total = len(segments)
+    for ordinal, item in enumerate(segments, start=1):
+        print(json.dumps({
+            "event": "render_segment_start",
+            "ordinal": ordinal,
+            "total": total,
+            "index": item["index"],
+            "engine": item["engine"],
+            "voice_key": item.get("voice_key"),
+            "text_chars": len(item["text"]),
+        }), file=sys.stderr, flush=True)
         engine = get_engine(item["engine"])
         audio = await engine.generate(
             item["text"],
@@ -151,6 +170,14 @@ async def main():
             speed=item.get("speed", 1.0),
             params=item.get("params") or {},
         )
+        print(json.dumps({
+            "event": "render_segment_done",
+            "ordinal": ordinal,
+            "total": total,
+            "index": item["index"],
+            "engine": item["engine"],
+            "audio_bytes": len(audio),
+        }), file=sys.stderr, flush=True)
         rendered.append({
             "index": item["index"],
             "audio_b64": base64.b64encode(audio).decode("ascii"),
@@ -159,7 +186,7 @@ async def main():
 
 asyncio.run(main())
 """
-        payload = self._run_json_script(script, {"segments": requests})
+        payload = self._run_json_script_streaming(script, {"segments": requests}, progress)
         return {
             int(item["index"]): base64.b64decode(item["audio_b64"]) for item in payload["segments"]
         }
@@ -186,6 +213,90 @@ asyncio.run(main())
         if not lines:
             raise SynthesisError("voice-tuning bridge returned no JSON")
         return json.loads(lines[-1])
+
+    def _run_json_script_streaming(
+        self,
+        script: str,
+        payload: dict[str, Any],
+        progress: ProgressCallback | None,
+    ) -> dict[str, Any]:
+        if not self.root.exists():
+            raise SynthesisError(f"voice-tuning root not found: {self.root}")
+        try:
+            process = subprocess.Popen(
+                ["uv", "run", "python", "-c", script],
+                cwd=self.root,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            raise SynthesisError("uv command not found; cannot run voice-tuning bridge") from exc
+
+        stdout_chunks: list[str] = []
+        stderr_lines: list[str] = []
+        reader_errors: list[BaseException] = []
+
+        def read_stdout() -> None:
+            try:
+                assert process.stdout is not None
+                stdout_chunks.append(process.stdout.read())
+            except BaseException as exc:
+                reader_errors.append(exc)
+
+        def read_stderr() -> None:
+            try:
+                assert process.stderr is not None
+                for line in process.stderr:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    event = _decode_progress_event(stripped)
+                    if progress and event is not None:
+                        progress(event)
+                    else:
+                        stderr_lines.append(stripped)
+            except BaseException as exc:
+                reader_errors.append(exc)
+
+        stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stdout_thread.start()
+        stderr_thread.start()
+
+        try:
+            assert process.stdin is not None
+            process.stdin.write(json.dumps(payload))
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+
+        returncode = process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+
+        if reader_errors:
+            raise SynthesisError(f"voice-tuning bridge output reader failed: {reader_errors[0]}")
+
+        stdout = "".join(stdout_chunks)
+        if returncode != 0:
+            stderr = "\n".join(stderr_lines) or stdout.strip()
+            raise SynthesisError(f"voice-tuning bridge failed: {stderr}")
+        lines = [line for line in stdout.splitlines() if line.strip()]
+        if not lines:
+            raise SynthesisError("voice-tuning bridge returned no JSON")
+        return json.loads(lines[-1])
+
+
+def _decode_progress_event(line: str) -> ProgressEvent | None:
+    try:
+        value = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(value, dict) and isinstance(value.get("event"), str):
+        return value
+    return None
 
 
 def normalize_chapter_id(chapter_id: str) -> str:
@@ -357,22 +468,31 @@ def synthesis_cache_key(
     return hashlib.sha256(blob).hexdigest()
 
 
-def render_synthesis_plan(plan: SynthesisPlan, bridge: VoiceTuningBridge) -> None:
+def render_synthesis_plan(
+    plan: SynthesisPlan,
+    bridge: VoiceTuningBridge,
+    progress: ProgressCallback | None = None,
+) -> None:
     """Render missing stems, refresh chapter stems, concatenate, and write manifest."""
     missing = [segment for segment in plan.segments if segment.needs_tts and not segment.cache_hit]
     if missing:
+        if progress:
+            progress({"event": "render_batch_start", "total": len(missing)})
         requests = [
             {
                 "index": segment.index,
                 "engine": segment.engine,
                 "voice_id": segment.voice_id,
+                "voice_key": segment.voice_key,
                 "speed": segment.speed,
                 "params": segment.params,
                 "text": segment.prepared_text,
             }
             for segment in missing
         ]
-        rendered = bridge.render_segments(requests)
+        rendered = bridge.render_segments(requests, progress=progress)
+        if progress:
+            progress({"event": "render_batch_done", "total": len(missing)})
         for segment in missing:
             audio = rendered.get(segment.index)
             if audio is None:
@@ -380,8 +500,14 @@ def render_synthesis_plan(plan: SynthesisPlan, bridge: VoiceTuningBridge) -> Non
             assert segment.cache_path is not None
             segment.cache_path.parent.mkdir(parents=True, exist_ok=True)
             segment.cache_path.write_bytes(audio)
+    elif progress:
+        progress({"event": "render_batch_cached"})
 
+    if progress:
+        progress({"event": "stems_start"})
     _refresh_chapter_stems(plan)
+    if progress:
+        progress({"event": "concat_start", "output": str(plan.output_path)})
     _concatenate_chapter(plan)
     _write_manifest(plan)
 

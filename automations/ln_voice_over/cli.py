@@ -239,11 +239,33 @@ def synthesize(
         raise typer.Exit(0)
 
     try:
-        render_synthesis_plan(plan, bridge)
+        render_synthesis_plan(plan, bridge, progress=_echo_synthesis_progress)
     except SynthesisError as exc:
         typer.echo(f"SYNTHESIS failed: {exc}")
         raise typer.Exit(1) from exc
     typer.echo(f"Wrote {plan.output_path}")
+
+
+def _echo_synthesis_progress(event: dict[str, object]) -> None:
+    """Print concise terminal progress for synthesis rendering."""
+    event_name = event.get("event")
+    if event_name == "render_batch_start":
+        typer.echo(f"Rendering {event['total']} uncached segment(s)...")
+    elif event_name == "render_batch_cached":
+        typer.echo("All TTS stems are cached; rebuilding chapter WAV...")
+    elif event_name == "render_segment_start":
+        typer.echo(
+            "Rendering "
+            f"{event['ordinal']}/{event['total']}: "
+            f"segment {event['index']} "
+            f"({event['engine']}, {event.get('voice_key')}, {event['text_chars']} chars)"
+        )
+    elif event_name == "render_batch_done":
+        typer.echo("Voice generation complete; writing cache files...")
+    elif event_name == "stems_start":
+        typer.echo("Refreshing chapter stems...")
+    elif event_name == "concat_start":
+        typer.echo(f"Concatenating {event['output']}")
 
 
 if __name__ == "__main__":
