@@ -117,7 +117,8 @@ Write the structured JSON to `source/book.json`:
       "title": "Chapter Title",
       "start_page": 13,
       "text": "Chapter 1: Chapter Title\n\nFull text of the chapter...",
-      "pov_character": null,
+      "narrator_status": "unset",
+      "narrator": null,
       "illustrations": [
         {"page": 54, "image_path": "pages/054.png", "description": "Brief description"}
       ]

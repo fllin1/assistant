@@ -37,18 +37,18 @@ If `~/.assistant/ln_voice_over/projects/<slug>/reviewed/chapter_<id>.json` alrea
 python -m automations.ln_voice_over.scripts.prepare_judge_chunks <slug> <chapter>
 ```
 
-Capture the JSON (`chapter_id`, `pov_character`, `chunks[]`, `judge_dir`, etc.). Report chapter id, POV, total segments.
+Capture the JSON (`chapter_id`, `narrator_status`, `narrator`, `chunks[]`, `judge_dir`, etc.). Report chapter id, Narrator, total segments.
 
 #### Step 2: Run the judge pass
 
 For each chunk in `chunks[]`:
 
 1. Use the **Read** tool to load `chunk_path`.
-2. Spawn up to **8 parallel** sub-agents using `model: "<judge-model>"`. Each gets the prompt below (substitute `{pov_character}` and `{chunk_json}`):
+2. Spawn up to **8 parallel** sub-agents using `model: "<judge-model>"`. Each gets the prompt below (substitute `{narrator}` and `{chunk_json}`):
 
 ---
 
-You are auditing dialogue speaker attributions in a light novel chapter. The narrator ("I") is {pov_character}.
+You are auditing dialogue speaker attributions in a light novel chapter. The narrator ("I") is {narrator}.
 
 Your chunk (JSON array of segments, narration + dialogue interleaved):
 
@@ -59,16 +59,16 @@ Your chunk (JSON array of segments, narration + dialogue interleaved):
 For each DIALOGUE segment, determine who is speaking using:
 1. Speech tags in the narration AFTER the dialogue ("said Horikita", "she replied", "I asked").
 2. Speech tags BEFORE — careful, a tag before may describe the PREVIOUS dialogue.
-3. "I said/replied/asked" = {pov_character} speaking actual quoted dialogue → use the POV character's name.
+3. "I said/replied/asked" = {narrator} speaking actual quoted dialogue → use the narrator character's name.
 4. Pronouns → resolve from scene context.
 5. Conversation alternation in multi-party scenes.
 6. If the quoted text is embedded in narration (not actual speech) — e.g. `"experiments"` — use "Narrator".
-7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the POV character's name.
+7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the narrator character's name.
 8. If the speaker is unnamed / staff / bystander, use "Unknown".
 
 Reply with **only** a JSON object mapping dialogue segment index (string) to speaker name, wrapped in a single fenced `json` block. Include EVERY dialogue segment. Use names as they appear in the text ("Horikita", "Chabashira-sensei") — the pipeline canonicalises downstream.
 
-Example (POV = Ayanokouji):
+Example (Narrator = Ayanokouji):
 ```json
 {"40": "Horikita", "43": "Narrator", "47": "Ayanokouji", "51": "Narrator"}
 ```
@@ -120,7 +120,7 @@ You are resolving a single dialogue attribution disagreement in a light novel. T
 
 Use speech tags ("said X", "she replied"), conversation alternation, and who is physically present in the scene.
 
-**Convention reminder**: a long first-person inner-monologue or exposition block (>300 chars, no speech tag) that the parser tagged as "dialogue" is mis-tagged narration — speaker is **"Narrator"**, NOT the POV character's name. The POV character's name only belongs on actual quoted dialogue they speak.
+**Convention reminder**: a long first-person inner-monologue or exposition block (>300 chars, no speech tag) that the parser tagged as "dialogue" is mis-tagged narration — speaker is **"Narrator"**, NOT the narrator character's name. The narrator character's name only belongs on actual quoted dialogue they speak.
 
 Reply with a JSON object:
 
@@ -156,7 +156,7 @@ Report to the user:
 
 When no chapter argument is supplied:
 
-1. Use **Read** to load `~/.assistant/ln_voice_over/projects/<slug>/chapters/manifest.json`. It's a list of `{number, title, file, pov_character, subchapter?}` entries.
+1. Use **Read** to load `~/.assistant/ln_voice_over/projects/<slug>/chapters/manifest.json`. It's a list of `{number, title, file, narrator_status, narrator, subchapter?}` entries.
 
 2. For each entry, derive the chapter id from the `file` field (`chapter_07.txt` → `07`, `chapter_07_1.txt` → `07_1`). Skip entries with no `extracted/chapter_<id>/claude-sonnet_skill_*.json` (nothing to review — run `/attribute-speakers` first).
 

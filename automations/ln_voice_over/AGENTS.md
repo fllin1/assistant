@@ -14,8 +14,7 @@ Before changing this sub-project, read:
 
 Use the terms from `CONTEXT.md` in code, tests, and docs. Prefer **Volume** over
 "book" except when referring to the concrete `source/book.json` artifact.
-Prefer **Narrator** over POV in new docs and new schema work, while preserving
-current `pov_character` compatibility until a deliberate migration happens.
+Use **Narrator** terminology in active code, docs, prompts, and schema work.
 
 ## Scope
 

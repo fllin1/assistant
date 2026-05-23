@@ -36,7 +36,7 @@ def main():
         print(f"ERROR: No chapter file found for '{chapter_raw}' in {parsed_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Read manifest for POV character
+    # Read manifest for the chapter narrator.
     manifest_path = project_dir / "chapters" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
@@ -44,8 +44,8 @@ def main():
     if entry is None:
         print(f"ERROR: Chapter '{chapter_raw}' not in manifest", file=sys.stderr)
         sys.exit(1)
-    # null is valid (third-person chapter with no first-person narrator)
-    pov_character = entry["pov_character"]
+    narrator_status = entry["narrator_status"]
+    narrator = entry.get("narrator")
 
     # Load chapter via model
     chapter = Chapter.load(chapter_path)
@@ -92,7 +92,8 @@ def main():
         "slug": slug,
         "chapter_raw": chapter_raw,
         "chapter_file_id": chapter_file_id,
-        "pov_character": pov_character,
+        "narrator_status": narrator_status,
+        "narrator": narrator,
         "total_segments": total,
         "dialogue_count": dialogue_count,
         "chunks": chunks,

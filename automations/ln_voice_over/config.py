@@ -90,7 +90,7 @@ Each pattern is tested against the start of a line."""
 SUBCHAPTER_PATTERN: re.Pattern[str] = re.compile(r"^\s*(\d+)\.(\d+)\s*$")
 """Bare `N.M` on its own line — a sub-chapter boundary inside a main chapter.
 
-The published books mark POV-shifting sub-chapters this way: a bare `7.1` line,
+The published books mark narrator-shifting sub-chapters this way: a bare `7.1` line,
 blank line, then body text (no inline title). Treated as a boundary only when
 the chapter has ≥ 2 such markers with matching major and strictly-increasing
 minor starting from 1. See split._subdivide_by_subchapter."""

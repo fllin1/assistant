@@ -1,13 +1,13 @@
-"""Write a detected POV character back to chapters/manifest.json.
+"""Write a detected narrator back to chapters/manifest.json.
 
 Scoped to a single chapter entry; other entries untouched.
 
 Usage:
-    python -m automations.ln_voice_over.scripts.save_pov \
-        <manifest_path> <chapter_number> <pov_value>
+    python -m automations.ln_voice_over.scripts.save_narrator \
+        <manifest_path> <chapter_number> <narrator_value>
 
-Where <pov_value> is a character name, or the literal string "null" for
-third-person chapters with no first-person narrator.
+Where <narrator_value> is a character name, or the literal string "null" for
+detected third-person chapters with the omniscient narrator.
 """
 
 import json
@@ -17,12 +17,13 @@ from pathlib import Path
 from automations.ln_voice_over.split import chapter_id, normalize_chapter_arg
 
 
-def main():
+def main() -> None:
     manifest_path = Path(sys.argv[1])
     chapter_raw = sys.argv[2]
-    pov_value = sys.argv[3]
+    narrator_value = sys.argv[3]
 
-    parsed = None if pov_value.strip().lower() in ("null", "none", "") else pov_value.strip()
+    normalized = narrator_value.strip()
+    narrator = None if normalized.lower() in ("null", "none", "") else normalized
 
     padded = normalize_chapter_arg(chapter_raw)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -31,12 +32,13 @@ def main():
         print(f"ERROR: Chapter '{chapter_raw}' not in manifest", file=sys.stderr)
         sys.exit(1)
 
-    entry["pov_character"] = parsed
+    entry["narrator_status"] = "detected"
+    entry["narrator"] = narrator
     manifest_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
 
-    print(f"Saved pov_character={parsed!r} for chapter {chapter_raw} in {manifest_path}")
+    print(f"Saved narrator={narrator!r} for chapter {chapter_raw} in {manifest_path}")
 
 
 if __name__ == "__main__":

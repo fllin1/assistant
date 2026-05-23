@@ -1,7 +1,7 @@
 """Merge chunk attribution outputs into a single result file.
 
 Resolves overlaps (preferring chunks where segments have more surrounding
-context), normalizes "I" to the POV character, and saves the final
+context), normalizes "I" to the chapter narrator, and saves the final
 attribution.
 
 Attributions can be supplied two ways:
@@ -52,7 +52,7 @@ def main():
 
     slug = metadata["slug"]
     chapter_file_id = metadata["chapter_file_id"]
-    pov_character = metadata["pov_character"]
+    narrator = metadata["narrator"]
     dialogue_count = metadata["dialogue_count"]
     chunks = metadata["chunks"]
     tmp_dir = Path(metadata["tmp_dir"])
@@ -82,11 +82,11 @@ def main():
                 continue  # earlier chunk already set it (has more leading context)
             merged[idx_str] = speaker
 
-    # Normalize "I" to POV character (skipped for third-person chapters where POV is null)
-    if pov_character:
+    # Normalize "I" to the detected first-person narrator.
+    if narrator:
         for idx in merged:
             if merged[idx] == "I":
-                merged[idx] = pov_character
+                merged[idx] = narrator
 
     # Sort by index
     sorted_merged = dict(sorted(merged.items(), key=lambda x: int(x[0])))

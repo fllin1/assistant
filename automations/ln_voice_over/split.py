@@ -66,7 +66,7 @@ def _subdivide_by_subchapter(
         return [(None, chapter_text)]
 
     # Split at each marker. Any content before marker N.1 becomes its own
-    # sub-chapter N.0 so its POV can be detected independently — publisher
+    # sub-chapter N.0 so its Narrator can be detected independently — publisher
     # chapters commonly open with several paragraphs of framing narration
     # (or a whole third-person interlude) before switching to N.1.
     parts: list[tuple[int | None, str]] = []
@@ -137,7 +137,7 @@ def split_volume(
 
     Returns:
         List of manifest entries, each a dict with keys:
-        number (int), title (str), file (str), pov_character (None).
+        number (int), title (str), file (str), narrator_status, narrator.
     """
     # Wipe existing chapter_*.txt so a previous un-subdivided run doesn't leave
     # stale chapter_07.txt sitting next to the new chapter_07_1.txt. Manifest
@@ -229,7 +229,8 @@ def _split_from_txt(
                 "number": 1,
                 "title": source_path.stem,
                 "file": filename,
-                "pov_character": None,
+                "narrator_status": "unset",
+                "narrator": None,
             }
         )
         return manifest
@@ -245,7 +246,8 @@ def _split_from_txt(
                 "number": 0,
                 "title": "Front Matter",
                 "file": filename,
-                "pov_character": None,
+                "narrator_status": "unset",
+                "narrator": None,
             }
         )
 
@@ -274,7 +276,8 @@ def _write_chapter_entries(
     title: str,
     output_dir: Path,
     manifest: list[dict],
-    pov_character: str | None = None,
+    narrator_status: str = "unset",
+    narrator: str | None = None,
 ) -> None:
     """Write chapter file(s) and append manifest entries, subdividing by `N.M`.
 
@@ -292,7 +295,8 @@ def _write_chapter_entries(
                 "number": chapter_num,
                 "title": title,
                 "file": filename,
-                "pov_character": pov_character,
+                "narrator_status": narrator_status,
+                "narrator": narrator,
             }
         )
         return
@@ -306,7 +310,8 @@ def _write_chapter_entries(
                 "subchapter": minor,
                 "title": f"{title} — Part {minor}",
                 "file": filename,
-                "pov_character": None,
+                "narrator_status": "unset",
+                "narrator": None,
             }
         )
 
@@ -347,7 +352,8 @@ def _split_from_json(
             title,
             output_dir,
             manifest,
-            pov_character=chapter.get("pov_character"),
+            narrator_status=chapter.get("narrator_status", "unset"),
+            narrator=chapter.get("narrator"),
         )
 
     # Handle illustrations

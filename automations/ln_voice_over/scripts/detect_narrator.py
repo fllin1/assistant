@@ -1,11 +1,11 @@
-"""Prepare POV detection for a chapter.
+"""Prepare narrator detection for a chapter.
 
-Reads the manifest and parsed chapter. If the POV character is already set,
+Reads the manifest and parsed chapter. If narrator detection has already run,
 reports that and exits. Otherwise, writes the chapter's opening snippet to a
-temp file and prints the paths the skill needs to run a Sonnet agent on it.
+temp file and prints the paths the skill needs to run an LLM agent on it.
 
 Usage:
-    python -m automations.ln_voice_over.scripts.detect_pov <slug> <chapter_number>
+    python -m automations.ln_voice_over.scripts.detect_narrator <slug> <chapter_number>
 """
 
 import json
@@ -19,7 +19,7 @@ PROJECTS_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
 SNIPPET_MAX_CHARS = 3000
 
 
-def main():
+def main() -> None:
     slug = sys.argv[1]
     chapter_raw = sys.argv[2]
 
@@ -44,13 +44,21 @@ def main():
         sys.exit(1)
 
     chapter_title = entry.get("title", "")
-    pov = entry.get("pov_character")
-    if pov:
+    narrator_status = entry.get("narrator_status")
+    if narrator_status != "unset" and narrator_status != "detected":
+        print(
+            f"ERROR: Chapter '{chapter_raw}' has invalid narrator_status={narrator_status!r}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if narrator_status == "detected":
         print(
             json.dumps(
                 {
-                    "status": "already_set",
-                    "pov_character": pov,
+                    "status": "already_detected",
+                    "narrator_status": narrator_status,
+                    "narrator": entry.get("narrator"),
                     "chapter_number": chapter_raw,
                     "chapter_title": chapter_title,
                     "manifest_path": str(manifest_path),
@@ -59,7 +67,7 @@ def main():
         )
         return
 
-    # Build the opening snippet from narration + dialogue (skip chapter headers and scene breaks)
+    # Build the opening snippet from narration + dialogue, skipping headers and scene breaks.
     chapter = Chapter.load(chapter_path)
     parts: list[str] = []
     total = 0
@@ -73,7 +81,7 @@ def main():
 
     tmp_dir = project_dir / "tmp_chunks"
     tmp_dir.mkdir(exist_ok=True)
-    snippet_path = tmp_dir / f"pov_snippet_{chapter_raw}.txt"
+    snippet_path = tmp_dir / f"narrator_snippet_{chapter_raw}.txt"
     snippet_path.write_text("\n\n".join(parts), encoding="utf-8")
 
     print(

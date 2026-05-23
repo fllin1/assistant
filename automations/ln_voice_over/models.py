@@ -36,6 +36,13 @@ class SegmentType(Enum):
     CHAPTER_HEADER = "chapter_header"
 
 
+class NarratorStatus(Enum):
+    """Whether narrator detection has run for a chapter."""
+
+    UNSET = "unset"
+    DETECTED = "detected"
+
+
 class Segment(BaseModel):
     """A single segment of chapter text.
 
@@ -55,9 +62,10 @@ class Segment(BaseModel):
 class Chapter(BaseModel):
     """A chapter with all its segments.
 
-    The pov_character field drives narrator voice selection: when set,
-    all narration segments in this chapter use that character's voice
-    instead of the default narrator voice.
+    The narrator fields drive voice selection for Narrator-labeled segments.
+    When narrator_status is "unset", detection has not run. When it is
+    "detected", narrator is authoritative: a character name means first-person
+    narration, while None means the omniscient narrator.
     """
 
     model_config = ConfigDict(frozen=True, extra="ignore")
@@ -66,7 +74,8 @@ class Chapter(BaseModel):
     subchapter: int | None = None
     title: str
     source_file: str
-    pov_character: str | None
+    narrator_status: NarratorStatus
+    narrator: str | None
     segments: tuple[Segment, ...]
     reviewed: bool = False
 

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from automations.ln_voice_over.models import SegmentType
+from automations.ln_voice_over.models import NarratorStatus, SegmentType
 from automations.ln_voice_over.parse import (
     _extract_segments,
     parse_chapter,
@@ -173,13 +173,20 @@ class TestParseChapter:
         indices = [s.index for s in chapter.segments]
         assert indices == list(range(len(chapter.segments)))
 
-    def test_pov_character_flows_through(self, tmp_path: Path):
+    def test_narrator_fields_flow_through(self, tmp_path: Path):
         chapter_file = tmp_path / "chapter.txt"
         chapter_file.write_text("Chapter 1: Test\n\nSome text.\n", encoding="utf-8")
 
-        chapter = parse_chapter(chapter_file, 1, "Test", pov_character="Ayanokouji")
+        chapter = parse_chapter(
+            chapter_file,
+            1,
+            "Test",
+            narrator_status=NarratorStatus.DETECTED,
+            narrator="Ayanokouji",
+        )
 
-        assert chapter.pov_character == "Ayanokouji"
+        assert chapter.narrator_status == NarratorStatus.DETECTED
+        assert chapter.narrator == "Ayanokouji"
 
     def test_speaker_is_none(self, tmp_path: Path):
         chapter_file = tmp_path / "chapter.txt"

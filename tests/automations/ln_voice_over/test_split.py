@@ -1,6 +1,6 @@
 """Tests for Stage 1: SPLIT — sub-chapter subdivision on `N.M` markers.
 
-Focuses on the Phase-D subdivision logic that detects POV-shifting
+Focuses on the Phase-D subdivision logic that detects narrator-shifting
 sub-chapters inside a publisher "chapter" (e.g. CoTE chapter 7 contains
 `7.1`, `7.2`, `7.3`, `7.4` on bare lines). Main-chapter splitting is
 already exercised indirectly through other pipeline tests; these cases
@@ -199,11 +199,10 @@ class TestSplitVolumeJsonWithSubchapters:
             json.dumps(
                 {
                     "chapters": [
-                        {"title": "Chapter 1", "text": "Intro text.", "pov_character": None},
+                        {"title": "Chapter 1", "text": "Intro text."},
                         {
                             "title": "Chapter 2",
                             "text": "\n2.1\n\nFirst.\n\n2.2\n\nSecond.\n",
-                            "pov_character": None,
                         },
                     ]
                 }
@@ -214,10 +213,16 @@ class TestSplitVolumeJsonWithSubchapters:
         manifest = split_volume(book_json, output_dir)
         assert len(manifest) == 3
         assert manifest[0]["file"] == "chapter_01.txt"
+        assert manifest[0]["narrator_status"] == "unset"
+        assert manifest[0]["narrator"] is None
         assert "subchapter" not in manifest[0] or manifest[0].get("subchapter") is None
         assert manifest[1]["file"] == "chapter_02_1.txt"
         assert manifest[1]["subchapter"] == 1
+        assert manifest[1]["narrator_status"] == "unset"
+        assert manifest[1]["narrator"] is None
         assert manifest[2]["file"] == "chapter_02_2.txt"
         assert manifest[2]["subchapter"] == 2
+        assert manifest[2]["narrator_status"] == "unset"
+        assert manifest[2]["narrator"] is None
         assert (output_dir / "chapter_02_1.txt").exists()
         assert (output_dir / "chapter_02_2.txt").exists()

@@ -50,7 +50,7 @@ Each stage reads from the previous stage's output and writes to its own director
 lnvo split classroom-of-the-elite-year-2/v7
 lnvo parse classroom-of-the-elite-year-2/v7
 
-# 3. Extract speakers — Claude Sonnet skill (per chapter, parallel agents; auto-detects POV)
+# 3. Extract speakers — Claude Sonnet skill (per chapter, parallel agents; auto-detects Narrator)
 /attribute-speakers classroom-of-the-elite-year-2/v7 2
 
 # 4. Review: judge pass catches disagreements, Opus resolves them, writes reviewed/
@@ -92,9 +92,9 @@ Skills:
 
 - **Input**: `source/book.json` (from `/setup-book`) OR `source/*.txt` → **Output**: `chapters/chapter_01.txt`, ..., `chapters/manifest.json`
 - JSON input is pre-split with titles; `.txt` input uses regex patterns (`config.CHAPTER_PATTERNS`) to detect chapter boundaries
-- `manifest.json` has `pov_character: null` — filled in by `/attribute-speakers` when it detects POV for the chapter
+- `manifest.json` has `narrator_status: "unset"` and `narrator: null` — filled in by `/attribute-speakers` when it detects the chapter Narrator
 - Front matter before first header → `chapter_00.txt` or skipped
-- **Sub-chapters**: when a main chapter contains bare `N.M` marker lines (the publisher's POV-shift convention — e.g. `7.1`/`7.2`/`7.3`/`7.4`), split emits one manifest row per sub (`subchapter: M`) and writes `chapter_NN_M.txt`. Triggered only when ≥ 2 markers exist with strictly-increasing minors whose major matches the chapter number; otherwise the chapter stays whole
+- **Sub-chapters**: when a main chapter contains bare `N.M` marker lines (the publisher's Narrator-shift convention — e.g. `7.1`/`7.2`/`7.3`/`7.4`), split emits one manifest row per sub (`subchapter: M`) and writes `chapter_NN_M.txt`. Triggered only when ≥ 2 markers exist with strictly-increasing minors whose major matches the chapter number; otherwise the chapter stays whole
 
 ### Stage 2: PARSE — Cleanup + Structural Segmentation
 
@@ -107,7 +107,7 @@ Skills:
 
 ### Stage 3: EXTRACT — Speaker Attribution
 
-The `/attribute-speakers` Claude Sonnet skill spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap, merges the results, and writes a flat `{index: speaker}` JSON to `extracted/chapter_NN/`. The skill also auto-detects POV and persists it to the manifest as a side effect.
+The `/attribute-speakers` Claude Sonnet skill spawns parallel Sonnet agents that each process a chunk of ~80 segments with overlap, merges the results, and writes a flat `{index: speaker}` JSON to `extracted/chapter_NN/`. The skill also auto-detects the Narrator and persists it to the manifest as a side effect.
 
 ```
 /attribute-speakers classroom-of-the-elite-year-2/v7 5

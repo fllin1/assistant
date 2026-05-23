@@ -1,15 +1,15 @@
-"""Rewrite POV-character-attributed long dialogue blocks to "Narrator".
+"""Rewrite narrator-attributed long dialogue blocks to "Narrator".
 
 When the parser mis-tags a long block of first-person inner monologue or
 exposition as `segment_type: dialogue`, the attribution model sometimes
-labels it with the POV character's name instead of "Narrator". The
+labels it with the chapter narrator's name instead of "Narrator". The
 project convention is that mis-tagged narration belongs to "Narrator".
 
 This script walks `reviewed/chapter_<id>.json` files for a slug and
 rewrites any dialogue segment that matches ALL of:
   * `segment_type == "dialogue"`
   * `speaker` resolves (via the character registry) to the chapter's
-    `pov_character`
+    `narrator`
   * `len(text) > threshold` (default 300)
   * the text shows a parser artifact: leading or trailing whitespace
     INSIDE the quote marks (`" foo "`), which only happens when the
@@ -38,29 +38,27 @@ from automations.ln_voice_over.split import chapter_id
 PROJECTS_DIR = Path.home() / ".assistant" / "ln_voice_over" / "projects"
 
 
-def _load_pov_map(manifest_path: Path) -> dict[str, str | None]:
-    """Map chapter_id (e.g. '02', '07_1') → pov_character from the manifest.
+def _load_narrator_map(manifest_path: Path) -> dict[str, str | None]:
+    """Map chapter_id (e.g. '02', '07_1') to narrator from the manifest.
 
-    The parsed/reviewed Chapter JSONs sometimes carry a stale `pov_character`
-    of None (the parse stage doesn't pull from the manifest). The manifest is
-    the source of truth.
+    The manifest is the source of truth for narrator detection results.
     """
     if not manifest_path.exists():
         return {}
     entries = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return {chapter_id(e): e.get("pov_character") for e in entries}
+    return {chapter_id(e): e.get("narrator") for e in entries}
 
 
-def _canonical_pov(pov_character: str | None, registry) -> str | None:
-    """Resolve the POV character against the registry to its canonical name."""
-    if not pov_character:
+def _canonical_narrator(narrator: str | None, registry) -> str | None:
+    """Resolve the narrator against the registry to its canonical name."""
+    if not narrator:
         return None
-    char = registry.find(pov_character) or registry.fuzzy_find(pov_character)
-    return char.name if char else pov_character
+    char = registry.find(narrator) or registry.fuzzy_find(narrator)
+    return char.name if char else narrator
 
 
 def _canonicalise_speaker(raw: str | None, registry) -> str | None:
-    """Canonicalise an arbitrary speaker label so equality with the POV name works."""
+    """Canonicalise a speaker label so equality with the narrator works."""
     if not raw or raw in ("Narrator", "Unknown", "I"):
         return raw
     char = registry.find(raw) or registry.fuzzy_find(raw)
@@ -88,15 +86,14 @@ def _normalise_chapter(
     report_path: Path,
     threshold: int,
     registry,
-    pov_map: dict[str, str | None],
+    narrator_map: dict[str, str | None],
     dry_run: bool,
 ) -> list[dict]:
     """Return the list of rewrites applied (or that would be) for one chapter."""
     chapter = Chapter.load(chapter_path)
-    # Manifest is the source of truth; fall back to the chapter's stored value.
-    pov_raw = pov_map.get(chapter.chapter_id, chapter.pov_character)
-    canonical_pov = _canonical_pov(pov_raw, registry)
-    if not canonical_pov:
+    narrator_raw = narrator_map.get(chapter.chapter_id, chapter.narrator)
+    canonical_narrator = _canonical_narrator(narrator_raw, registry)
+    if not canonical_narrator:
         return []  # third-person chapter: nothing to do
 
     rewrites: list[dict] = []
@@ -106,7 +103,7 @@ def _normalise_chapter(
             seg.segment_type == SegmentType.DIALOGUE
             and seg.speaker
             and len(seg.text) > threshold
-            and _canonicalise_speaker(seg.speaker, registry) == canonical_pov
+            and _canonicalise_speaker(seg.speaker, registry) == canonical_narrator
             and _looks_like_mistagged_narration(seg.text)
         ):
             rewrites.append({"index": seg.index, "old": seg.speaker, "new": "Narrator"})
@@ -152,7 +149,7 @@ def main() -> None:
 
     series_slug = args.slug.rsplit("/", 1)[0] if "/" in args.slug else args.slug
     registry = load_characters(series_slug)
-    pov_map = _load_pov_map(PROJECTS_DIR / args.slug / "chapters" / "manifest.json")
+    narrator_map = _load_narrator_map(PROJECTS_DIR / args.slug / "chapters" / "manifest.json")
 
     chapter_files = sorted(
         p for p in reviewed_dir.glob("chapter_*.json") if "_report" not in p.name
@@ -163,7 +160,7 @@ def main() -> None:
     for chapter_path in chapter_files:
         report_path = chapter_path.with_name(chapter_path.stem + "_report.json")
         rewrites = _normalise_chapter(
-            chapter_path, report_path, args.threshold, registry, pov_map, args.dry_run
+            chapter_path, report_path, args.threshold, registry, narrator_map, args.dry_run
         )
         if rewrites:
             per_chapter[chapter_path.stem] = rewrites

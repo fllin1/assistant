@@ -24,7 +24,7 @@ from .config import (
     SCENE_BREAK_PATTERNS,
     WATERMARK_PATTERNS,
 )
-from .models import Chapter, Segment, SegmentType
+from .models import Chapter, NarratorStatus, Segment, SegmentType
 
 
 def _strip_inline_watermarks(line: str, patterns: list[re.Pattern[str]]) -> str:
@@ -194,7 +194,8 @@ def parse_chapter(
     chapter_path: Path,
     chapter_number: int,
     title: str,
-    pov_character: str | None = None,
+    narrator_status: str | NarratorStatus = NarratorStatus.UNSET,
+    narrator: str | None = None,
     subchapter: int | None = None,
 ) -> Chapter:
     """Parse a chapter .txt file into a Chapter with typed segments.
@@ -210,9 +211,10 @@ def parse_chapter(
         chapter_path: Path to the chapter .txt file (from chapters/).
         chapter_number: Chapter number from the manifest.
         title: Chapter title from the manifest.
-        pov_character: POV character name (from manifest), or None.
+        narrator_status: Whether narrator detection has run.
+        narrator: Character filling the Narrator role, or None.
         subchapter: Sub-chapter index when the source splits a publisher
-            chapter on `N.M` POV markers, else None.
+            chapter on `N.M` narrator markers, else None.
 
     Returns:
         A Chapter instance with its segments tuple populated.
@@ -251,7 +253,8 @@ def parse_chapter(
             subchapter=subchapter,
             title=title,
             source_file=chapter_path.name,
-            pov_character=pov_character,
+            narrator_status=narrator_status,
+            narrator=narrator,
             segments=tuple(segments),
         )
 
@@ -286,6 +289,7 @@ def parse_chapter(
         subchapter=subchapter,
         title=title,
         source_file=chapter_path.name,
-        pov_character=pov_character,
+        narrator_status=narrator_status,
+        narrator=narrator,
         segments=tuple(segments),
     )

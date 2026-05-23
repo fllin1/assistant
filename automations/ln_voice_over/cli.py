@@ -127,6 +127,12 @@ def parse(book: str | None = typer.Argument(None)) -> None:
 
     count = 0
     for entry in manifest:
+        if "narrator_status" not in entry:
+            typer.echo(
+                "Manifest uses the old narrator schema. "
+                "Run migrate_narrator_fields before parsing."
+            )
+            raise typer.Exit(1)
         chapter_path = chapters_dir / entry["file"]
         if not chapter_path.exists():
             typer.echo(f"Skipping {entry['file']} — not found in chapters/")
@@ -137,7 +143,8 @@ def parse(book: str | None = typer.Argument(None)) -> None:
             chapter_number=entry["number"],
             subchapter=entry.get("subchapter"),
             title=entry["title"],
-            pov_character=entry.get("pov_character"),
+            narrator_status=entry["narrator_status"],
+            narrator=entry.get("narrator"),
         )
         chapter.save(output_dir / f"chapter_{chapter_id(entry)}.json")
         count += 1
