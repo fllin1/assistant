@@ -16,4 +16,11 @@ wheels/
 
 # Claude Code local settings (personal, not committed)
 .claude/settings.local.json
+
+# Local agent / OMX tooling installs
+.agents/
+.claude/skills/
+.codex/
+skills-lock.json
+
 .DS_Store
