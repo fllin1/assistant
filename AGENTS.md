@@ -13,7 +13,7 @@ The library starts flat — modules are added as we build them. Structure emerge
 ### Scope Control
 - **One module/feature per edit session.** Never touch unrelated modules in the same session.
 - Each agent (subagent) must limit its edits to a single module or feature.
-- If a change requires touching multiple modules, discuss the plan first and proceed module by module.
+- If a change requires touching multiple modules, keep the plan explicit and proceed module by module.
 
 ### Commit Discipline
 - **Pause and commit after tests pass.** Do not continue to the next feature without committing.
@@ -67,7 +67,7 @@ The library starts flat — modules are added as we build them. Structure emerge
 ## Two-Tier Rules
 
 ### Library (`src/assistant/`)
-- Changes require careful review and discussion.
+- Changes require careful boundary checks and backward compatibility.
 - Must maintain backward compatibility with existing automations.
 - Must have tests before merging.
 - Public APIs must be typed and documented.
@@ -87,8 +87,8 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Always read a file before editing it.
 - Notify the user if their code doesn't match the style guidelines.
 - After completing a feature: run focused verification, stage only in-scope files, and commit once checks pass.
-- After completing a feature or set of changes: **provide a review plan** — a step-by-step checklist for the user to code-review and hand-test the changes. Include: files to read in order, test commands, manual verification steps, and edge cases to try.
+- After completing a feature or set of changes: provide concise completion notes with changed files, verification evidence, remaining risks, and useful manual checks.
 - Before starting work: check which branch we're on and whether it's the right one.
 - Every feature in `src/assistant/` must be linked to a GitHub Issue. If no issue exists, create one before starting work. Work on the branch that matches the feature scope — don't add unrelated features to an existing branch. Changes scoped to `automations/` do **not** require an issue.
-- When in doubt about scope, ask — don't expand silently.
+- Resolve scope from local context and existing project rules. Ask only when missing information would materially change the result, require credentials or external production access, or risk destructive/irreversible changes.
 - Commits are allowed for completed, verified, in-scope work. Never include unrelated dirty or untracked files; if the worktree contains unrelated changes, stage paths explicitly and mention what was excluded.
