@@ -3,7 +3,8 @@
 Scoped to a single chapter entry; other entries untouched.
 
 Usage:
-    python -m automations.ln_voice_over.scripts.save_pov <manifest_path> <chapter_number> <pov_value>
+    python -m automations.ln_voice_over.scripts.save_pov \
+        <manifest_path> <chapter_number> <pov_value>
 
 Where <pov_value> is a character name, or the literal string "null" for
 third-person chapters with no first-person narrator.
