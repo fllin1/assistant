@@ -105,4 +105,6 @@ For broad changes that may affect packaging or the `lnvo` entry point, also run:
 uv run pytest
 ```
 
-Do not commit unless the user explicitly asks.
+Commits are allowed for completed, verified LN voice-over feature slices. Stage
+only in-scope files; do not include unrelated dirty or untracked files from the
+shared worktree.
