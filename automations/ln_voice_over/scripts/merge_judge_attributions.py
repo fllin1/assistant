@@ -9,8 +9,8 @@ deleted `lnvo resolve` stage used to do.
 
 Output: `judge/chapter_<id>/merged.json` — flat `{index: speaker}` map
 using canonical names where the registry resolved them; "Narrator",
-"Unknown" and "I" are left alone, and "I" is normalised to the POV
-character afterwards if one is set.
+"Unknown" and "I" are left alone, and "I" is normalised to the chapter
+narrator afterwards if one is set.
 
 Usage:
     python -m ...merge_judge_attributions '<metadata_json>' --results '<results_json>'
@@ -53,7 +53,7 @@ def main() -> None:
 
     slug = metadata["slug"]
     judge_dir = Path(metadata["judge_dir"])
-    pov_character = metadata["pov_character"]
+    narrator = metadata["narrator"]
     chunks = metadata["chunks"]
 
     # Series slug = everything before the last "/" in the project slug.
@@ -73,10 +73,10 @@ def main() -> None:
                 continue  # earlier chunk already set it (has more leading context)
             merged[idx_str] = _canonicalise(speaker, registry)
 
-    if pov_character:
+    if narrator:
         for idx in merged:
             if merged[idx] == "I":
-                merged[idx] = pov_character
+                merged[idx] = narrator
 
     sorted_merged = dict(sorted(merged.items(), key=lambda x: int(x[0])))
 

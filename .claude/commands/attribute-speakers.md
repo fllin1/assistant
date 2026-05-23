@@ -24,15 +24,15 @@ Parse `$ARGUMENTS`: the first token is the book slug (`<series>/<volume>`). If a
 
 Run the four steps below once for the given chapter.
 
-#### Step 0: Detect POV character
+#### Step 0: Detect Narrator
 
 ```
-python -m automations.ln_voice_over.scripts.detect_pov <slug> <chapter_number>
+python -m automations.ln_voice_over.scripts.detect_narrator <slug> <chapter_number>
 ```
 
 This script does no LLM work — it just builds an opening snippet. Capture its JSON.
 
-- `status == "already_set"`: report `"POV: <pov_character>"` and skip to Step 1.
+- `status == "already_detected"`: report `"Narrator: <narrator>"` and skip to Step 1. If `narrator` is null, report `"Narrator: null (omniscient)"`.
 - `status == "needs_detection"`:
   1. Use the **Read** tool to load `snippet_path`.
   2. Spawn ONE sub-agent with `model: "sonnet"` and the prompt below. Substitute `{snippet}` with the file contents you just read.
@@ -51,12 +51,12 @@ This script does no LLM work — it just builds an opening snippet. Capture its 
      Reply with ONE LINE: the name or `null`. No explanation, no quotes, no JSON, no tool calls.
 
      ---
-  3. Take the agent's one-line reply as `<pov_value>` and persist it:
+  3. Take the agent's one-line reply as `<narrator_value>` and persist it:
 
      ```
-     python -m automations.ln_voice_over.scripts.save_pov <manifest_path> <chapter_number> <pov_value>
+     python -m automations.ln_voice_over.scripts.save_narrator <manifest_path> <chapter_number> <narrator_value>
      ```
-  4. Report `"Detected POV: <name>"` or `"Detected POV: null (third-person)"`.
+  4. Report `"Detected Narrator: <name>"` or `"Detected Narrator: null (omniscient)"`.
 
 #### Step 1: Prepare chunks
 
@@ -64,7 +64,7 @@ This script does no LLM work — it just builds an opening snippet. Capture its 
 python -m automations.ln_voice_over.scripts.prepare_chunks <slug> <chapter_number>
 ```
 
-Capture the JSON output (contains `pov_character`, `dialogue_count`, `chunks[]`, `tmp_dir`, etc.). Report chapter title, POV, total segments, and dialogue count.
+Capture the JSON output (contains `narrator_status`, `narrator`, `dialogue_count`, `chunks[]`, `tmp_dir`, etc.). Report chapter title, Narrator, total segments, and dialogue count.
 
 #### Step 2: Attribute chunks
 
@@ -72,11 +72,11 @@ For each chunk in `chunks[]`:
 
 1. Use the **Read** tool to load `chunk_path` — the file is a JSON array of segments.
 
-Then spawn **up to 8 sub-agents in parallel** using `model: "sonnet"`. Each agent gets this prompt (substitute `{pov_character}` and `{chunk_json}`):
+Then spawn **up to 8 sub-agents in parallel** using `model: "sonnet"`. Each agent gets this prompt (substitute `{narrator}` and `{chunk_json}`):
 
 ---
 
-You are attributing dialogue speakers in a light novel chapter. The narrator ("I") is {pov_character}.
+You are attributing dialogue speakers in a light novel chapter. The narrator ("I") is {narrator}.
 
 Your chunk (JSON array of segments, narration + dialogue interleaved):
 
@@ -87,22 +87,22 @@ Your chunk (JSON array of segments, narration + dialogue interleaved):
 For each DIALOGUE segment, determine who is speaking by:
 1. Checking narration AFTER the dialogue for speech tags ("said Horikita", "she replied", "I asked").
 2. Checking narration BEFORE — but a tag before may describe the PREVIOUS dialogue.
-3. "I said/replied/asked" = {pov_character} is speaking actual quoted dialogue → use the POV character's name.
+3. "I said/replied/asked" = {narrator} is speaking actual quoted dialogue → use the narrator character's name.
 4. Resolving pronouns ("he/she said") from context.
 5. Inferring from conversation flow when no tag exists.
 6. If the marked text is a quoted word or phrase embedded in narration (not actual speech) — e.g. `"experiments"`, `"child of in vitro fertilization"` — use "Narrator".
-7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the POV character's name. The POV character is the narrator at the voice level, but the data label distinction matters: "Narrator" = narration; POV character name = actual spoken dialogue.
+7. **Mis-tagged narration**: if a "dialogue" segment is a long block of first-person narration, exposition, or inner thought (typically >300 characters, no speech tag at either end, no clear utterance boundary, often spans multiple sentences), the parser has mis-tagged narration as dialogue. Use **"Narrator"**, NOT the narrator character's name. The narrator character is the narrator at the voice level, but the data label distinction matters: "Narrator" = narration; character name = actual spoken dialogue.
 8. If the speaker is unnamed/unidentified (staff, announcer, bystander), use "Unknown".
 
 Reply with **only** a JSON object mapping dialogue segment index (string) to speaker name, wrapped in a single fenced `json` block. Use character names as they appear in the text (e.g. "Horikita", "Chabashira-sensei", "Mii-chan"). Include EVERY dialogue segment.
 
-Example (POV = Ayanokouji):
+Example (Narrator = Ayanokouji):
 
 ```json
 {"3": "Chabashira-sensei", "6": "Horikita", "8": "Narrator", "11": "Ayanokouji", "14": "Narrator"}
 ```
 
-Index 8 is an embedded quoted phrase inside narration. Index 14 is a long mis-tagged narration block. Index 11 is Ayanokouji speaking actual dialogue ("I said …" → POV character's name).
+Index 8 is an embedded quoted phrase inside narration. Index 14 is a long mis-tagged narration block. Index 11 is Ayanokouji speaking actual dialogue ("I said …" → narrator character's name).
 
 No explanation, no prose, no tool calls — just the fenced JSON block.
 
@@ -110,7 +110,7 @@ No explanation, no prose, no tool calls — just the fenced JSON block.
 
 If the chapter has more than 8 chunks, run remaining chunks in a second batch after the first completes.
 
-If `pov_character` is `null` (third-person chapter), the substituted prompt reads as `The narrator ("I") is None.` — harmless because a third-person chapter shouldn't produce any `"I"` speakers, and rule 7 (mis-tagged narration → "Narrator") still applies. Pass it through as-is.
+If `narrator` is `null` (omniscient chapter), the substituted prompt reads as `The narrator ("I") is None.` — harmless because a third-person chapter shouldn't produce any `"I"` speakers, and rule 7 (mis-tagged narration → "Narrator") still applies. Pass it through as-is.
 
 #### Step 3: Merge and save
 
@@ -126,7 +126,7 @@ Pass it to the merge script via `--results`:
 python -m automations.ln_voice_over.scripts.merge_attributions '<metadata_json>' --results '<results_json>'
 ```
 
-The script merges overlaps, normalizes "I" → POV character (skipped when POV is null), writes `extracted/chapter_<file_id>/claude-sonnet_skill_<date>.json`, cleans up `tmp_dir`, and prints a report.
+The script merges overlaps, normalizes "I" → Narrator character (skipped when `narrator` is null), writes `extracted/chapter_<file_id>/claude-sonnet_skill_<date>.json`, cleans up `tmp_dir`, and prints a report.
 
 Report the save path and speaker breakdown.
 
@@ -140,7 +140,7 @@ When no chapter number is supplied:
    python -c "import json, pathlib; print(pathlib.Path.home() / '.assistant' / 'ln_voice_over' / 'projects' / '<slug>' / 'chapters' / 'manifest.json')"
    ```
 
-   Then use the **Read** tool on that path. The manifest is a list of `{number, title, file, pov_character}` entries.
+   Then use the **Read** tool on that path. The manifest is a list of `{number, title, file, narrator_status, narrator}` entries.
 
 2. For each entry, compute the attribution output directory: `~/.assistant/ln_voice_over/projects/<slug>/extracted/chapter_<file_id>/` where `<file_id>` is the `file` field with the `chapter_` prefix and `.txt` suffix stripped (e.g. `chapter_05.txt` → `05`). Use **Glob** to check whether any `claude-sonnet_skill_*.json` already exists in that directory. If yes, skip the chapter.
 

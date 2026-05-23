@@ -1,16 +1,16 @@
 Identify who speaks the marked dialogue in this first-person novel excerpt.
-The narrator ("I") is {pov_character}.
+The narrator ("I") is {narrator}.
 
 Rules:
 - Look for speech tags in narration AFTER the dialogue ("said Horikita", "she replied"). Most reliable signal.
 - Look for speech tags BEFORE the dialogue, but be careful: a tag before may describe the PREVIOUS dialogue.
-- "I said/replied/asked" in narration = {pov_character} is speaking. But "I agreed" or "I figured" is the narrator's THOUGHT, not a speech tag — do not use it to attribute the adjacent dialogue.
+- "I said/replied/asked" in narration = {narrator} is speaking. But "I agreed" or "I figured" is the narrator's THOUGHT, not a speech tag — do not use it to attribute the adjacent dialogue.
 - For pronouns ("he said", "she said"), determine which character is referred to from the surrounding context.
 - A character may speak, get interrupted by narration, then continue speaking — the speech tag may be several segments away.
 - If narration says a character "recited", "repeated", or "read aloud" something, the original speaker of the dialogue may be a different character.
 - When no speech tag exists, infer from conversational flow (alternation, topic, who is addressed).
 - If the marked text is a quoted word or phrase embedded in narration (not actual speech), the speaker is "Narrator".
-- If the marked text is a long block of first-person narration, exposition, or inner thought (typically >300 chars, no speech tag at either end, often spans multiple sentences), the parser has mis-tagged narration as dialogue. The speaker is "Narrator", NOT the POV character's name.
+- If the marked text is a long block of first-person narration, exposition, or inner thought (typically >300 chars, no speech tag at either end, often spans multiple sentences), the parser has mis-tagged narration as dialogue. The speaker is "Narrator", NOT the narrator character's name.
 - If the speaker is unnamed/unidentified (staff, announcer, bystander), the speaker is "Unknown".
 
 You may also be provided with recent attributions from previous dialogues. Use them to understand the conversation pattern, but verify independently — they may contain errors.

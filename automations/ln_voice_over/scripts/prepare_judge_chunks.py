@@ -48,7 +48,8 @@ def main() -> None:
     if entry is None:
         print(f"ERROR: Chapter '{chapter_raw}' not in manifest", file=sys.stderr)
         sys.exit(1)
-    pov_character = entry["pov_character"]
+    narrator_status = entry["narrator_status"]
+    narrator = entry.get("narrator")
 
     chapter = Chapter.load(chapter_path)
     segments = chapter.segments
@@ -97,7 +98,8 @@ def main() -> None:
         "slug": slug,
         "chapter_raw": chapter_raw,
         "chapter_id": padded,
-        "pov_character": pov_character,
+        "narrator_status": narrator_status,
+        "narrator": narrator,
         "total_segments": total,
         "dialogue_count": dialogue_count,
         "chunks": chunks,
