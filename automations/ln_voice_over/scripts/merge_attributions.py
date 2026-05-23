@@ -104,7 +104,7 @@ def main():
     today = date.today().strftime("%Y%m%d")
     out_path = out_dir / f"claude-sonnet_skill_{today}.json"
 
-    with open(out_path, "w") as f:
+    with out_path.open("w") as f:
         json.dump(sorted_merged, f, indent=2)
 
     # Clean up temp files

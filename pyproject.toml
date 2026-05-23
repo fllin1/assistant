@@ -55,6 +55,7 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["T20"]  # demo/utility scripts can print
+"automations/ln_voice_over/scripts/*" = ["T20"]  # skill helpers print JSON/errors
 
 [tool.ruff.lint.isort]
 known-first-party = ["assistant"]
