@@ -1,5 +1,12 @@
 # LN Voice Over V2 Context
 
+This context is self-contained and applies only to
+`automations/ln_voice_over_v2/`.
+
+The Obsidian LNVO documentation is the shared reference for pipeline vocabulary,
+stage contracts, and cross-project planning notes. This file keeps only the
+package-local context needed by agents working in this code tree.
+
 ## Pipeline Terms
 
 **Prepare** normalizes raw source material into a prepared volume contract.
@@ -27,4 +34,3 @@ Persisted artifacts carry:
 - optional `chapter_id`
 
 Stage contracts may add only the keys they own.
-

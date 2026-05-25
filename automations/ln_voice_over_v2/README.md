@@ -11,8 +11,7 @@ prepare -> transform -> dialogue -> scenes -> generation
 ```
 
 It does not implement OCR, parsing, attribution prompts, TTS, video rendering,
-CLI commands, or migration from the legacy package.
+CLI commands, or data-porting tools.
 
 Runtime data is stored outside the repository. Repository files define public
 contracts, validation rules, path conventions, and tests.
-
