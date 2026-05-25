@@ -1,112 +1,78 @@
-# Assistant Project — Claude Rules
+# Assistant Project - Claude Conductor Rules
 
-## Project Overview
+Claude Code is the conductor for larger project work. Codex agents are the
+implementers.
 
-A Python-based computer control agent. The project has two layers:
-- **Library** (`src/assistant/`): reusable building blocks for computer control, usable by anyone
-- **Automations** (`automations/`): personal scripts that import from the library for specific use cases
+## First Reads
 
-The library starts flat — modules are added as we build them. Structure emerges from usage, not speculation.
+1. Read `AGENTS.md` for repo-wide engineering, testing, branch, and commit
+   rules.
+2. Read the relevant package `AGENTS.md` and `CONTEXT.md` before planning work
+   inside a sub-project.
+3. Read `docs/lnvo/` when the task touches LNVO vocabulary, pipeline contracts,
+   or cross-project planning.
 
-## Workflow Rules
+## Project Map
 
-### Scope Control
-- **One module/feature per edit session.** Never touch unrelated modules in the same session.
-- Each agent (subagent) must limit its edits to a single module or feature.
-- If a change requires touching multiple modules, discuss the plan first and proceed module by module.
+| Area | Role |
+| --- | --- |
+| `src/assistant/` | reusable library code. |
+| `automations/` | self-contained personal automations. |
+| `docs/lnvo/` | repo-tracked LNVO reference docs, viewable from Obsidian. |
+| package `CONTEXT.md` | local vocabulary and execution context for one package. |
 
-### Commit Discipline
-- **Pause and commit after tests pass.** Do not continue to the next feature without committing.
-- Use **Conventional Commits**: `feat(module):`, `fix(module):`, `refactor(module):`, `docs:`, `test:`, `chore:`.
-- Commit messages should explain *why*, not just *what*.
-- Remind the user to commit if they haven't after completing a feature.
+## Claude Responsibilities
 
-### Branch Management (GitHub Flow)
-- `main` is always deployable.
-- Create a feature branch for each new feature: `feat/short-description`.
-- Fix branches: `fix/short-description`.
-- Remind the user to merge completed feature branches back to main.
-- Remind the user to delete merged branches.
+- clarify goals, scope, acceptance criteria, and review gates;
+- choose the execution sequence;
+- split implementation into bounded Codex-agent tasks;
+- preserve consistency across docs, contracts, code, and tests;
+- integrate agent results before presenting completion;
+- surface unresolved decisions instead of hiding contract changes.
 
-### Documentation
-- Every module must have a module-level docstring explaining its purpose.
-- Public functions use **Google-style docstrings** — skip docstrings for trivial/self-explanatory functions.
+## Delegation Protocol
 
-## Code Style
+Each Codex-agent task should include:
 
-### Formatting & Linting
-- **Ruff** is the single tool for formatting and linting. Run `ruff check .` and `ruff format .`.
-- If handwritten code by the user does not pass ruff, notify them.
+- objective;
+- allowed files or module scope;
+- input contracts or reference docs;
+- expected output;
+- verification command;
+- stop condition.
 
-### Type Hints
-- **Pragmatic**: type all public function signatures and complex internal functions.
-- Skip type hints for trivial local variables and obvious cases.
+## Contract Changes
 
-### Error Handling
-- **No `try/except` unless genuinely necessary** (e.g., external I/O, network calls, user input).
-- Never use bare `except:` or `except Exception:` as a catch-all.
-- Let errors propagate naturally — don't swallow them.
+Public contract changes update the full reference set:
 
-### Code Comments
-- Write brief comments on non-trivial blocks explaining **what** the block does and **why** this approach was chosen.
-- Target audience: the user and future AI assistants reading the code.
-- Key things to call out: design trade-offs, platform-specific behavior, non-obvious constraints, and links to related modules.
-- Do NOT comment obvious code. `# increment counter` above `counter += 1` is noise.
+- `docs/lnvo/` reference page;
+- Pydantic contract model;
+- validator or round-trip tests;
+- package `CONTEXT.md` only when local vocabulary changes.
 
-### General
-- No unnecessary abstractions. Three similar lines > premature abstraction.
-- No speculative features or "just in case" code.
-- Imports: stdlib first, then third-party, then local. Ruff handles ordering.
+Do not silently change public stage names, artifact paths, enum values, or
+required keys.
 
-## Testing
-- **pytest** is the testing framework.
-- Tests live in `tests/` mirroring the `src/` structure.
-- Test file naming: `test_<module>.py`.
-- Run `pytest` before committing. Do not commit if tests fail.
+## Documentation Model
 
-## Two-Tier Rules
+`docs/lnvo/` is the canonical Markdown source for LNVO reference material.
+Obsidian is the editing and canvas surface for those files.
 
-### Library (`src/assistant/`)
-- Changes require careful review and discussion.
-- Must maintain backward compatibility with existing automations.
-- Must have tests before merging.
-- Public APIs must be typed and documented.
+External Obsidian notes and Canvas sketches are working material. Promote only
+stable reference docs into the repo.
 
-### Automations (`automations/`)
-- Greater autonomy allowed — a well-written planning prompt should be sufficient to generate an automation.
-- Each automation is a self-contained script or module.
-- Automations import from the library but never modify it.
-- Automations should include a docstring explaining what they do and how to use them.
+README files are user-facing entry points. `CONTEXT.md` files are agent-facing
+local context.
 
-## Documentation Maintenance
-- The root `README.md` describes the **library** (`src/assistant/`): its modules, CLI commands, and roadmap. It should not document automations — those have their own READMEs.
-- When library modules, CLI commands, or the roadmap change, update the root `README.md` to match.
-- Each automation under `automations/` should have its own `README.md` documenting its purpose and CLI usage.
-- The Obsidian workspace is the shared reference layer for repo sub-projects.
-  Keep repo-local context files focused on the package they govern, and use
-  Obsidian docs for cross-project vocabulary, pipeline contracts, and planning
-  notes.
+## Completion Output
 
-## Claude Role
+When reporting completed work, include:
 
-Claude Code acts as the orchestrator/conductor for larger project work:
+- result;
+- agents or slices used;
+- files changed;
+- verification evidence;
+- review checklist;
+- unresolved risks or decisions.
 
-- clarify goals, sequencing, and review gates;
-- decompose work into bounded implementation slices;
-- delegate implementation and verification slices to Codex agents;
-- integrate agent results against the Obsidian reference and local context files;
-- avoid silently changing public contracts without an explicit documented
-  decision.
-
-Codex agents act as implementers: they own scoped code edits, tests, and
-verification evidence for the slice they are assigned.
-
-## Reminders for Claude
-- Always read a file before editing it.
-- Notify the user if their code doesn't match the style guidelines.
-- After completing a feature: remind to commit.
-- After completing a feature or set of changes: **provide a review plan** — a step-by-step checklist for the user to code-review and hand-test the changes. Include: files to read in order, test commands, manual verification steps, and edge cases to try.
-- Before starting work: check which branch we're on and whether it's the right one.
-- Every feature in `src/assistant/` must be linked to a GitHub Issue. If no issue exists, create one before starting work. Work on the branch that matches the feature scope — don't add unrelated features to an existing branch. Changes scoped to `automations/` do **not** require an issue.
-- When in doubt about scope, ask — don't expand silently.
-- Do not commit unless the user explicitly tells you to.
+Do not commit unless the user explicitly asks Claude Code to commit.

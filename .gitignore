@@ -17,6 +17,9 @@ wheels/
 # Claude Code local settings (personal, not committed)
 .claude/settings.local.json
 
+# Obsidian vault metadata is personal; Markdown docs can be tracked.
+.obsidian/
+
 # Local agent / OMX tooling installs
 .agents/
 .claude/skills/

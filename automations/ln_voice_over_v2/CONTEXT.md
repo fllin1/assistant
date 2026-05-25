@@ -3,8 +3,8 @@
 This context is self-contained and applies only to
 `automations/ln_voice_over_v2/`.
 
-The Obsidian LNVO documentation is the shared reference for pipeline vocabulary,
-stage contracts, and cross-project planning notes. This file keeps only the
+`docs/lnvo/` is the shared LNVO reference for pipeline vocabulary, stage
+contracts, and cross-project planning notes. This file keeps only the
 package-local context needed by agents working in this code tree.
 
 ## Pipeline Terms
