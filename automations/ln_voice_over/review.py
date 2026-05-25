@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from .models import Chapter, CharacterRegistry, Segment, SegmentType
+from .models import Chapter, CharacterRegistry, NarratorStatus, Segment, SegmentType
 
 RESERVED_SPEAKERS = {"Narrator", "Unknown"}
 
@@ -30,6 +30,9 @@ def build_reviewed_chapter(
     may contain aliases or raw LLM names; this module canonicalises what it can
     and refuses to produce reviewed output while any Registry gap remains.
     """
+    parsed_chapter = parsed_chapter.model_copy(
+        update={"narrator": _canonicalise_narrator(parsed_chapter, registry)}
+    )
     overrides = _canonical_overrides(corrections, parsed_chapter, registry)
     changes: list[dict] = []
     reviewed_segments: list[Segment] = []
@@ -64,6 +67,18 @@ def build_reviewed_chapter(
 def validate_reviewed_chapter(chapter: Chapter, registry: CharacterRegistry) -> None:
     """Validate the canonical Speaker grammar for reviewed Chapter data."""
     problems: list[str] = []
+
+    if chapter.narrator_status != NarratorStatus.DETECTED:
+        problems.append("chapter narrator detection has not run")
+    elif chapter.narrator is not None:
+        character = registry.find(chapter.narrator)
+        if character is None:
+            problems.append(f"chapter narrator has unresolved Registry gap: {chapter.narrator!r}")
+        elif character.name != chapter.narrator:
+            problems.append(
+                f"chapter narrator must use canonical name {character.name!r}, "
+                f"not {chapter.narrator!r}"
+            )
 
     for segment in chapter.segments:
         prefix = f"segment {segment.index} ({segment.segment_type.value})"
@@ -131,6 +146,15 @@ def _canonicalise_attribution(
         return _canonicalise_character(chapter.narrator, registry)
 
     return _canonicalise_character(speaker, registry)
+
+
+def _canonicalise_narrator(chapter: Chapter, registry: CharacterRegistry) -> str | None:
+    if chapter.narrator is None:
+        return None
+    narrator = chapter.narrator.strip()
+    if not narrator:
+        return None
+    return _canonicalise_character(narrator, registry)
 
 
 def _canonicalise_character(raw: str, registry: CharacterRegistry) -> str:
