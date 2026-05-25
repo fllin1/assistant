@@ -14,6 +14,10 @@ prepare -> transform -> dialogue -> scenes -> generation
 
 Use only this package's stage vocabulary in public contracts.
 
+This sub-project is self-contained. Follow the root rule files, this file, and
+the local context/reference files this file names; ignore conventions from
+sibling automations or unrelated repo docs.
+
 ## Boundaries
 
 - This slice owns contracts, validation, path conventions, and orchestration data.

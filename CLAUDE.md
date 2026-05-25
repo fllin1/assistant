@@ -21,6 +21,10 @@ implementers.
 | `docs/lnvo/` | repo-tracked LNVO reference docs, viewable from Obsidian. |
 | package `CONTEXT.md` | local vocabulary and execution context for one package. |
 
+Automation sub-projects are self-contained. Apply only the relevant
+`AGENTS.md` / `CLAUDE.md` files and the files they explicitly name. Ignore
+conventions from sibling automations or unrelated repo docs.
+
 ## Claude Responsibilities
 
 - clarify goals, scope, acceptance criteria, and review gates;
