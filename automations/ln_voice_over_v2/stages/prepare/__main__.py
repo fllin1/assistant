@@ -67,7 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--story-profile")
     parser.add_argument("--data-root", type=Path, default=paths.DEFAULT_PROJECT_DATA_ROOT)
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--ocr-model", default="gpt-5-mini")
+    parser.add_argument("--ocr-model", default="gpt-5.5")
     force_group = parser.add_mutually_exclusive_group()
     force_group.add_argument("--force", action="store_true")
     force_group.add_argument("--force-ocr", action="store_true")

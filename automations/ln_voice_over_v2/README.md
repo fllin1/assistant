@@ -22,7 +22,7 @@ contracts, validation rules, path conventions, and tests.
 
 - `anyflip-downloader` on `PATH` (install per the upstream project's instructions; the LNVO v2 runner only shells out to it).
 - `codex` CLI on `PATH`, and the user must have signed in once via `codex login` using their ChatGPT subscription. The runner does not handle auth.
-- The default OCR model id is `gpt-5-mini`. If the user's installed `codex` CLI rejects that id, every page will fail uniformly during the first run — change the `--ocr-model` flag to a model the CLI accepts.
+- The default OCR model id is `gpt-5.5` — the model the Codex CLI exposes for ChatGPT-account auth. If your `codex` CLI rejects that id, every page will fail uniformly during the first run — pass `--ocr-model <name>` to switch to a model the CLI accepts (e.g. probe with `printf hi | codex exec -m <name> -s read-only --skip-git-repo-check`).
 
 **CLI usage:**
 
@@ -33,7 +33,7 @@ python -m automations.ln_voice_over_v2.stages.prepare \
     --volume v4
 ```
 
-Optional flags: `--story-profile <slug>` (defaults to `<series>`), `--data-root <path>` (defaults to `~/.assistant/ln_voice_over_v2/projects`), `--workers <int>` (default 4), `--ocr-model <name>` (default `gpt-5-mini`), `--force`, `--force-ocr`.
+Optional flags: `--story-profile <slug>` (defaults to `<series>`), `--data-root <path>` (defaults to `~/.assistant/ln_voice_over_v2/projects`), `--workers <int>` (default 4), `--ocr-model <name>` (default `gpt-5.5`), `--force`, `--force-ocr`.
 
 **Expected runtime layout (under `~/.assistant/ln_voice_over_v2/projects/<series>/<volume>/`):**
 

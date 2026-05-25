@@ -24,7 +24,7 @@ class OcrPageResult(BaseModel):
 def run_codex_ocr(
     page_image: Path,
     *,
-    model: str = "gpt-5-mini",
+    model: str = "gpt-5.5",
     executable: str = "codex",
     timeout_seconds: int = 180,
     prompt: str = OCR_PROMPT,
