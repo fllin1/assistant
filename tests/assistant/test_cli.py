@@ -2,10 +2,11 @@
 
 from unittest.mock import patch
 
+from PIL import Image
+from tests.conftest import make_fake_monitors, make_fake_screenshot
 from typer.testing import CliRunner
 
 from assistant.cli import app
-from tests.conftest import make_fake_monitors, make_fake_screenshot
 
 runner = CliRunner()
 
@@ -79,3 +80,15 @@ def test_capture_custom_label(mock_mss, tmp_path):
     assert result.exit_code == 0
     saved_files = list(tmp_path.glob("*debug*.png"))
     assert len(saved_files) == 1
+
+
+@patch("assistant.input.left_click")
+@patch("assistant.screen.grid_to_screen_pixel", return_value=(1970, 50))
+@patch("assistant.screen.capture_screen", return_value=Image.new("RGB", (1000, 800)))
+def test_click_grid_cell_uses_absolute_screen_pixel(mock_capture, mock_grid, mock_click):
+    result = runner.invoke(app, ["click", "A1", "--monitor", "2"])
+
+    assert result.exit_code == 0
+    mock_capture.assert_called_once_with(monitor=2)
+    mock_grid.assert_called_once_with("A1", monitor=2, image_size=(1000, 800))
+    mock_click.assert_called_once_with(1970, 50)

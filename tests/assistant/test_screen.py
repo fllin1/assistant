@@ -6,17 +6,19 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from tests.conftest import make_fake_monitors, make_fake_screenshot
 
 from assistant.screen import (
     DEFAULT_CAPTURES_DIR,
     capture_region,
     capture_screen,
+    get_monitor_geometry,
     grid_to_pixel,
+    grid_to_screen_pixel,
     list_monitors,
     overlay_grid,
     save_capture,
 )
-from tests.conftest import make_fake_monitors, make_fake_screenshot
 
 # -- capture_screen --
 
@@ -36,14 +38,23 @@ def test_capture_screen_returns_rgb_image(mock_mss):
 
 @patch("assistant.screen.mss.mss")
 def test_capture_screen_default_monitor(mock_mss):
-    """Default monitor=0 captures the combined virtual screen."""
+    """Default monitor captures the primary display."""
     sct = mock_mss.return_value.__enter__.return_value
     sct.monitors = make_fake_monitors()
-    sct.grab.return_value = make_fake_screenshot(3840, 1080)
+    sct.grab.return_value = make_fake_screenshot(1920, 1080)
 
     capture_screen()
 
-    sct.grab.assert_called_once_with(sct.monitors[0])
+    sct.grab.assert_called_once_with(sct.monitors[1])
+
+
+@patch("assistant.screen.mss.mss")
+def test_capture_screen_rejects_invalid_monitor(mock_mss):
+    sct = mock_mss.return_value.__enter__.return_value
+    sct.monitors = make_fake_monitors()
+
+    with pytest.raises(ValueError, match="Monitor index 9 is out of range"):
+        capture_screen(monitor=9)
 
 
 # -- capture_region --
@@ -77,6 +88,16 @@ def test_list_monitors_returns_list(mock_mss):
     for m in result:
         assert isinstance(m, dict)
         assert set(m.keys()) >= {"left", "top", "width", "height"}
+
+
+@patch("assistant.screen.mss.mss")
+def test_get_monitor_geometry_returns_absolute_position(mock_mss):
+    sct = mock_mss.return_value.__enter__.return_value
+    sct.monitors = make_fake_monitors()
+
+    result = get_monitor_geometry(2)
+
+    assert result == {"left": 1920, "top": 0, "width": 1920, "height": 1080}
 
 
 # -- save_capture --
@@ -204,3 +225,30 @@ def test_grid_to_pixel_case_insensitive():
     lower = grid_to_pixel("b2", image_size=(1000, 800))
 
     assert upper == lower
+
+
+def test_grid_to_pixel_rejects_invalid_cell():
+    with pytest.raises(ValueError, match="Invalid grid cell"):
+        grid_to_pixel("AA1", image_size=(1000, 800))
+
+
+def test_grid_to_pixel_rejects_out_of_range_cell():
+    with pytest.raises(ValueError, match="outside A1-J8"):
+        grid_to_pixel("K1", image_size=(1000, 800), cols=10, rows=8)
+
+
+def test_overlay_grid_rejects_too_many_columns():
+    img = Image.new("RGB", (100, 100))
+
+    with pytest.raises(ValueError, match="cannot exceed 26"):
+        overlay_grid(img, cols=27, rows=8)
+
+
+@patch("assistant.screen.mss.mss")
+def test_grid_to_screen_pixel_adds_monitor_offset(mock_mss):
+    sct = mock_mss.return_value.__enter__.return_value
+    sct.monitors = make_fake_monitors()
+
+    x, y = grid_to_screen_pixel("A1", monitor=2, image_size=(1000, 800), cols=10, rows=8)
+
+    assert (x, y) == (1970, 50)

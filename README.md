@@ -1,17 +1,16 @@
 # Assistant
 
-A Python-based computer control agent. Takes screenshots, reasons about what's on screen using vision models, and executes actions (click, type, navigate) to accomplish tasks on your behalf.
+A Python package for local screen capture and input control. The experimental prototype
+has been removed so the next design can start from a clean base.
 
 ## How It Works
 
-The agent operates in a **capture → reason → act** loop:
+The current package exposes simple local primitives:
 
-1. Capture a screenshot and overlay a labeled grid
-2. Send the annotated image to a vision model (via OpenRouter or local Ollama)
-3. Model responds with a structured JSON action referencing grid cells (e.g., `left_click B3`)
-4. Execute the action, capture the new state, repeat
-
-Grid-based targeting is model-agnostic, token-efficient, and more precise than raw coordinate prediction.
+1. Capture a screenshot or monitor geometry
+2. Optionally overlay a labeled grid
+3. Convert grid cells to absolute screen coordinates
+4. Execute explicit mouse and keyboard actions
 
 ## Library Modules (`src/assistant/`)
 
@@ -19,9 +18,7 @@ Grid-based targeting is model-agnostic, token-efficient, and more precise than r
 |--------|---------|
 | `screen` | Screenshot capture (mss), monitor listing, grid overlay, grid-to-pixel conversion |
 | `input` | Mouse and keyboard control (PyAutoGUI) with action dispatcher |
-| `vision` | Vision model integration — sends annotated screenshots, parses structured responses |
-| `agent` | Agent loop: capture → reason → act → verify. Session logging as JSONL |
-| `config` | Centralized model defaults and provider settings |
+| `config` | Centralized package defaults |
 | `cli` | Typer CLI wrapping all modules into user-facing commands |
 
 ## CLI Usage
@@ -39,21 +36,16 @@ assistant click 500,300          # click pixel coordinates
 assistant type "hello world"     # type text at cursor
 assistant key "ctrl+s"           # press a key combo
 
-# Agent loop
-assistant run "open Safari and search for weather"  # full autonomous loop
-assistant run "close this dialog" --dry-run          # analyze without acting
-assistant run "fill in the form" --provider ollama   # use local model
-
 assistant --version
 ```
 
 ## Project Structure
 
 ```
-src/assistant/       # Reusable library — screen capture, input, vision, agent loop
+src/assistant/       # Reusable library: screen capture, monitor geometry, input control
 automations/         # Personal automation scripts built on the library (see automations/README.md)
-tests/               # Mirrors src/ structure
-docs/                # Conventions, brainstorming
+tests/               # Grouped tests for assistant, automations, and scripts
+docs/                # Conventions and generated architecture notes
 ```
 
 ## Roadmap
@@ -62,11 +54,8 @@ docs/                # Conventions, brainstorming
 |-------|------|--------|
 | 1 | Screen capture (mss + PIL) | Done |
 | 2 | CLI (typer) | Done |
-| 3 | Input, vision, and agent loop | Done |
-| 4 | Claude Code skills | Planned |
-| 5 | Memory / RAG (SQLite FTS5) | Planned |
-
-See [docs/BRAINSTORMING.md](docs/BRAINSTORMING.md) for architecture decisions and feature vision.
+| 3 | Input control | Done |
+| 4 | Future interaction research | Parked for separate repo |
 
 ## Development
 
@@ -75,7 +64,9 @@ Requires Python 3.12+. Uses [uv](https://docs.astral.sh/uv/) for package managem
 ```bash
 uv pip install -e ".[dev]"        # install
 uv run ruff check . && uv run ruff format .  # lint + format
-uv run pytest                      # test
+uv run pytest                      # all non-live tests
+uv run pytest tests/assistant      # core assistant package tests
+uv run pytest tests/automations    # automation project tests
 ```
 
 See [docs/CONVENTIONS.md](docs/CONVENTIONS.md) for the full workflow guide (git, commits, testing, style).

@@ -9,9 +9,12 @@ internally — the conversion happens here so callers never deal with it.
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import mss
 from PIL import Image, ImageDraw, ImageFont
+
+from assistant.config import DEFAULT_MONITOR
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_CAPTURES_DIR = Path.home() / ".assistant" / "captures"
 
 
-def capture_screen(monitor: int = 0) -> Image.Image:
+def capture_screen(monitor: int = DEFAULT_MONITOR) -> Image.Image:
     """Capture a full monitor.
 
     Args:
@@ -30,10 +33,18 @@ def capture_screen(monitor: int = 0) -> Image.Image:
         PIL Image in RGB format.
     """
     with mss.mss() as sct:
-        raw = sct.grab(sct.monitors[monitor])
+        geometry = _select_monitor(sct.monitors, monitor)
+        raw = sct.grab(geometry)
         # mss returns BGRA; convert to RGB via BGRX (ignore alpha)
         img = Image.frombytes("RGB", raw.size, raw.rgb)
-        logger.debug("Captured monitor %d: %dx%d", monitor, img.width, img.height)
+        logger.debug(
+            "Captured monitor %d at (%d,%d): %dx%d",
+            monitor,
+            geometry["left"],
+            geometry["top"],
+            img.width,
+            img.height,
+        )
         return img
 
 
@@ -70,6 +81,17 @@ def list_monitors() -> list[dict[str, int]]:
     """
     with mss.mss() as sct:
         return [dict(m) for m in sct.monitors]
+
+
+def get_monitor_geometry(monitor: int = DEFAULT_MONITOR) -> dict[str, int]:
+    """Return absolute desktop geometry for a monitor index.
+
+    mss uses index 0 for the combined virtual desktop. PyAutoGUI coordinates are
+    absolute, so callers that convert screenshot-local positions must add this
+    offset before acting on the real screen.
+    """
+    with mss.mss() as sct:
+        return _select_monitor(sct.monitors, monitor)
 
 
 def save_capture(
@@ -125,6 +147,8 @@ def overlay_grid(
     Returns:
         A new image with the grid overlay. The input is not modified.
     """
+    _validate_grid_dimensions(cols, rows)
+
     annotated = image.copy()
     draw = ImageDraw.Draw(annotated, "RGBA")
     w, h = annotated.size
@@ -187,11 +211,7 @@ def grid_to_pixel(
     Returns:
         (x, y) pixel coordinates at the center of the cell.
     """
-    col_letter = cell[0].upper()
-    row_number = int(cell[1:])
-
-    col_index = ord(col_letter) - ord("A")
-    row_index = row_number - 1
+    col_index, row_index = _parse_grid_cell(cell, cols, rows)
 
     w, h = image_size
     cell_w = w / cols
@@ -201,3 +221,47 @@ def grid_to_pixel(
     y = int(row_index * cell_h + cell_h / 2)
 
     return (x, y)
+
+
+def grid_to_screen_pixel(
+    cell: str,
+    monitor: int,
+    image_size: tuple[int, int],
+    cols: int = 10,
+    rows: int = 8,
+) -> tuple[int, int]:
+    """Convert a grid cell reference to absolute screen coordinates."""
+    local_x, local_y = grid_to_pixel(cell, image_size, cols=cols, rows=rows)
+    geometry = get_monitor_geometry(monitor)
+    return (geometry["left"] + local_x, geometry["top"] + local_y)
+
+
+def _select_monitor(monitors: list[Any], monitor: int) -> dict[str, int]:
+    if monitor < 0 or monitor >= len(monitors):
+        available = f"0-{len(monitors) - 1}"
+        raise ValueError(f"Monitor index {monitor} is out of range. Available: {available}")
+    return dict(monitors[monitor])
+
+
+def _validate_grid_dimensions(cols: int, rows: int) -> None:
+    if cols < 1 or rows < 1:
+        raise ValueError("Grid dimensions must be positive")
+    if cols > 26:
+        raise ValueError("Grid columns cannot exceed 26 with A-Z labels")
+
+
+def _parse_grid_cell(cell: str, cols: int, rows: int) -> tuple[int, int]:
+    _validate_grid_dimensions(cols, rows)
+
+    normalized = cell.strip()
+    if len(normalized) < 2 or not normalized[0].isalpha() or not normalized[1:].isdigit():
+        raise ValueError(f"Invalid grid cell: {cell!r}")
+
+    col_index = ord(normalized[0].upper()) - ord("A")
+    row_index = int(normalized[1:]) - 1
+
+    if col_index < 0 or col_index >= cols or row_index < 0 or row_index >= rows:
+        max_cell = f"{chr(64 + cols)}{rows}"
+        raise ValueError(f"Grid cell {cell!r} is outside A1-{max_cell}")
+
+    return col_index, row_index
