@@ -1,13 +1,12 @@
-"""Light novel text-to-audiobook pipeline with per-character voice synthesis.
+"""Light novel text-to-reviewed-attribution pipeline.
 
-Converts raw light novel text files into multi-voice audiobooks by:
-1. Splitting volumes into chapters
-2. Cleaning text artifacts (watermarks, page numbers)
-3. Parsing text into typed segments (narration, dialogue, thoughts)
-4. Attributing dialogue to characters via LLM
-5. Manual review of attributions
-6. TTS synthesis with per-character voices and audio assembly
+Converts a light novel Volume into reviewed, speaker-attributed chapter JSON by:
+1. Splitting source material into chapters.
+2. Cleaning text artifacts and parsing typed segments.
+3. Attributing dialogue to speakers via LLM-assisted workflows.
+4. Reviewing and validating the canonical attribution output.
 
 Each stage is independently runnable. Intermediate results are stored as
-inspectable JSON/text files under ~/.assistant/ln_voice_over/projects/<book-slug>/.
+inspectable JSON/text files under
+~/.assistant/ln_voice_over/projects/<series>/<volume>/.
 """

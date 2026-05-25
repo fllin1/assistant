@@ -8,6 +8,9 @@ package-local context needed by agents working in this code tree.
 
 A pipeline that turns a light novel volume into per-chapter JSON of typed, speaker-attributed segments — eventually feeding a TTS layer where each character has a distinct voice.
 
+For the code organization, data-flow contracts, and module interface cards, see
+[`docs/architecture.md`](docs/architecture.md).
+
 ## Language
 
 **Volume**:
@@ -22,7 +25,7 @@ _Avoid_: franchise
 A top-level division of a volume, identified by a chapter number.
 
 **Sub-chapter**:
-A division *inside* a chapter where the **Narrator** changes. Signaled by the publisher with bare `N.M` marker lines (e.g. `7.1`, `7.2`). The publisher uses these markers iff the Narrator shifts — a Narrator change without an `N.M` marker is not expected, and `N.M` markers do not appear for any other reason. Detection requires ≥ 2 such markers in the same chapter with strictly-increasing minors and major matching the chapter number; this guards against incidental single markers (footnotes, problem numbers like `2.1`).
+A division *inside* a chapter where the **Narrator** changes. Signaled by the publisher with bare `N.M` marker lines (e.g. `7.1`, `7.2`). The publisher uses these markers iff the Narrator shifts — a Narrator change without an `N.M` marker is not expected, and `N.M` markers do not appear for any other reason. Detection requires ≥ 2 such markers in the same chapter with minors exactly `1..N` and a major number matching the chapter number; this guards against incidental single markers (footnotes, problem numbers like `2.1`).
 _Avoid_: section, scene (a scene break is a different concept — see **Scene break**)
 
 **Segment**:
