@@ -26,4 +26,10 @@ wheels/
 .codex/
 skills-lock.json
 
+# Local OMC runtime state. Commit durable plan artifacts under .omc/plans/
+# only when they are intentionally part of the branch handoff.
+.omc/state/
+.omc/sessions/
+.omc/project-memory.json
+
 .DS_Store
