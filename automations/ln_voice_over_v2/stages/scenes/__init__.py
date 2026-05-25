@@ -1,0 +1,1 @@
+"""Scenes stage contracts."""
