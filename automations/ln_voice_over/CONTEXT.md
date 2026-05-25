@@ -1,5 +1,11 @@
 # LN Voice Over
 
+This context is self-contained and applies only to `automations/ln_voice_over/`.
+
+The Obsidian LNVO documentation is the shared reference for pipeline vocabulary,
+stage contracts, and cross-project planning notes. This file keeps only the
+package-local context needed by agents working in this code tree.
+
 A pipeline that turns a light novel volume into per-chapter JSON of typed, speaker-attributed segments — eventually feeding a TTS layer where each character has a distinct voice.
 
 ## Language
