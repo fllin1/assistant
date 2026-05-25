@@ -5,10 +5,12 @@ The `/setup-book` Claude skill handles the full source-acquisition flow: downloa
 This doc covers the one-time prerequisite installs. Once those are in place, usage is just:
 
 ```
-/setup-book <anyflip-url> <book-slug>
+/setup-book <anyflip-url> <series>/<volume>
 ```
 
-See `.claude/commands/setup-book.md` for the skill's step-by-step logic.
+See `.claude/commands/setup-book.md` for the skill's step-by-step logic and
+[architecture.md](architecture.md) for how SOURCE feeds the rest of the
+pipeline.
 
 ## Prerequisites
 
@@ -50,7 +52,7 @@ If `anyflip-downloader` fails (some books have download protection), fall back t
 1. Open the book in your browser: e.g. `https://anyflip.com/cnyjl/qwpk/`
 2. Use the browser's Print dialog (Cmd+P on Mac)
 3. Select "Save as PDF"
-4. Save to `~/.assistant/ln_voice_over/projects/<book-slug>/source/volume.pdf`
+4. Save to `~/.assistant/ln_voice_over/projects/<series>/<volume>/source/volume.pdf`
 
 Then skip Step 1 of `/setup-book` and start from Step 2 (the skill auto-detects any `*.pdf` in `source/`).
 
@@ -63,12 +65,15 @@ After `/setup-book` finishes, the project's `source/` directory contains:
 - `pages.json` — per-page classification (text / color_illustration / small)
 - `book.json` — the structured output: chapters with OCR'd text, front-matter illustrations, per-chapter illustrations, back-matter
 
-`lnvo split <slug>` picks up `book.json` automatically — no further configuration.
+`lnvo split <series>/<volume>` picks up `book.json` automatically; no further configuration is needed.
 
 ## What's next
 
 ```
-SPLIT → CLEAN → PARSE → EXTRACT → RESOLVE → REVIEW → SYNTHESIZE
+SOURCE -> SPLIT -> PARSE -> EXTRACT -> REVIEW
 ```
 
-See the main [README](../README.md) for each downstream stage.
+The implemented pipeline currently ends at `reviewed/chapter_NN[_M].json`.
+Synthesis is a planned downstream layer documented in [CONTEXT](../CONTEXT.md),
+not an active CLI stage. See the main [README](../README.md) for each current
+downstream stage.

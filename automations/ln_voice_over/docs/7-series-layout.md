@@ -2,6 +2,9 @@
 
 Projects are organized as nested directories under `~/.assistant/ln_voice_over/projects/`: one folder per **series**, with one subfolder per **volume**. The character registry lives at the series level so that all volumes of the same light novel share one cast.
 
+For the full code and data-flow map around this layout, see
+[architecture.md](architecture.md).
+
 ```
 ~/.assistant/ln_voice_over/projects/
 └── classroom-of-the-elite-year-2/          ← SERIES
@@ -61,21 +64,9 @@ lnvo split spice-and-wolf                          # single-volume book → v1
 
 The legacy form is kept as a compatibility shim for muscle memory. New projects should use the canonical form.
 
-## Migration from the flat layout
+## Historical migration from the flat layout
 
-Older project trees were flat (`projects/classroom-of-the-elite-year-2-v7/` with configs inside). A one-time migration script moves them to the nested layout:
-
-```bash
-uv run python -m automations.ln_voice_over.scripts.migrate_to_series \
-    --series classroom-of-the-elite-year-2 \
-    --volume classroom-of-the-elite-year-2-v6:v6 \
-    --volume classroom-of-the-elite-year-2-v7:v7 \
-    --volume classroom-of-the-elite-year-2-v9:v9 \
-    --promote-config-from classroom-of-the-elite-year-2-v7 \
-    --dry-run
-```
-
-Drop `--dry-run` to execute. `--promote-config-from` picks which volume's `config/` becomes the new series-level config (the one with your curated characters).
+Older project trees were flat (`projects/classroom-of-the-elite-year-2-v7/` with configs inside). They were migrated with a one-off local script that is not part of the current repository. If another flat tree needs migration, use the implementation pointers below: create the target series with `create_project(series, volume)`, promote one curated `config/characters.json` to the series `config/`, and move each volume's pipeline directories under its new volume folder.
 
 ## Implementation pointers
 
