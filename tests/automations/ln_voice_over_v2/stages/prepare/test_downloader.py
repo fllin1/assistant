@@ -35,11 +35,11 @@ def test_download_anyflip_invokes_cli_and_returns_pdf(tmp_path: Path) -> None:
     run.assert_called_once_with(
         [
             "downloader-test",
-            "--url",
+            "-title",
+            dest_pdf.stem,
             "https://anyflip.example/book",
-            "--output",
-            str(dest_pdf),
         ],
+        cwd=dest_pdf.parent,
         capture_output=True,
         text=True,
         timeout=7,
@@ -69,7 +69,7 @@ def test_download_anyflip_raises_when_output_is_missing(tmp_path: Path) -> None:
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="no output")
 
     with (
-        pytest.raises(RuntimeError, match="produced no PDF: no output"),
+        pytest.raises(RuntimeError, match=r"produced no PDF at .*: no output"),
         patch(
             "automations.ln_voice_over_v2.stages.prepare.downloader.subprocess.run",
             return_value=completed,

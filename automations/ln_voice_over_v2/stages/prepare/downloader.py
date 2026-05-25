@@ -31,8 +31,12 @@ def download_anyflip(
         return dest_pdf
 
     dest_pdf.parent.mkdir(parents=True, exist_ok=True)
+    # anyflip-downloader takes the URL as a positional arg and writes <title>.pdf
+    # in the working directory. We pin both via cwd and -title so the resulting
+    # PDF lands exactly at dest_pdf.
     completed = subprocess.run(
-        [executable, "--url", url, "--output", str(dest_pdf)],
+        [executable, "-title", dest_pdf.stem, url],
+        cwd=dest_pdf.parent,
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
@@ -40,5 +44,7 @@ def download_anyflip(
     if completed.returncode != 0:
         raise RuntimeError(completed.stderr)
     if not dest_pdf.is_file() or dest_pdf.stat().st_size <= 0:
-        raise RuntimeError("anyflip-downloader exited 0 but produced no PDF: " + completed.stderr)
+        raise RuntimeError(
+            f"anyflip-downloader exited 0 but produced no PDF at {dest_pdf}: {completed.stderr}"
+        )
     return dest_pdf
