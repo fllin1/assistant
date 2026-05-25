@@ -22,8 +22,19 @@ sibling automations or unrelated repo docs.
 
 - This slice owns contracts, validation, path conventions, and orchestration data.
 - Runtime series and volume data lives outside the repository.
-- Do not add CLI commands, OCR, parsing algorithms, LLM prompts, TTS rendering,
-  visual rendering, data-porting logic, or plugin frameworks here.
+- Stages other than `stages/prepare/` remain contract-only. Do not add CLI
+  commands, OCR, parsing algorithms, LLM prompts, TTS rendering, visual
+  rendering, data-porting logic, or plugin frameworks in `stages/transform/`,
+  `stages/dialogue/`, `stages/scenes/`, `stages/generation/`, or anywhere
+  under `common/`, `pipeline/`, or `series/`.
+- `stages/prepare/` may add a runner, a `python -m`-style CLI, PDF
+  rasterization, one OCR prompt string, and plain module-level seam
+  functions (`run_codex_ocr`, `download_anyflip`) that subprocess external
+  CLIs. These seams are kept as free functions injected via `Callable`
+  keywords, **not** as Protocols/ports/adapters, so the "Code Rules" bullet
+  on empty ports remains satisfied. New external runtime dependencies must
+  be installable via PyPI (e.g. `pymupdf`) or documented in the package
+  README (e.g. `anyflip-downloader`, `codex`). No vendoring.
 - Public contract keys, enum values, artifact paths, and stage names require
   user confirmation before changing.
 
