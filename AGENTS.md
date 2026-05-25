@@ -82,10 +82,10 @@ The library starts flat — modules are added as we build them. Structure emerge
 - The root `README.md` describes the **library** (`src/assistant/`): its modules, CLI commands, and roadmap. It should not document automations — those have their own READMEs.
 - When library modules, CLI commands, or the roadmap change, update the root `README.md` to match.
 - Each automation under `automations/` should have its own `README.md` documenting its purpose and CLI usage.
-- The Obsidian workspace is the shared reference layer for repo sub-projects.
-  Keep repo-local context files focused on the package they govern, and use
-  Obsidian docs for cross-project vocabulary, pipeline contracts, and planning
-  notes.
+- Repo-tracked Obsidian-compatible Markdown under `docs/lnvo/` is the shared
+  LNVO reference layer. Keep package `CONTEXT.md` files focused on the package
+  they govern, and use `docs/lnvo/` for cross-project vocabulary, pipeline
+  contracts, and planning notes.
 
 ## Reminders for Codex
 - Always read a file before editing it.
