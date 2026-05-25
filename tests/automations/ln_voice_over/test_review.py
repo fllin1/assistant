@@ -90,6 +90,7 @@ def test_reviewed_builder_sets_structural_speakers(registry: CharacterRegistry):
         None,
         "Horikita Suzune",
     ]
+    assert reviewed.narrator == "Ayanokouji Kiyotaka"
 
 
 def test_dialogue_accepts_reserved_speakers(registry: CharacterRegistry):
@@ -154,6 +155,38 @@ def test_unresolved_speaker_fails_as_registry_gap(registry: CharacterRegistry):
 
     with pytest.raises(ReviewValidationError, match="Registry gap"):
         build_reviewed_chapter(chapter, {"0": "Mystery Person"}, [], registry)
+
+
+def test_unresolved_narrator_fails_as_registry_gap(registry: CharacterRegistry):
+    chapter = make_chapter(
+        segment(0, SegmentType.NARRATION, "He entered."),
+        narrator="Mystery Person",
+    )
+
+    with pytest.raises(ReviewValidationError, match=r"chapter narrator.*Registry gap"):
+        build_reviewed_chapter(chapter, {}, [], registry)
+
+
+def test_review_canonicalises_narrator_alias(registry: CharacterRegistry):
+    chapter = make_chapter(
+        segment(0, SegmentType.NARRATION, "He entered."),
+        narrator="Horikita",
+    )
+
+    reviewed, _changes = build_reviewed_chapter(chapter, {}, [], registry)
+
+    assert reviewed.narrator == "Horikita Suzune"
+
+
+def test_review_requires_narrator_detection(registry: CharacterRegistry):
+    chapter = make_chapter(
+        segment(0, SegmentType.NARRATION, "He entered."),
+        narrator_status=NarratorStatus.UNSET,
+        narrator=None,
+    )
+
+    with pytest.raises(ReviewValidationError, match="narrator detection has not run"):
+        build_reviewed_chapter(chapter, {}, [], registry)
 
 
 def test_validation_rejects_non_canonical_registry_alias(registry: CharacterRegistry):
@@ -243,7 +276,7 @@ def test_apply_corrections_refreshes_narrator_from_manifest(
 
     reviewed = Chapter.load(project_dir / "reviewed" / "chapter_01.json")
     assert reviewed.narrator_status == NarratorStatus.DETECTED
-    assert reviewed.narrator == "Ayanokouji"
+    assert reviewed.narrator == "Ayanokouji Kiyotaka"
     assert reviewed.segments[0].speaker == "Ayanokouji Kiyotaka"
 
 
