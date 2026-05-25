@@ -37,7 +37,7 @@ class PrepareConfig:
     volume: VolumeId
     data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
     story_profile: ProfileId | None = None
-    ocr_model: str = "gpt-5-mini"
+    ocr_model: str = "gpt-5.5"
     workers: int = 4
     force: bool = False
     force_ocr: bool = False
