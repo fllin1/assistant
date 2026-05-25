@@ -1,16 +1,16 @@
 """CLI interface for the assistant library.
 
-Wraps screen capture, input control, and agent loop in a typer-based CLI.
+Wraps screen capture and input control in a typer-based CLI.
 Entry point configured in pyproject.toml as 'assistant'.
 """
 
-import logging
 from typing import Annotated
 
 import typer
 
-app = typer.Typer(help="Computer control agent with vision-based screen understanding.")
-logger = logging.getLogger(__name__)
+from assistant.config import DEFAULT_MONITOR
+
+app = typer.Typer(help="Local screen capture and input control helpers.")
 
 
 def _version_callback(value: bool) -> None:
@@ -28,12 +28,15 @@ def main(
         typer.Option("--version", callback=_version_callback, is_eager=True),
     ] = None,
 ) -> None:
-    """Computer control agent with vision-based screen understanding."""
+    """Local screen capture and input control helpers."""
 
 
 @app.command()
 def capture(
-    monitor: int = typer.Option(1, help="Monitor index (0=all, 1=primary, 2+=additional)."),
+    monitor: int = typer.Option(
+        DEFAULT_MONITOR,
+        help="Monitor index (0=all, 1=primary, 2+=additional).",
+    ),
     label: str = typer.Option("full", help="Label for the saved file."),
     grid: bool = typer.Option(False, help="Overlay a labeled grid on the screenshot."),
     cols: int = typer.Option(10, help="Grid columns (only with --grid)."),
@@ -69,7 +72,10 @@ def monitors() -> None:
 @app.command()
 def click(
     target: str = typer.Argument(help="Grid cell (e.g., B3) or pixel coords (e.g., 500,300)."),
-    monitor: int = typer.Option(1, help="Monitor for grid resolution (ignored for pixel coords)."),
+    monitor: int = typer.Option(
+        DEFAULT_MONITOR,
+        help="Monitor for grid resolution (ignored for pixel coords).",
+    ),
     right: bool = typer.Option(False, help="Right-click instead of left-click."),
     double: bool = typer.Option(False, help="Double-click."),
 ) -> None:
@@ -109,42 +115,6 @@ def key(
     typer.echo(f"Pressed: {combo}")
 
 
-@app.command()
-def run(
-    task: str = typer.Argument(help="Natural language task description."),
-    max_iterations: int = typer.Option(20, help="Maximum loop iterations."),
-    timeout: float = typer.Option(300.0, help="Timeout in seconds."),
-    monitor: int = typer.Option(1, help="Monitor to capture."),
-    provider: str = typer.Option("openrouter", help="Vision model provider."),
-    model: str | None = typer.Option(None, help="Model name (default depends on provider)."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Analyze but don't execute actions."),
-    grid_cols: int = typer.Option(10, help="Grid columns."),
-    grid_rows: int = typer.Option(8, help="Grid rows."),
-) -> None:
-    """Run the agent to accomplish a task on screen."""
-    from assistant.agent import run_agent
-
-    # Enable logging so the user sees progress
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-    session = run_agent(
-        task=task,
-        max_iterations=max_iterations,
-        timeout_seconds=timeout,
-        monitor=monitor,
-        grid_cols=grid_cols,
-        grid_rows=grid_rows,
-        provider=provider,
-        model=model,
-        dry_run=dry_run,
-    )
-
-    typer.echo(f"\nOutcome: {session.outcome}")
-    typer.echo(f"Steps: {len(session.steps)}")
-    if session.ended_at and session.started_at:
-        typer.echo(f"Duration: {session.ended_at - session.started_at:.1f}s")
-
-
 def _resolve_target(target: str, monitor: int) -> tuple[int, int]:
     """Parse a target string as either pixel coords (500,300) or grid cell (B3)."""
     if "," in target:
@@ -152,7 +122,7 @@ def _resolve_target(target: str, monitor: int) -> tuple[int, int]:
         return int(parts[0].strip()), int(parts[1].strip())
 
     # Grid cell reference — need screen dimensions to resolve
-    from assistant.screen import capture_screen, grid_to_pixel
+    from assistant.screen import capture_screen, grid_to_screen_pixel
 
     img = capture_screen(monitor=monitor)
-    return grid_to_pixel(target, img.size)
+    return grid_to_screen_pixel(target, monitor=monitor, image_size=img.size)

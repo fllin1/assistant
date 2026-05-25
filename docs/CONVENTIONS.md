@@ -15,7 +15,7 @@ ruff format .      # format
 
 | Thing | Convention | Example |
 |-------|-----------|---------|
-| Files | `snake_case.py` | `screen.py`, `vision.py` |
+| Files | `snake_case.py` | `screen.py`, `input.py` |
 | Functions | `snake_case` | `capture_screen()` |
 | Classes | `PascalCase` | `ScreenRegion` |
 | Constants | `UPPER_SNAKE` | `DEFAULT_MONITOR` |
@@ -41,12 +41,16 @@ stdlib, then third-party, then local. Ruff enforces ordering.
 ## Testing
 
 - Framework: **pytest**
-- Tests live in `tests/`, mirroring `src/` structure
+- Tests live in `tests/`, grouped by project surface: `tests/assistant/`,
+  `tests/automations/`, and `tests/scripts/`
 - Hardware-dependent tests: mark with `@pytest.mark.live`, skipped in CI
 - File output tests: use pytest's `tmp_path` fixture — auto-cleaned, outside repo
 
 ```bash
-pytest                     # run all unit tests
+pytest tests/assistant     # run core assistant package tests
+pytest tests/automations   # run automation project tests
+pytest tests/scripts       # run script/tooling tests
+pytest                     # run all non-live tests
 pytest -m live             # run only live/hardware tests
 ```
 

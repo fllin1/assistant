@@ -1,4 +1,4 @@
-"""Assistant — a computer control agent with vision-based screen understanding."""
+"""Assistant local screen and input helpers."""
 
 from importlib.metadata import version
 

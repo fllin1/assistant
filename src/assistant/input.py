@@ -1,7 +1,7 @@
 """Mouse and keyboard control via PyAutoGUI.
 
-Thin wrappers around pyautogui with debug logging and a dispatcher
-for the agent loop. All coordinate functions expect absolute pixel
+Thin wrappers around pyautogui with debug logging and a dispatcher.
+All coordinate functions expect absolute pixel
 positions — grid-to-pixel conversion happens in the caller.
 
 PyAutoGUI is imported lazily to avoid X11 connection attempts at
@@ -97,7 +97,7 @@ def scroll(x: int, y: int, direction: str = "down", amount: int = 3) -> None:
 
 
 def execute_action(action: str, **kwargs) -> None:
-    """Dispatch an action by name. Called by the agent loop.
+    """Dispatch an action by name.
 
     Args:
         action: Action name from the vocabulary (e.g., "left_click", "type").

@@ -1,24 +1,13 @@
-"""Centralized configuration for model defaults and provider settings.
+"""Centralized configuration for assistant defaults.
 
-All model names and provider defaults live here so they can be changed
-in one place without hunting through multiple modules.
+Defaults live here so they can be changed in one place without hunting
+through multiple modules.
 """
 
-# -- Vision providers --
+# -- Interaction defaults --
 
-# Default provider when none is specified
-DEFAULT_VISION_PROVIDER = "openrouter"
+DEFAULT_TEXT_PROVIDER = "openrouter"
+DEFAULT_TEXT_MODEL = "deepseek/deepseek-v4-pro"
 
-# Default model per provider — used when --model is not passed
-DEFAULT_MODELS = {
-    "openrouter": "google/gemma-4-31b-it:free",
-    "ollama": "qwen3-vl:4b",
-}
-
-# Fallback models when the primary is rate-limited
-FALLBACK_MODELS = {
-    "openrouter": "nvidia/nemotron-nano-12b-v2-vl:free",
-}
-
-# Ollama connection
-DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+# Default monitor: 0 is the combined virtual desktop, 1 is the primary monitor.
+DEFAULT_MONITOR = 1
