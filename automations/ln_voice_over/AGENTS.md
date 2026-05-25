@@ -21,6 +21,9 @@ Use **Narrator** terminology in active code, docs, prompts, and schema work.
 - Treat this as an automation, not a public library surface. Keep changes local
   to `automations/ln_voice_over/` and matching tests unless the user explicitly
   asks for shared-library work.
+- This sub-project is self-contained. Follow the root rule files, this file,
+  and the files named in **First Read**; ignore conventions from sibling
+  automations or unrelated repo docs.
 - Do not modify `src/assistant/` as part of LN voice-over work without a separate
   plan.
 - Keep generated project data under `~/.assistant/ln_voice_over/projects/` out of

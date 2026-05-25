@@ -77,6 +77,10 @@ The library starts flat — modules are added as we build them. Structure emerge
 - Each automation is a self-contained script or module.
 - Automations import from the library but never modify it.
 - Automations should include a docstring explaining what they do and how to use them.
+- Automation sub-projects are self-contained. When working in
+  `automations/<name>/`, follow the applicable `AGENTS.md` / `CLAUDE.md` files
+  and any files they explicitly name. Ignore conventions from sibling
+  automations or unrelated repo docs.
 
 ## Documentation Maintenance
 - The root `README.md` describes the **library** (`src/assistant/`): its modules, CLI commands, and roadmap. It should not document automations — those have their own READMEs.
