@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,6 +12,15 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from ...common.errors import ContractValidationError, ValidationProblem
 from .prompts import OCR_PROMPT
 
+_REFUSAL_PREFIX_RE: re.Pattern[str] = re.compile(
+    r"^(?:"
+    r"i(?:\s+can(?:not|['’]t)|\s+won['’]t|['’]m\s+sorry|['’]m\s+not\s+able)"
+    r"|sorry,?\s+(?:but|i)"
+    r"|as\s+an\s+ai"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 class OcrPageResult(BaseModel):
     """Strict OCR result for a single rasterized page."""
@@ -19,6 +29,34 @@ class OcrPageResult(BaseModel):
 
     transcript: str
     is_illustration: bool
+
+
+def _looks_like_refusal(transcript: str) -> bool:
+    """Return whether a transcript starts with a known OCR refusal prefix.
+
+    Args:
+        transcript: OCR transcript text to classify.
+
+    Returns:
+        True when the first non-whitespace characters match a known refusal
+        family; otherwise false.
+    """
+    return _REFUSAL_PREFIX_RE.match(transcript.lstrip()[:120]) is not None
+
+
+def _is_failed_ocr(result: OcrPageResult) -> bool:
+    """Classify semantic OCR failures that should be retried or reviewed.
+
+    Args:
+        result: Strictly parsed OCR result.
+
+    Returns:
+        True for refusal-style transcripts and for the structural empty
+        non-illustration sentinel; otherwise false.
+    """
+    if _looks_like_refusal(result.transcript):
+        return True
+    return result.transcript == "" and result.is_illustration is False
 
 
 def run_codex_ocr(

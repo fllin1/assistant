@@ -22,7 +22,7 @@ def test_build_text_units_emits_contiguous_units(
     ]
     rasterized = _rasterized_pages(tmp_path, 3)
 
-    text_units = build_text_units(ocr_results, rasterized)
+    text_units = build_text_units(ocr_results, rasterized, (False,) * len(rasterized))
 
     assert [unit.order for unit in text_units] == [0, 1, 2]
     assert [unit.text_unit_id for unit in text_units] == [
@@ -35,6 +35,7 @@ def test_build_text_units_emits_contiguous_units(
         "",
         "Closing text",
     ]
+    assert [unit.needs_review for unit in text_units] == [False, False, False]
     for unit, page in zip(text_units, [1, 2, 3], strict=True):
         assert unit.source_locator["page"] == page
         assert unit.source_path == f"source/pages/{page:03d}.png"
@@ -47,7 +48,19 @@ def test_build_text_units_rejects_mismatched_counts(tmp_path: Path) -> None:
     rasterized = _rasterized_pages(tmp_path, 2)
 
     with pytest.raises(AssertionError):
-        build_text_units(ocr_results, rasterized)
+        build_text_units(ocr_results, rasterized, (False,) * len(rasterized))
+
+
+def test_build_text_units_rejects_needs_review_length_mismatch(tmp_path: Path) -> None:
+    """Review flags must align one-to-one with rasterized pages."""
+    ocr_results = [
+        OcrPageResult(transcript="Page one", is_illustration=False),
+        OcrPageResult(transcript="Page two", is_illustration=False),
+    ]
+    rasterized = _rasterized_pages(tmp_path, 2)
+
+    with pytest.raises(AssertionError):
+        build_text_units(ocr_results, rasterized, (False,))
 
 
 def test_build_text_units_rejects_non_contiguous_page_order(tmp_path: Path) -> None:
@@ -62,7 +75,21 @@ def test_build_text_units_rejects_non_contiguous_page_order(tmp_path: Path) -> N
     ]
 
     with pytest.raises(AssertionError):
-        build_text_units(ocr_results, rasterized)
+        build_text_units(ocr_results, rasterized, (False,) * len(rasterized))
+
+
+def test_build_text_units_propagates_needs_review(tmp_path: Path) -> None:
+    """The runner's review flags are copied onto the matching text units."""
+    ocr_results = [
+        OcrPageResult(transcript="Page one", is_illustration=False),
+        OcrPageResult(transcript="", is_illustration=False),
+        OcrPageResult(transcript="Page three", is_illustration=False),
+    ]
+    rasterized = _rasterized_pages(tmp_path, 3)
+
+    text_units = build_text_units(ocr_results, rasterized, (False, True, False))
+
+    assert [unit.needs_review for unit in text_units] == [False, True, False]
 
 
 def _rasterized_pages(tmp_path: Path, count: int) -> list[RasterizedPage]:

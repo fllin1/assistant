@@ -67,6 +67,9 @@ Sufficient handoff: Transform can read `prepared/volume.json` and build canonica
 | `text` | yes | normalized text. |
 | `source_path` | yes | source artifact path. |
 | `source_locator` | yes | source-local locator object. |
+| `needs_review` | no | true when the OCR step exhausted its retry budget and the unit holds a sentinel empty transcript; false otherwise; defaults to false. |
+
+`needs_review` is omitted from the JSON when false (the default). It is emitted explicitly as `true` for pages whose OCR retry budget was exhausted; downstream stages may route those units to manual review or to a different recovery path.
 
 ## Prepared Media
 

@@ -10,6 +10,7 @@ from .rasterizer import RasterizedPage
 def build_text_units(
     ocr_results: list[OcrPageResult],
     rasterized: list[RasterizedPage],
+    needs_review: tuple[bool, ...],
 ) -> tuple[PreparedTextUnit, ...]:
     """Emit one `PreparedTextUnit` per page in 1-indexed page order.
 
@@ -21,11 +22,12 @@ def build_text_units(
     Args:
         ocr_results: OCR result for each rasterized page, in page order.
         rasterized: Rasterized page metadata, in 1-indexed page order.
+        needs_review: Per-page review flags aligned to the same page order.
 
     Returns:
         Prepared text units ordered by page.
     """
-    _assert_page_alignment(ocr_results, rasterized)
+    _assert_page_alignment(ocr_results, rasterized, needs_review)
 
     return tuple(
         PreparedTextUnit(
@@ -34,14 +36,19 @@ def build_text_units(
             text=ocr_result.transcript,
             source_path=f"source/pages/{rasterized_page.page:03d}.png",
             source_locator={"page": rasterized_page.page},
+            needs_review=needs_review_flag,
         )
-        for ocr_result, rasterized_page in zip(ocr_results, rasterized, strict=True)
+        for ocr_result, rasterized_page, needs_review_flag in zip(
+            ocr_results, rasterized, needs_review, strict=True
+        )
     )
 
 
 def _assert_page_alignment(
     ocr_results: list[OcrPageResult],
     rasterized: list[RasterizedPage],
+    needs_review: tuple[bool, ...],
 ) -> None:
     assert len(ocr_results) == len(rasterized)
+    assert len(needs_review) == len(rasterized)
     assert [page.page for page in rasterized] == list(range(1, len(rasterized) + 1))

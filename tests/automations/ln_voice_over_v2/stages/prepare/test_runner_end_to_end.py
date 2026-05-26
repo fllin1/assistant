@@ -48,6 +48,9 @@ def test_run_prepare_writes_round_trippable_prepared_volume(
     assert prepared.source_profile == SOURCE_PROFILE
     assert prepared.story_profile == prepared.series
     assert len(prepared.text_units) == 2
+    assert [unit.needs_review for unit in prepared.text_units] == [False] * len(
+        prepared.text_units
+    )
     assert result.page_count == len(prepared.text_units)
     assert len(prepared.media) == 1
     assert result.illustration_count == 1
