@@ -58,6 +58,8 @@ prepared/
 - `--force` — wipe `source/ocr/`, `prepared/`, and re-rasterize all pages; the PDF is still reused if already on disk. Rebuilds `prepared/media/` the same way as `--force-ocr`.
 - **Precedence**: `--force` and `--force-ocr` are mutually exclusive at the CLI; passing both is a usage error (argparse rejects it before the runner is invoked). `--force` already implies recomputing OCR, so the combined form is rejected rather than allowed-with-precedence to keep behavior explicit.
 
+If `gpt-5.5` refuses to OCR a page, the runner retries up to three times with escalating prompt variants. Pages that exhaust the retry budget receive a sentinel empty-transcript `PreparedTextUnit` flagged `needs_review: true`, and the run completes without manual intervention.
+
 **Run the prepare-stage tests:**
 
 ```bash

@@ -19,6 +19,7 @@ class PreparedTextUnit(ContractModel):
     text: str
     source_path: ArtifactPath
     source_locator: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    needs_review: bool = False
 
 
 class PreparedMedia(ContractModel):

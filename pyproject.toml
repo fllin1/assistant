@@ -54,6 +54,8 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["T20"]  # demo/utility scripts can print
 "automations/ln_voice_over/scripts/*" = ["T20"]  # skill helpers print JSON/errors
+"automations/ln_voice_over_v2/stages/prepare/ocr.py" = ["RUF001"]  # curly apostrophe is load-bearing in the refusal regex
+"tests/automations/ln_voice_over_v2/stages/prepare/test_refusal_detection.py" = ["RUF001"]  # verbatim historical refusal transcripts use curly apostrophes
 
 [tool.ruff.lint.isort]
 known-first-party = ["assistant"]
