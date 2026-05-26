@@ -83,6 +83,9 @@ def run_codex_ocr(
         RuntimeError: If the Codex CLI exits non-zero.
         ContractValidationError: If stdout is not strict `OcrPageResult` JSON.
     """
+    # --ignore-user-config skips ~/.codex/config.toml so per-user Stop / notify
+    # hooks (e.g. oh-my-codex) cannot inject a trailing "task complete" turn that
+    # would corrupt the strict-JSON stdout the parser below expects.
     argv = [
         executable,
         "exec",
@@ -92,6 +95,7 @@ def run_codex_ocr(
         model,
         "--ephemeral",
         "--skip-git-repo-check",
+        "--ignore-user-config",
         "-s",
         "read-only",
         prompt,

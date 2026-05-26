@@ -51,6 +51,7 @@ def test_run_codex_ocr_builds_exact_argv_and_parses_stdout(tmp_path: Path) -> No
             "model-a",
             "--ephemeral",
             "--skip-git-repo-check",
+            "--ignore-user-config",
             "-s",
             "read-only",
             "prompt text",
