@@ -22,21 +22,29 @@ sibling automations or unrelated repo docs.
 
 - This slice owns contracts, validation, path conventions, and orchestration data.
 - Runtime series and volume data lives outside the repository.
-- Stages other than `stages/prepare/` remain contract-only. Do not add CLI
-  commands, OCR, parsing algorithms, LLM prompts, TTS rendering, visual
-  rendering, data-porting logic, or plugin frameworks in `stages/transform/`,
-  `stages/dialogue/`, `stages/scenes/`, `stages/generation/`, or anywhere
-  under `common/`, `pipeline/`, or `series/`.
-- `stages/prepare/` may add a runner, a `python -m`-style CLI, PDF
-  rasterization, one OCR prompt string, and plain module-level seam
-  functions (`run_codex_ocr`, `download_anyflip`) that subprocess external
-  CLIs. These seams are kept as free functions injected via `Callable`
-  keywords, **not** as Protocols/ports/adapters, so the "Code Rules" bullet
-  on empty ports remains satisfied. New external runtime dependencies must
-  be installable via PyPI (e.g. `pymupdf`) or documented in the package
-  README (e.g. `anyflip-downloader`, `codex`). No vendoring.
+- Every stage may add whatever modules, runner, CLI, or pure-function helpers
+  it needs to deliver its contract. External runtime dependencies must be
+  installable via PyPI or documented in the package README. No vendoring.
 - Public contract keys, enum values, artifact paths, and stage names require
   user confirmation before changing.
+
+## Series Config
+
+Per-series overrides live at `<data_root>/<series>/config/story_profile.json`.
+The packaged fallback template is
+`automations/ln_voice_over_v2/series/templates/story_profile.default.json`.
+The runner reads the override when present, otherwise the template; it does not
+auto-copy the template.
+
+## Disambiguation Protocol
+
+When implementation depends on volume-specific content not captured in
+`story_profile.json` or other config, such as heading style, dialogue
+conventions, glyph sets, or character names, spawn one or more Codex agents to
+read `<data_root>/<series>/<volume>/prepared/volume.json` or `source/`
+excerpts. Agents report findings with concrete `text_unit_id`s or page
+numbers. Multiple parallel agents are allowed, and multi-volume sampling is
+expected for multi-volume series. Do not guess about volume content.
 
 ## Code Rules
 

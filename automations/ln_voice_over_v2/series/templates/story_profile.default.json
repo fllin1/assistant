@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "default",
+  "display_name": "Default Story Profile",
+  "rules": {
+    "chapter_headings": [
+      "^\\s*(?:Prologue|Epilogue|Afterword|Interlude)\\b",
+      "^\\s*Chapter\\s+(?P<num>\\d+(?:\\.\\d+)?)\\b",
+      "^\\s*第\\s*\\d+\\s*章"
+    ],
+    "subchapters": false
+  }
+}
