@@ -15,6 +15,7 @@ from automations.ln_voice_over_v2.pipeline.validators import (
     validate_dialogue_against_segments,
     validate_generation_against_scenes,
     validate_scenes_against_dialogue_and_segments,
+    validate_transform_against_prepared,
 )
 from automations.ln_voice_over_v2.series.contracts import (
     Character,
@@ -34,6 +35,10 @@ from automations.ln_voice_over_v2.stages.generation.contracts import (
     VisualBeat,
     VisualTimeline,
 )
+from automations.ln_voice_over_v2.stages.prepare.contracts import (
+    PreparedTextUnit,
+    PreparedVolume,
+)
 from automations.ln_voice_over_v2.stages.scenes.contracts import (
     BackgroundChoice,
     Scene,
@@ -42,7 +47,15 @@ from automations.ln_voice_over_v2.stages.scenes.contracts import (
     Setting,
     VisibleCharacter,
 )
-from automations.ln_voice_over_v2.stages.transform.contracts import Segment, SegmentFile
+from automations.ln_voice_over_v2.stages.transform.contracts import (
+    ChapterIndexEntry,
+    Segment,
+    SegmentFile,
+    VolumeIndex,
+)
+from automations.ln_voice_over_v2.stages.transform.validation import (
+    validate_transform_artifacts,
+)
 
 
 def test_cross_contract_validators_accept_consistent_artifacts() -> None:
@@ -258,3 +271,302 @@ def _visual_profile() -> VisualProfile:
         backgrounds={"school-hallway-day": {"path": "assets/backgrounds/hallway.png"}},
         character_images={"horikita-serious": {"path": "assets/characters/horikita.png"}},
     )
+
+
+def test_validate_transform_artifacts_accepts_valid_index_and_segments() -> None:
+    """Valid transform artifacts pass stage-local validation."""
+    validate_transform_artifacts(_transform_index(chapter_count=2), _transform_segment_files(2))
+
+
+def test_validate_transform_artifacts_reports_duplicate_segment_order() -> None:
+    """Duplicate segment orders are reported within a chapter."""
+    segment_files = (
+        _transform_segment_file(
+            segments=(
+                _transform_segment("seg_000001", 0, "First", ("unit_000000",)),
+                _transform_segment("seg_000002", 0, "Second", ("unit_000001",)),
+            )
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_artifacts(_transform_index(), segment_files)
+
+    assert "duplicate_order" in _codes(exc_info.value)
+
+
+def test_validate_transform_artifacts_reports_gapped_segment_order() -> None:
+    """Non-dense segment orders are reported within a chapter."""
+    segment_files = (
+        _transform_segment_file(
+            segments=(
+                _transform_segment("seg_000001", 0, "First", ("unit_000000",)),
+                _transform_segment("seg_000002", 2, "Second", ("unit_000001",)),
+            )
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_artifacts(_transform_index(), segment_files)
+
+    assert "nonconsecutive_order" in _codes(exc_info.value)
+
+
+def test_validate_transform_artifacts_reports_bad_segments_file() -> None:
+    """Chapter entries must point at their canonical segment file path."""
+    index = _transform_index(
+        chapters=(
+            ChapterIndexEntry(
+                chapter_id="chapter_01",
+                order=0,
+                segments_file="segments/wrong.json",
+                display_name="Chapter 1",
+            ),
+        )
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_artifacts(index, _transform_segment_files())
+
+    assert _codes(exc_info.value) == {"bad_segments_file"}
+
+
+def test_validate_transform_artifacts_reports_empty_display_name() -> None:
+    """Whitespace-only chapter display names are rejected."""
+    index = _transform_index(
+        chapters=(
+            ChapterIndexEntry(
+                chapter_id="chapter_01",
+                order=0,
+                segments_file="segments/chapter_01.json",
+                display_name=" ",
+            ),
+        )
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_artifacts(index, _transform_segment_files())
+
+    assert _codes(exc_info.value) == {"empty_display_name"}
+
+
+def test_validate_transform_artifacts_reports_nondense_segment_id() -> None:
+    """Segment ids must start at seg_000001 and be dense within each chapter."""
+    segment_files = (
+        _transform_segment_file(
+            segments=(_transform_segment("seg_000002", 0, "First", ("unit_000000",)),)
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_artifacts(_transform_index(), segment_files)
+
+    assert _codes(exc_info.value) == {"nonconsecutive_segment_id"}
+
+
+def test_validate_transform_against_prepared_accepts_matching_artifacts() -> None:
+    """Transform artifacts pass when they align with the prepared volume."""
+    validate_transform_against_prepared(
+        _transform_index(),
+        _transform_segment_files(),
+        _prepared_volume_for_transform(),
+    )
+
+
+def test_validate_transform_against_prepared_reports_unknown_source_unit_id() -> None:
+    """Every segment source unit must exist in the prepared volume."""
+    segment_files = (
+        _transform_segment_file(
+            segments=(
+                _transform_segment("seg_000001", 0, "First", ("unit_000000", "unit_999999")),
+            )
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_against_prepared(
+            _transform_index(),
+            segment_files,
+            _prepared_volume_for_transform(),
+        )
+
+    assert "missing_text_unit" in _codes(exc_info.value)
+
+
+def test_validate_transform_against_prepared_reports_missing_coverage() -> None:
+    """Non-empty prepared text units must be covered by at least one segment."""
+    segment_files = (
+        _transform_segment_file(
+            segments=(_transform_segment("seg_000001", 0, "First", ("unit_000000",)),)
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_against_prepared(
+            _transform_index(),
+            segment_files,
+            _prepared_volume_for_transform(),
+        )
+
+    assert "missing_coverage" in _codes(exc_info.value)
+
+
+def test_validate_transform_against_prepared_exempts_illustration_only_text_units() -> None:
+    """Empty non-review text units do not require segment coverage."""
+    prepared = _prepared_volume_for_transform(
+        text_units=(
+            _prepared_text_unit("unit_000000", 0, "First"),
+            _prepared_text_unit("unit_000001", 1, ""),
+        )
+    )
+    segment_files = (
+        _transform_segment_file(
+            segments=(_transform_segment("seg_000001", 0, "First", ("unit_000000",)),)
+        ),
+    )
+
+    validate_transform_against_prepared(_transform_index(), segment_files, prepared)
+
+
+def test_validate_transform_against_prepared_requires_needs_review_coverage() -> None:
+    """Needs-review text units require coverage even when their text is empty."""
+    prepared = _prepared_volume_for_transform(
+        text_units=(
+            _prepared_text_unit("unit_000000", 0, "First"),
+            _prepared_text_unit("unit_000001", 1, "", needs_review=True),
+        )
+    )
+    segment_files = (
+        _transform_segment_file(
+            segments=(_transform_segment("seg_000001", 0, "First", ("unit_000000",)),)
+        ),
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_against_prepared(_transform_index(), segment_files, prepared)
+
+    assert _codes(exc_info.value) == {"missing_coverage"}
+
+
+def test_validate_transform_against_prepared_reports_chapter_count_mismatch() -> None:
+    """The volume index and segment file tuple must have matching chapter counts."""
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_transform_against_prepared(
+            _transform_index(chapter_count=2),
+            _transform_segment_files(1),
+            _prepared_volume_for_transform(),
+        )
+
+    assert "chapter_count_mismatch" in _codes(exc_info.value)
+
+
+def _transform_index(
+    *,
+    chapter_count: int = 1,
+    chapters: tuple[ChapterIndexEntry, ...] | None = None,
+) -> VolumeIndex:
+    return VolumeIndex(
+        series="series-one",
+        volume="v1",
+        chapters=chapters
+        if chapters is not None
+        else tuple(
+            ChapterIndexEntry(
+                chapter_id=f"chapter_{index + 1:02d}",
+                order=index,
+                segments_file=f"segments/chapter_{index + 1:02d}.json",
+                display_name=f"Chapter {index + 1}",
+            )
+            for index in range(chapter_count)
+        ),
+    )
+
+
+def _transform_segment_files(chapter_count: int = 1) -> tuple[SegmentFile, ...]:
+    return tuple(
+        _transform_segment_file(
+            chapter_id=f"chapter_{index + 1:02d}",
+            segments=(
+                _transform_segment(
+                    "seg_000001",
+                    0,
+                    f"Chapter {index + 1} first segment.",
+                    ("unit_000000",),
+                ),
+                _transform_segment(
+                    "seg_000002",
+                    1,
+                    f"Chapter {index + 1} second segment.",
+                    ("unit_000001",),
+                ),
+            ),
+        )
+        for index in range(chapter_count)
+    )
+
+
+def _transform_segment_file(
+    *,
+    chapter_id: str = "chapter_01",
+    segments: tuple[Segment, ...],
+) -> SegmentFile:
+    return SegmentFile(
+        series="series-one",
+        volume="v1",
+        chapter_id=chapter_id,
+        segments=segments,
+    )
+
+
+def _transform_segment(
+    segment_id: str,
+    order: int,
+    text: str,
+    source_unit_ids: tuple[str, ...],
+) -> Segment:
+    return Segment(
+        segment_id=segment_id,
+        order=order,
+        text=text,
+        source_unit_ids=source_unit_ids,
+        parser_hints={"quote_candidate": False},
+    )
+
+
+def _prepared_volume_for_transform(
+    *,
+    text_units: tuple[PreparedTextUnit, ...] | None = None,
+) -> PreparedVolume:
+    return PreparedVolume(
+        series="series-one",
+        volume="v1",
+        story_profile="default",
+        source_profile="pdf-llm-ocr",
+        text_units=text_units
+        if text_units is not None
+        else (
+            _prepared_text_unit("unit_000000", 0, "First"),
+            _prepared_text_unit("unit_000001", 1, "Second"),
+        ),
+    )
+
+
+def _prepared_text_unit(
+    text_unit_id: str,
+    order: int,
+    text: str,
+    *,
+    needs_review: bool = False,
+) -> PreparedTextUnit:
+    return PreparedTextUnit(
+        text_unit_id=text_unit_id,
+        order=order,
+        text=text,
+        source_path=f"source/pages/{order + 1:03d}.txt",
+        source_locator={"page": order + 1},
+        needs_review=needs_review,
+    )
+
+
+def _codes(error: ContractValidationError) -> set[str]:
+    return {problem.code for problem in error.problems}

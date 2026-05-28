@@ -7,10 +7,109 @@ from ..common.errors import ContractValidationError, ValidationProblem
 from ..series.contracts import CharacterRegistry, VisualProfile
 from ..stages.dialogue.contracts import DialogueChapter
 from ..stages.generation.contracts import AudioManifest, GenerationManifest, VisualTimeline
+from ..stages.prepare.contracts import PreparedVolume
 from ..stages.scenes.contracts import SceneDocument
-from ..stages.transform.contracts import SegmentFile
+from ..stages.transform.contracts import SegmentFile, VolumeIndex
 
 UNKNOWN_SPEAKER = "Unknown"
+
+
+def validate_transform_against_prepared(
+    index: VolumeIndex,
+    segment_files: tuple[SegmentFile, ...],
+    prepared: PreparedVolume,
+) -> None:
+    """Validate transform artifacts against the prepared volume."""
+    problems: list[ValidationProblem] = []
+
+    if index.series != prepared.series:
+        problems.append(
+            _problem(
+                "series_mismatch",
+                f"{index.series} does not match {prepared.series}",
+                "index.series",
+            )
+        )
+    if index.volume != prepared.volume:
+        problems.append(
+            _problem(
+                "volume_mismatch",
+                f"{index.volume} does not match {prepared.volume}",
+                "index.volume",
+            )
+        )
+
+    for file_index, segment_file in enumerate(segment_files):
+        file_path = f"segment_files[{file_index}]"
+        if segment_file.series != index.series:
+            problems.append(
+                _problem(
+                    "series_mismatch",
+                    f"{segment_file.series} does not match {index.series}",
+                    f"{file_path}.series",
+                )
+            )
+        if segment_file.volume != index.volume:
+            problems.append(
+                _problem(
+                    "volume_mismatch",
+                    f"{segment_file.volume} does not match {index.volume}",
+                    f"{file_path}.volume",
+                )
+            )
+
+    if len(index.chapters) != len(segment_files):
+        problems.append(
+            _problem(
+                "chapter_count_mismatch",
+                (
+                    f"index has {len(index.chapters)} chapters but "
+                    f"{len(segment_files)} segment files were provided"
+                ),
+                "segment_files",
+            )
+        )
+
+    for chapter_index, (chapter, segment_file) in enumerate(
+        zip(index.chapters, segment_files, strict=False)
+    ):
+        if segment_file.chapter_id != chapter.chapter_id:
+            problems.append(
+                _problem(
+                    "chapter_id_mismatch",
+                    f"{segment_file.chapter_id} does not match {chapter.chapter_id}",
+                    f"segment_files[{chapter_index}].chapter_id",
+                )
+            )
+
+    text_units = {unit.text_unit_id: unit for unit in prepared.text_units}
+    covered_unit_ids: set[str] = set()
+    for segment_file in segment_files:
+        for segment_index, segment in enumerate(segment_file.segments):
+            for source_unit_id in segment.source_unit_ids:
+                if source_unit_id not in text_units:
+                    problems.append(
+                        _problem(
+                            "missing_text_unit",
+                            f"unknown text unit {source_unit_id}",
+                            f"segments[{segment_file.chapter_id}][{segment_index}].source_unit_ids",
+                        )
+                    )
+                covered_unit_ids.add(source_unit_id)
+
+    for text_unit_id, text_unit in text_units.items():
+        if (
+            text_unit.text.strip() or text_unit.needs_review
+        ) and text_unit_id not in covered_unit_ids:
+            problems.append(
+                _problem(
+                    "missing_coverage",
+                    f"text unit {text_unit_id} is not represented by any segment",
+                    f"text_units[{text_unit_id}]",
+                )
+            )
+
+    _raise_if_problems(problems)
 
 
 def validate_dialogue_against_segments(
