@@ -242,6 +242,7 @@ def _volume_index() -> VolumeIndex:
                 chapter_id="chapter_01",
                 order=0,
                 segments_file="segments/chapter_01.json",
+                display_name="Chapter 1",
             ),
         ),
     )

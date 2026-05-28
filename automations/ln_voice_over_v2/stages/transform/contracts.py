@@ -17,6 +17,7 @@ class ChapterIndexEntry(ContractModel):
     chapter_id: ChapterId
     order: int = Field(ge=0)
     segments_file: ArtifactPath
+    display_name: str = Field(min_length=1)
 
 
 class VolumeIndex(PersistedArtifact):
