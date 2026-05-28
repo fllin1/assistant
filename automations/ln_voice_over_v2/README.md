@@ -65,3 +65,42 @@ If `gpt-5.5` refuses to OCR a page, the runner retries up to three times with es
 ```bash
 pytest tests/automations/ln_voice_over_v2/stages/prepare/
 ```
+
+### Transform stage (Step 2)
+
+**Runtime prerequisites:** none beyond the prepared volume from Stage 1. The stage is deterministic and code-only: no LLM, OCR, network, or subprocess.
+
+**CLI usage:**
+
+```bash
+python -m automations.ln_voice_over_v2.stages.transform \
+    --series classroom-of-the-elite-year-2 \
+    --volume v4
+```
+
+Optional flags: `--data-root <path>` (defaults to `~/.assistant/ln_voice_over_v2/projects`), `--story-profile <slug>` (reserved; not yet consumed by the resolver), `--force`.
+
+**Expected runtime layout (under `~/.assistant/ln_voice_over_v2/projects/<series>/<volume>/`):**
+
+```text
+volume_index.json
+segments/
+  chapter_01.json
+  chapter_02.json
+  ...
+```
+
+**Story-profile resolution:** `<data_root>/<series>/config/story_profile.json` wins when present; otherwise the packaged template `automations/ln_voice_over_v2/series/templates/story_profile.default.json` is used. The runner logs the resolved file at `INFO` so re-runs can be replicated.
+
+**Re-run flags:**
+
+- (no flag) overwrites `volume_index.json` and individual `segments/<chapter_id>.json` files atomically via the same temp-file replace pattern as Stage 1. Stale `chapter_NN.json` files for chapters that no longer exist in this run are not removed without `--force`.
+- `--force` — `shutil.rmtree(segments/, ignore_errors=True)` and `volume_index.json.unlink(missing_ok=True)` before writing the new artifacts. Use when the chapter set has shrunk between runs.
+
+The stage-local and cross-artifact validators (`pipeline.validators.validate_transform_against_prepared`) run before the runner writes any file. A validation failure therefore leaves existing `volume_index.json` and `segments/*.json` untouched.
+
+**Run the transform-stage tests:**
+
+```bash
+pytest tests/automations/ln_voice_over_v2/stages/transform/
+```
