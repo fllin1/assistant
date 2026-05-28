@@ -19,9 +19,11 @@ Use this page as the quick lookup before changing a stage page or a Pydantic con
 | series, volume, profile, asset | `^[a-z0-9][a-z0-9-]*$` |
 | chapter | `chapter_XX` or `chapter_XX_N` |
 | text unit | `unit_000000` |
-| segment | `seg_000000` |
+| segment | `seg_000001` |
 | scene | `scene_0000` |
 | beat | `beat_0000` |
+
+Text units start at `unit_000000`; segment ids match the `seg_NNNNNN` pattern but transform starts numbering at `seg_000001`.
 
 ## Artifact Map
 
