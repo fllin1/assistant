@@ -55,6 +55,12 @@ class _MatchResult:
     num: str | None = None
 
 
+@dataclass(frozen=True)
+class _NumberedAnchor:
+    match_index: int
+    base: int
+
+
 def resolve_story_profile_path(data_root: Path, series: SeriesId) -> Path:
     """Return the active story-profile path: per-series override or packaged template."""
     override = data_root / series / "config" / "story_profile.json"
@@ -178,7 +184,7 @@ def _build_chapter_splits(
     matches: list[_HeadingMatch],
     subchapters_enabled: bool,
 ) -> tuple[ChapterSplit, ...]:
-    seen_bases: dict[str, int] = {}
+    chapter_ids = _derive_chapter_ids(matches, subchapters_enabled)
     splits: list[ChapterSplit] = []
     last_unit_index = len(text_units) - 1
     eof_offset = len(text_units[last_unit_index].text)
@@ -197,10 +203,7 @@ def _build_chapter_splits(
             end_unit, end_offset = last_unit_index, eof_offset
 
         chapter_order = i
-        ordinal_1_indexed = chapter_order + 1
-        chapter_id = _derive_chapter_id(
-            match.num, ordinal_1_indexed, seen_bases, subchapters_enabled
-        )
+        chapter_id = chapter_ids[i]
         display_name = unicodedata.normalize("NFC", match.line_text).strip()
         slices = _collect_slices(text_units, start_unit, start_offset, end_unit, end_offset)
 
@@ -217,6 +220,107 @@ def _build_chapter_splits(
         )
 
     return tuple(splits)
+
+
+def _derive_chapter_ids(
+    matches: list[_HeadingMatch],
+    subchapters_enabled: bool,
+) -> tuple[str, ...]:
+    numbered_anchors = [
+        _NumberedAnchor(match_index=i, base=_num_base_int(match.num))
+        for i, match in enumerate(matches)
+        if match.num is not None
+    ]
+    seen_bases: dict[str, int] = {}
+    front_matter_count = 0
+    back_matter_count = 0
+    between_matter_counts: dict[int, int] = {}
+    chapter_ids: list[str] = []
+
+    for i, match in enumerate(matches):
+        if match.num is not None:
+            chapter_ids.append(
+                _derive_numbered_chapter_id(match.num, seen_bases, subchapters_enabled)
+            )
+            continue
+
+        ordinal_1_indexed = i + 1
+        chapter_ids.append(
+            _derive_non_numbered_chapter_id(
+                ordinal_1_indexed=ordinal_1_indexed,
+                numbered_anchors=numbered_anchors,
+                match_index=i,
+                front_matter_count=front_matter_count,
+                back_matter_count=back_matter_count,
+                between_matter_counts=between_matter_counts,
+            )
+        )
+
+        if not numbered_anchors:
+            continue
+        previous_anchor = _previous_numbered_anchor(numbered_anchors, i)
+        next_anchor = _next_numbered_anchor(numbered_anchors, i)
+        if previous_anchor is None:
+            front_matter_count += 1
+        elif next_anchor is None:
+            back_matter_count += 1
+        else:
+            between_matter_counts[previous_anchor.match_index] = (
+                between_matter_counts.get(previous_anchor.match_index, 0) + 1
+            )
+
+    return tuple(chapter_ids)
+
+
+def _derive_non_numbered_chapter_id(
+    *,
+    ordinal_1_indexed: int,
+    numbered_anchors: list[_NumberedAnchor],
+    match_index: int,
+    front_matter_count: int,
+    back_matter_count: int,
+    between_matter_counts: dict[int, int],
+) -> str:
+    if not numbered_anchors:
+        return f"chapter_{ordinal_1_indexed:02d}"
+
+    previous_anchor = _previous_numbered_anchor(numbered_anchors, match_index)
+    next_anchor = _next_numbered_anchor(numbered_anchors, match_index)
+
+    if previous_anchor is None:
+        if front_matter_count == 0:
+            return "chapter_00"
+        return f"chapter_00_{front_matter_count + 1}"
+    if next_anchor is None:
+        chapter_num = max(anchor.base for anchor in numbered_anchors) + back_matter_count + 1
+        return f"chapter_{_two_digit_chapter_num(chapter_num)}"
+
+    suffix = between_matter_counts.get(previous_anchor.match_index, 0) + 1
+    # Recurrent numbered subchapter suffixes also use `_N` when subchapters
+    # are enabled. If a recurrent `Chapter N` and an interlude both occupy the
+    # same gap, their ids can theoretically collide; the stage-local validator
+    # surfaces that rare duplicate instead of silently renumbering.
+    return f"chapter_{_two_digit_chapter_num(previous_anchor.base)}_{suffix}"
+
+
+def _previous_numbered_anchor(
+    numbered_anchors: list[_NumberedAnchor],
+    match_index: int,
+) -> _NumberedAnchor | None:
+    previous = [anchor for anchor in numbered_anchors if anchor.match_index < match_index]
+    if not previous:
+        return None
+    return previous[-1]
+
+
+def _next_numbered_anchor(
+    numbered_anchors: list[_NumberedAnchor],
+    match_index: int,
+) -> _NumberedAnchor | None:
+    for anchor in numbered_anchors:
+        if anchor.match_index > match_index:
+            return anchor
+    return None
 
 
 def _collect_slices(
@@ -241,19 +345,30 @@ def _collect_slices(
     return tuple(slices)
 
 
-def _derive_chapter_id(
+def _derive_numbered_chapter_id(
     num: str | None,
-    ordinal_1_indexed: int,
     seen_bases: dict[str, int],
     subchapters_enabled: bool,
 ) -> str:
     if num is None:
-        return f"chapter_{ordinal_1_indexed:02d}"
+        raise ValueError("numbered chapter id derivation requires a captured num")
     if "." in num:
         base_int, sub_int = num.split(".", 1)
-        return f"chapter_{int(base_int):02d}_{int(sub_int)}"
-    base = f"{int(num):02d}"
+        return f"chapter_{_two_digit_chapter_num(int(base_int))}_{int(sub_int)}"
+    base = _two_digit_chapter_num(int(num))
     seen_bases[base] = seen_bases.get(base, 0) + 1
     if subchapters_enabled and seen_bases[base] > 1:
         return f"chapter_{base}_{seen_bases[base]}"
     return f"chapter_{base}"
+
+
+def _num_base_int(num: str | None) -> int:
+    if num is None:
+        raise ValueError("chapter num is required")
+    return int(num.split(".", 1)[0])
+
+
+def _two_digit_chapter_num(num: int) -> str:
+    if num > 99:
+        raise ValueError(f"chapter number {num} exceeds chapter_id two-digit range")
+    return f"{num:02d}"

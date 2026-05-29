@@ -37,7 +37,7 @@ def test_happy_path_writes_index_and_segments(tmp_path: Path) -> None:
     expected_index_path = tmp_path / series / volume / "volume_index.json"
     assert result.volume_index_path == expected_index_path
     assert expected_index_path.is_file()
-    assert (tmp_path / series / volume / "segments" / "chapter_01.json").is_file()
+    assert (tmp_path / series / volume / "segments" / "chapter_00.json").is_file()
     assert (tmp_path / series / volume / "segments" / "chapter_02.json").is_file()
     assert (tmp_path / series / volume / "segments" / "chapter_03.json").is_file()
     assert result.chapter_count == 3
@@ -101,7 +101,7 @@ def test_force_wipes_pre_existing_files(tmp_path: Path) -> None:
 
     assert not stale_segment.exists()
     assert volume_index_path.is_file()
-    assert paths.segment_file_path(tmp_path, series, volume, "chapter_01").is_file()
+    assert paths.segment_file_path(tmp_path, series, volume, "chapter_00").is_file()
 
 
 def test_determinism(tmp_path: Path) -> None:
