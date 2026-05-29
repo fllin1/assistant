@@ -128,7 +128,7 @@ def test_subchapter_numbering_from_fractional_num(
 def test_prologue_chapter_epilogue_three_chapters(
     default_profile: StoryProfile,
 ) -> None:
-    """Prologue + Chapter 2 + Epilogue yields three chapters with dense order 0/1/2."""
+    """Prologue + Chapter 2 + Epilogue keeps dense order and position-aware ids."""
     units = (
         _unit(0, "Prologue\nA quiet start."),
         _unit(1, "Chapter 2\nThe main body of the volume."),
@@ -144,10 +144,110 @@ def test_prologue_chapter_epilogue_three_chapters(
         "Epilogue",
     ]
     assert [s.index_entry.chapter_id for s in splits] == [
-        "chapter_01",
+        "chapter_00",
         "chapter_02",
         "chapter_03",
     ]
+
+
+def test_prologue_chapter_one_no_longer_collides(
+    default_profile: StoryProfile,
+) -> None:
+    """Prologue + Chapter 1 + Epilogue maps to three unique chapter ids."""
+    units = (
+        _unit(0, "Prologue\nA quiet start."),
+        _unit(1, "Chapter 1\nThe main body of the volume."),
+        _unit(2, "Epilogue\nA quiet end."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [s.index_entry.display_name for s in splits] == [
+        "Prologue",
+        "Chapter 1",
+        "Epilogue",
+    ]
+    assert [s.index_entry.chapter_id for s in splits] == [
+        "chapter_00",
+        "chapter_01",
+        "chapter_02",
+    ]
+    assert len({s.index_entry.chapter_id for s in splits}) == len(splits)
+
+
+def test_interlude_between_numbered_chapters_gets_subchapter_id(
+    default_profile: StoryProfile,
+) -> None:
+    """A non-num heading between numbered chapters uses the previous chapter base."""
+    units = (
+        _unit(0, "Chapter 1\nOpening."),
+        _unit(1, "Chapter 2\nMiddle."),
+        _unit(2, "Interlude\nA pause."),
+        _unit(3, "Chapter 3\nClosing."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [s.index_entry.chapter_id for s in splits] == [
+        "chapter_01",
+        "chapter_02",
+        "chapter_02_1",
+        "chapter_03",
+    ]
+
+
+def test_multiple_back_matter_headings_increment_past_max_num(
+    default_profile: StoryProfile,
+) -> None:
+    """Back matter headings take slots after the highest numbered chapter."""
+    units = (
+        _unit(0, "Chapter 1\nOpening."),
+        _unit(1, "Chapter 2\nMiddle."),
+        _unit(2, "Epilogue\nA quiet end."),
+        _unit(3, "Afterword\nA final note."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [s.index_entry.chapter_id for s in splits] == [
+        "chapter_01",
+        "chapter_02",
+        "chapter_03",
+        "chapter_04",
+    ]
+
+
+def test_multiple_front_matter_headings(
+    default_profile: StoryProfile,
+) -> None:
+    """All non-num headings before the first numbered chapter count as front matter."""
+    units = (
+        _unit(0, "Prologue\nA quiet start."),
+        _unit(1, "Interlude\nA prefatory pause."),
+        _unit(2, "Chapter 1\nOpening."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [s.index_entry.chapter_id for s in splits] == [
+        "chapter_00",
+        "chapter_00_2",
+        "chapter_01",
+    ]
+
+
+def test_no_numbered_chapter_keeps_legacy_ordinal_rule(
+    default_profile: StoryProfile,
+) -> None:
+    """Volumes with headings but no captured num keep dense ordinal chapter ids."""
+    units = (
+        _unit(0, "Prologue\nA quiet start."),
+        _unit(1, "Epilogue\nA quiet end."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [s.index_entry.chapter_id for s in splits] == ["chapter_01", "chapter_02"]
 
 
 def test_per_series_override_beats_packaged_template(tmp_path: Path) -> None:
