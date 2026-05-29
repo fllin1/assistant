@@ -78,13 +78,17 @@ python -m automations.ln_voice_over_v2.stages.transform \
     --volume v4
 ```
 
-Optional flags: `--data-root <path>` (defaults to `~/.assistant/ln_voice_over_v2/projects`), `--story-profile <slug>` (reserved; not yet consumed by the resolver), `--force`.
+Optional flags: `--data-root <path>` (defaults to `~/.assistant/ln_voice_over_v2/projects`), `--force`.
 
 **Expected runtime layout (under `~/.assistant/ln_voice_over_v2/projects/<series>/<volume>/`):**
 
 ```text
 volume_index.json
 segments/
+  chapter_00.json               # emitted when the volume opens with non-chapter content
+                                # (Prologue/Foreword takes this slot; otherwise a synthetic
+                                # "Front Matter" chapter wraps the cover/preview/TOC pages
+                                # that precede the first numbered chapter)
   chapter_01.json
   chapter_02.json
   ...

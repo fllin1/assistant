@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ...common import paths
-from ...common.ids import ProfileId, SeriesId, VolumeId
+from ...common.ids import SeriesId, VolumeId
 from ...common.json_io import load_json_contract, save_json_contract
 from ...pipeline.validators import validate_transform_against_prepared
 from ..prepare.contracts import PreparedVolume
@@ -25,7 +25,6 @@ class TransformConfig:
     series: SeriesId
     volume: VolumeId
     data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
-    story_profile: ProfileId | None = None
     force: bool = False
 
 

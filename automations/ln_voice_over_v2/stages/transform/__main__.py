@@ -34,7 +34,6 @@ def main(argv: list[str] | None = None) -> int:
         series=args.series,
         volume=args.volume,
         data_root=args.data_root,
-        story_profile=args.story_profile,
         force=args.force,
     )
 
@@ -60,7 +59,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--series", required=True)
     parser.add_argument("--volume", required=True)
     parser.add_argument("--data-root", type=Path, default=paths.DEFAULT_PROJECT_DATA_ROOT)
-    parser.add_argument("--story-profile")
     parser.add_argument("--force", action="store_true")
     return parser
 
