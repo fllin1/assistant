@@ -103,7 +103,7 @@ def detect_chapters(
         )
         return (_build_fallback_chapter(text_units),)
 
-    return _build_chapter_splits(text_units, matches, subchapters_enabled)
+    return _build_chapter_splits(text_units, matches, patterns, subchapters_enabled)
 
 
 def _compile_patterns(profile: StoryProfile) -> list[re.Pattern[str]]:
@@ -182,16 +182,33 @@ def _build_fallback_chapter(
 def _build_chapter_splits(
     text_units: tuple[PreparedTextUnit, ...],
     matches: list[_HeadingMatch],
+    patterns: list[re.Pattern[str]],
     subchapters_enabled: bool,
 ) -> tuple[ChapterSplit, ...]:
     chapter_ids = _derive_chapter_ids(matches, subchapters_enabled)
     splits: list[ChapterSplit] = []
     last_unit_index = len(text_units) - 1
     eof_offset = len(text_units[last_unit_index].text)
+    order_offset = 0
+
+    if _should_synthesize_front_matter(text_units, matches[0]):
+        front_matter_id = "chapter_00"
+        splits.append(
+            ChapterSplit(
+                index_entry=ChapterIndexEntry(
+                    chapter_id=front_matter_id,
+                    order=0,
+                    segments_file=f"segments/{front_matter_id}.json",
+                    display_name="Front Matter",
+                ),
+                slices=_collect_front_matter_slices(text_units, matches[0]),
+            )
+        )
+        order_offset = 1
 
     for i, match in enumerate(matches):
         # The first chapter absorbs all pre-heading text from unit 0.
-        if i == 0:
+        if i == 0 and order_offset == 0:
             start_unit, start_offset = 0, 0
         else:
             start_unit, start_offset = match.unit_index, match.line_start
@@ -202,9 +219,9 @@ def _build_chapter_splits(
         else:
             end_unit, end_offset = last_unit_index, eof_offset
 
-        chapter_order = i
+        chapter_order = i + order_offset
         chapter_id = chapter_ids[i]
-        display_name = unicodedata.normalize("NFC", match.line_text).strip()
+        display_name = _derive_display_name(text_units, match, patterns)
         slices = _collect_slices(text_units, start_unit, start_offset, end_unit, end_offset)
 
         splits.append(
@@ -220,6 +237,72 @@ def _build_chapter_splits(
         )
 
     return tuple(splits)
+
+
+def _derive_display_name(
+    text_units: tuple[PreparedTextUnit, ...],
+    match: _HeadingMatch,
+    patterns: list[re.Pattern[str]],
+) -> str:
+    display_name = unicodedata.normalize("NFC", match.line_text).strip()
+    if not display_name.endswith(":"):
+        return display_name
+
+    unit_text = text_units[match.unit_index].text
+    for line_start, line_text in _iter_lines(unit_text):
+        if line_start <= match.line_start:
+            continue
+        candidate = unicodedata.normalize("NFC", line_text).strip()
+        if not candidate:
+            continue
+        if _try_match(patterns, candidate).matched:
+            return display_name
+        return f"{display_name} {candidate}"
+
+    return display_name
+
+
+def _should_synthesize_front_matter(
+    text_units: tuple[PreparedTextUnit, ...],
+    first_match: _HeadingMatch,
+) -> bool:
+    if first_match.num is None:
+        return False
+
+    pre_heading_text_parts = [unit.text for unit in text_units[: first_match.unit_index]]
+    pre_heading_text_parts.append(
+        text_units[first_match.unit_index].text[: first_match.line_start]
+    )
+    return bool("".join(pre_heading_text_parts).strip())
+
+
+def _collect_front_matter_slices(
+    text_units: tuple[PreparedTextUnit, ...],
+    first_match: _HeadingMatch,
+) -> tuple[UnitSlice, ...]:
+    if first_match.unit_index == 0:
+        return _collect_slices(text_units, 0, 0, 0, first_match.line_start)
+
+    slices = list(
+        _collect_slices(
+            text_units,
+            0,
+            0,
+            first_match.unit_index - 1,
+            len(text_units[first_match.unit_index - 1].text),
+        )
+    )
+    if first_match.line_start > 0:
+        slices.extend(
+            _collect_slices(
+                text_units,
+                first_match.unit_index,
+                0,
+                first_match.unit_index,
+                first_match.line_start,
+            )
+        )
+    return tuple(slices)
 
 
 def _derive_chapter_ids(

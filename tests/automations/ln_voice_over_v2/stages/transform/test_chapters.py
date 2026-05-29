@@ -125,6 +125,97 @@ def test_subchapter_numbering_from_fractional_num(
     assert splits[0].index_entry.display_name == "Chapter 7.1"
 
 
+def test_display_name_appends_subtitle_when_heading_ends_with_colon(
+    default_profile: StoryProfile,
+) -> None:
+    units = (_unit(0, "Chapter 1:\nAmasawa Ichika's Soliloquy\n\nBody."),)
+
+    splits = detect_chapters(units, default_profile)
+
+    assert splits[0].index_entry.display_name == "Chapter 1: Amasawa Ichika's Soliloquy"
+
+
+def test_display_name_unchanged_when_subtitle_already_inline(
+    default_profile: StoryProfile,
+) -> None:
+    units = (_unit(0, "Chapter 1: Amasawa Ichika's Soliloquy\n\nBody."),)
+
+    splits = detect_chapters(units, default_profile)
+
+    assert splits[0].index_entry.display_name == "Chapter 1: Amasawa Ichika's Soliloquy"
+
+
+def test_display_name_unchanged_when_no_trailing_colon(
+    default_profile: StoryProfile,
+) -> None:
+    units = (_unit(0, "Chapter 1\nBody."),)
+
+    splits = detect_chapters(units, default_profile)
+
+    assert splits[0].index_entry.display_name == "Chapter 1"
+
+
+def test_display_name_does_not_consume_next_heading_as_subtitle(
+    default_profile: StoryProfile,
+) -> None:
+    units = (_unit(0, "Chapter 1:\nChapter 2:\nBody."),)
+
+    splits = detect_chapters(units, default_profile)
+
+    assert len(splits) == 2
+    assert splits[0].index_entry.display_name == "Chapter 1:"
+    assert [split.index_entry.chapter_id for split in splits] == ["chapter_01", "chapter_02"]
+
+
+def test_front_matter_synthesized_when_first_match_is_numbered(
+    default_profile: StoryProfile,
+) -> None:
+    units = (
+        _unit(0, "Cover content."),
+        _unit(1, "Chapter 1\nOpening."),
+        _unit(2, "Chapter 2\nMiddle."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [split.index_entry.chapter_id for split in splits] == [
+        "chapter_00",
+        "chapter_01",
+        "chapter_02",
+    ]
+    assert [split.index_entry.order for split in splits] == [0, 1, 2]
+    assert splits[0].index_entry.display_name == "Front Matter"
+    assert splits[0].index_entry.segments_file == "segments/chapter_00.json"
+    assert [s.text_unit_id for s in splits[0].slices] == ["unit_000000"]
+    assert splits[0].slices[0].text == "Cover content."
+
+
+def test_no_front_matter_when_first_match_is_prologue(
+    default_profile: StoryProfile,
+) -> None:
+    units = (
+        _unit(0, "Prologue\nA quiet start."),
+        _unit(1, "Chapter 1\nOpening."),
+    )
+
+    splits = detect_chapters(units, default_profile)
+
+    assert [split.index_entry.chapter_id for split in splits] == ["chapter_00", "chapter_01"]
+    assert [split.index_entry.display_name for split in splits] == ["Prologue", "Chapter 1"]
+
+
+def test_no_front_matter_when_pre_text_empty(
+    default_profile: StoryProfile,
+) -> None:
+    units = (_unit(0, "Chapter 1\nBody."),)
+
+    splits = detect_chapters(units, default_profile)
+
+    assert len(splits) == 1
+    assert splits[0].index_entry.chapter_id == "chapter_01"
+    assert splits[0].index_entry.display_name == "Chapter 1"
+
+
 def test_prologue_chapter_epilogue_three_chapters(
     default_profile: StoryProfile,
 ) -> None:
