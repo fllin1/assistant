@@ -127,6 +127,22 @@ legacy 1-indexed dense ordinal rule (`chapter_01`, `chapter_02`, ...). This
 separates front, between, and back matter from numbered chapters only when at
 least one numbered anchor exists.
 
+When a matched heading line's NFC-normalized, trimmed text ends with `:`, the
+detector looks at the next non-blank line within the same `PreparedTextUnit`.
+If that line is not another heading match, it is appended to
+`ChapterIndexEntry.display_name` with a single space separator. The source text
+slice is unchanged: the heading line and subtitle line remain verbatim in
+narration text.
+
+When the first detected heading is numbered and non-empty text exists before
+that heading, transform synthesizes `chapter_00` with display name
+`Front Matter` and `segments/chapter_00.json`. This synthetic split covers the
+pre-heading `text_unit`s so cover pages, previews, maps, TOCs, and similar
+front matter do not get bundled into `chapter_01`. If the first heading is
+non-num, that heading keeps owning the pre-match text through the normal
+front-matter rule; if the volume starts directly at the first numbered heading
+or falls back because no headings match, no synthetic chapter is emitted.
+
 ### Quote-aware segmentation
 
 1. Skip `text_unit`s whose `text` is empty (illustration-only pages). A unit with `needs_review: true` emits a single placeholder segment with `text = "[needs_review:unit_NNNNNN]"`, `parser_hints = {"quote_candidate": false, "needs_review": true}`, and acts as a hard boundary for narration merging and quote tokenization.
@@ -162,3 +178,4 @@ This section tracks load-bearing design decisions for the transform stage. Appen
 - **2026-05-26 — Slice T0 committed** (`feat/lnvo-v2-transform-t0`, `aa401ef`): AGENTS.md rewrite, packaged template, doc updates listed above. Ruff format + check green.
 - **2026-05-27 — v3.1 / v3.2 slice-ordering correction (user-driven).** v3.1 introduced an internal `ChapterSplit` dataclass to keep T1 chapter-detection tests green before a mid-stack contract migration. The user identified this as over-engineering: reordering the slices so the contract migration lands first eliminates the shim entirely. v3.2 makes `ChapterIndexEntry.display_name` slice T1; chapter detection becomes T2 and returns `ChapterIndexEntry` directly. Both Architect and Codex Critic had accepted the prior ordering; neither flagged the simpler fix. Lesson kept in the plan revision history.
 - **2026-05-29 — Chapter-id rule revised to front/back/between matter slots.** The original ordinal-fallback for non-num headings collided with numbered chapters that happened to share the ordinal (e.g. Prologue + Chapter 1 both mapped to chapter_01). The new rule routes non-num headings to dedicated slots based on their position relative to numbered chapters: chapter_00 for front matter, chapter_<max_num+i> for back matter, chapter_<prev_num>_<i> for between matter. The T6 happy-path test no longer needs the Chapter 2 workaround. Display names and order remain unchanged.
+- **2026-05-29 — Chapter display names and numbered-start front matter refined.** A real-volume run revealed `Chapter 1:` headings produced only `"Chapter 1:"` as `display_name`; the detector now appends the next same-unit non-heading subtitle line for cosmetic display names while preserving narration text unchanged. The same run bundled 18 pages of cover/preview/TOC content into `chapter_01` because the first chapter absorbs pre-heading text and that volume has no Prologue; numbered first headings with non-empty pre-heading content now receive a synthetic `chapter_00` / `Front Matter` split.
