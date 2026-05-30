@@ -70,3 +70,79 @@ Review edits update this file directly until `status: accepted`.
 - every speaker is canonical or `Unknown`;
 - detected `perspective.narrator` is canonical or `null`;
 - downstream stages require `status: accepted`.
+
+Two validators run before any write (mirroring transform): a stage-local
+`validate_dialogue_artifact` and the cross-artifact
+`validate_dialogue_against_segments`.
+
+| Validator | Checks |
+| --- | --- |
+| stage-local (`stages/dialogue/validation.py`) | every `quote_candidate` segment is classified into `dialogues` xor `rejected_candidates` (`uncovered_candidate`); no id in both (`candidate_in_both`); `status == needs_review` iff `review_required` (`status_mismatch`). |
+| cross-artifact (`pipeline/validators.py`) | `segment_id` resolution, no duplicate dialogue segment, speaker canonical-or-`Unknown`, detected narrator canonical-or-`null`. |
+
+## CLI
+
+```text
+python -m automations.ln_voice_over_v2.stages.dialogue \
+  --series <series> --volume <volume> --chapter <chapter_id> [--data-root DIR] [--force]
+```
+
+Prints the written dialogue path on success (exit 0). A
+`ContractValidationError` prints each problem and exits 2; other errors exit 1.
+
+## Implementation Notes
+
+Unlike transform, dialogue is **not** byte-deterministic: it makes one LLM call
+per chapter. Idempotency comes from skip-existing plus validate-before-write,
+not reproducibility.
+
+### Model boundary
+
+The model proposes; the runner decides. `stages/dialogue/agent.py::run_codex_dialogue`
+mirrors the prepare-stage `run_codex_ocr` boundary (a `codex exec` subprocess with
+`--ignore-user-config --ephemeral --skip-git-repo-check -s read-only`, strict JSON
+parse, `RuntimeError` on non-zero exit, `ContractValidationError` on malformed
+output) but is text-only (no `-i` image flag). The chapter payload and character
+roster are built by `prompts.build_prompt` and appended to the prompt. The model
+returns only an internal `DialogueProposal` (per-candidate `is_dialogue` /
+`speaker_raw` / `reason`, plus `narrator_raw` and `review_notes`); it never emits
+the persisted `DialogueChapter`. The runner accepts an injectable `attribute_fn`
+seam so tests never spawn `codex`.
+
+### Assembly and review state
+
+The runner restricts decisions to the chapter's `quote_candidate` segments and
+assembles rows in segment order:
+
+- a candidate the model omitted becomes `RejectedCandidate(reason="model_omitted")`;
+- a non-candidate id the model returned becomes `RejectedCandidate(reason="model_stray_segment")` when it resolves to a real segment, otherwise it is dropped with a review note;
+- accepted candidates become `DialogueRow`s with a canonicalized speaker.
+
+`review_required` is computed from the **canonicalized** speakers and is `true`
+when any accepted speaker is `Unknown`, the narrator is unresolved, a candidate
+was omitted, or any review note exists. `status` is `needs_review` iff
+`review_required`, else `accepted`.
+
+### Name normalization
+
+Speaker and narrator labels resolve through `CharacterRegistry.resolve` (exact
+canonical name or alias match, **no fuzzy matching**). A first-person speaker tag
+(`I`/`me`/...) resolves through the chapter narrator. Unresolved speakers become
+`Unknown`; unresolved narrators become `null`. No invented characters.
+
+### Inputs and config
+
+`config/characters.json` is **required and has no packaged fallback** (character
+lists are series content); a missing file raises before any model call.
+`config/story_profile.json` is optional context (its `rules.default_narrator`
+seeds a narrator hint) and resolves via the shared transform resolver.
+
+### Reviewer safety
+
+The dialogue JSON is the working review file. A re-run **skips** an existing file
+unless `--force`; validate-before-write means a bad run never corrupts an existing
+good file.
+
+## Design History
+
+- **2026-05-30 — Stage 3 designed via ralplan consensus and implemented by Codex agents** (`.omc/plans/lnvo-v2-dialogue-stage3.md`). Architect raised a blocker: v2 `CharacterRegistry` had only `has_character` (exact, no aliases), so alias normalization had no backing code. Resolved by user decision **R1** — added an additive `CharacterRegistry.resolve(name) -> str | None` (exact name + alias, no fuzzy). Other consensus refinements folded in: model proposes an internal `DialogueProposal` (runner assembles the trusted artifact); per-chapter single call (Option A; per-candidate Option B deferred); omitted/stray candidates become explicit `RejectedCandidate`s; rows sorted by segment order; skip-existing unless `--force`; series-shared `load_character_registry`.
