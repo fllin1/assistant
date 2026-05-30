@@ -2,9 +2,9 @@ Transform converts a prepared volume into stable chapter segment files.
 
 ## Purpose
 
-| Output | Contract |
-| --- | --- |
-| Volume index | `<volume>/volume_index.json` orders chapter segment files. |
+| Output        | Contract                                                            |
+| ------------- | ------------------------------------------------------------------- |
+| Volume index  | `<volume>/volume_index.json` orders chapter segment files.          |
 | Segment files | `<volume>/segments/chapter_XX[_M].json` store stable text segments. |
 
 Sufficient handoff: Dialogue and Scenes can reference text through `segment_id`.
