@@ -20,7 +20,9 @@ from automations.ln_voice_over_v2.stages.dialogue.agent import (
 from automations.ln_voice_over_v2.stages.dialogue.contracts import DialogueChapter
 from automations.ln_voice_over_v2.stages.dialogue.runner import (
     DialogueConfig,
+    DialogueVolumeConfig,
     run_dialogue,
+    run_dialogue_volume,
 )
 from automations.ln_voice_over_v2.stages.transform.contracts import (
     ChapterIndexEntry,
@@ -331,3 +333,134 @@ def write_fixture_tree(
             ),
         ),
     )
+
+
+CHAPTER_TWO = "chapter_02"
+
+
+def _accept_both(_payload: object) -> DialogueProposal:
+    return proposal(
+        decisions=[
+            decision("seg_000001", speaker_raw="Alice"),
+            decision("seg_000002", speaker_raw="Bob"),
+        ]
+    )
+
+
+def write_multi_chapter_tree(tmp_path: Path) -> None:
+    save_json_contract(
+        paths.volume_index_path(tmp_path, SERIES, VOLUME),
+        VolumeIndex(
+            series=SERIES,
+            volume=VOLUME,
+            chapters=(
+                ChapterIndexEntry(
+                    chapter_id=CHAPTER,
+                    order=0,
+                    segments_file=f"segments/{CHAPTER}.json",
+                    display_name="Chapter 1",
+                ),
+                ChapterIndexEntry(
+                    chapter_id=CHAPTER_TWO,
+                    order=1,
+                    segments_file=f"segments/{CHAPTER_TWO}.json",
+                    display_name="Chapter 2",
+                ),
+            ),
+        ),
+    )
+    for chapter_id in (CHAPTER, CHAPTER_TWO):
+        save_json_contract(
+            paths.segment_file_path(tmp_path, SERIES, VOLUME, chapter_id),
+            SegmentFile(
+                series=SERIES,
+                volume=VOLUME,
+                chapter_id=chapter_id,
+                segments=(
+                    Segment(
+                        segment_id="seg_000001",
+                        order=0,
+                        text='"Hello," Alice said.',
+                        parser_hints={"quote_candidate": True},
+                    ),
+                    Segment(
+                        segment_id="seg_000002",
+                        order=1,
+                        text='"Hi," Bob said.',
+                        parser_hints={"quote_candidate": True},
+                    ),
+                ),
+            ),
+        )
+    save_json_contract(
+        paths.characters_config_path(tmp_path, SERIES),
+        CharacterRegistry(
+            characters=(
+                Character(name="Alice", aliases=("Al",)),
+                Character(name="Bob", aliases=("Bobby",)),
+            ),
+        ),
+    )
+
+
+def test_run_dialogue_volume_processes_all_chapters(tmp_path: Path) -> None:
+    write_multi_chapter_tree(tmp_path)
+
+    result = run_dialogue_volume(
+        DialogueVolumeConfig(series=SERIES, volume=VOLUME, data_root=tmp_path, workers=2),
+        attribute_fn=_accept_both,
+    )
+
+    assert [outcome.chapter_id for outcome in result.outcomes] == [CHAPTER, CHAPTER_TWO]
+    assert result.written == 2
+    assert result.skipped == 0
+    assert result.failed == 0
+    assert paths.dialogue_chapter_path(tmp_path, SERIES, VOLUME, CHAPTER).exists()
+    assert paths.dialogue_chapter_path(tmp_path, SERIES, VOLUME, CHAPTER_TWO).exists()
+
+
+def test_run_dialogue_volume_skips_existing_unless_force(tmp_path: Path) -> None:
+    write_multi_chapter_tree(tmp_path)
+
+    first = run_dialogue_volume(
+        DialogueVolumeConfig(series=SERIES, volume=VOLUME, data_root=tmp_path),
+        attribute_fn=_accept_both,
+    )
+    assert first.written == 2
+
+    again = run_dialogue_volume(
+        DialogueVolumeConfig(series=SERIES, volume=VOLUME, data_root=tmp_path),
+        attribute_fn=_accept_both,
+    )
+    assert again.skipped == 2
+    assert again.written == 0
+
+    forced = run_dialogue_volume(
+        DialogueVolumeConfig(series=SERIES, volume=VOLUME, data_root=tmp_path, force=True),
+        attribute_fn=_accept_both,
+    )
+    assert forced.written == 2
+    assert forced.skipped == 0
+
+
+def test_run_dialogue_volume_isolates_per_chapter_failure(tmp_path: Path) -> None:
+    write_multi_chapter_tree(tmp_path)
+
+    def attribute(payload: object) -> DialogueProposal:
+        if getattr(payload, "chapter_id", None) == CHAPTER_TWO:
+            raise RuntimeError("boom")
+        return _accept_both(payload)
+
+    result = run_dialogue_volume(
+        DialogueVolumeConfig(series=SERIES, volume=VOLUME, data_root=tmp_path, workers=2),
+        attribute_fn=attribute,
+    )
+
+    by_id = {outcome.chapter_id: outcome for outcome in result.outcomes}
+    assert by_id[CHAPTER].error is None
+    assert by_id[CHAPTER].result is not None
+    assert by_id[CHAPTER_TWO].result is None
+    assert by_id[CHAPTER_TWO].error is not None
+    assert "boom" in by_id[CHAPTER_TWO].error
+    assert result.written == 1
+    assert result.failed == 1

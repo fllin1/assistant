@@ -9,11 +9,19 @@ from pathlib import Path
 
 from ...common import paths
 from ...common.errors import ContractValidationError
-from .runner import DialogueConfig, run_dialogue
+from .runner import (
+    DialogueConfig,
+    DialogueVolumeConfig,
+    run_dialogue,
+    run_dialogue_volume,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
     """Run the dialogue-stage CLI.
+
+    With `--chapter`, attribute that one chapter. Without it, attribute every
+    chapter in the volume index, dispatching `--workers` chapters concurrently.
 
     Args:
         argv: Optional argument vector. Defaults to `sys.argv[1:]`.
@@ -30,6 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"{parser.prog}: error: {exc}\n")
         return 2
 
+    if args.chapter is not None:
+        return _run_single_chapter(args)
+    return _run_volume(args)
+
+
+def _run_single_chapter(args: argparse.Namespace) -> int:
     config = DialogueConfig(
         series=args.series,
         volume=args.volume,
@@ -40,8 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = run_dialogue(config)
     except ContractValidationError as exc:
-        for problem in exc.problems:
-            sys.stderr.write(f"{problem.code}: {problem.path}: {problem.message}\n")
+        _write_problems(exc)
         return 2
     except Exception as exc:
         sys.stderr.write(f"{exc}\n")
@@ -51,6 +64,42 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _run_volume(args: argparse.Namespace) -> int:
+    config = DialogueVolumeConfig(
+        series=args.series,
+        volume=args.volume,
+        data_root=args.data_root,
+        force=args.force,
+        workers=args.workers,
+    )
+    try:
+        result = run_dialogue_volume(config)
+    except ContractValidationError as exc:
+        _write_problems(exc)
+        return 2
+    except Exception as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 1
+
+    for outcome in result.outcomes:
+        if outcome.error is not None:
+            sys.stderr.write(f"{outcome.chapter_id}: error: {outcome.error}\n")
+        elif outcome.result is not None and outcome.result.skipped:
+            sys.stdout.write(f"{outcome.chapter_id}: skipped (exists)\n")
+        elif outcome.result is not None:
+            sys.stdout.write(f"{outcome.result.dialogue_path}\n")
+
+    sys.stdout.write(
+        f"dialogue: {result.written} written, {result.skipped} skipped, {result.failed} failed\n"
+    )
+    return 1 if result.failed else 0
+
+
+def _write_problems(exc: ContractValidationError) -> None:
+    for problem in exc.problems:
+        sys.stderr.write(f"{problem.code}: {problem.path}: {problem.message}\n")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m automations.ln_voice_over_v2.stages.dialogue",
@@ -58,9 +107,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--series", required=True)
     parser.add_argument("--volume", required=True)
-    parser.add_argument("--chapter", required=True)
+    parser.add_argument(
+        "--chapter", help="Chapter id (e.g. chapter_01). Omit to run every chapter."
+    )
     parser.add_argument("--data-root", type=Path, default=paths.DEFAULT_PROJECT_DATA_ROOT)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Concurrent chapters when running the whole volume (default 4).",
+    )
     return parser
 
 

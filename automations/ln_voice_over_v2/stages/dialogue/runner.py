@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,7 +91,10 @@ def run_dialogue(
             [
                 ValidationProblem(
                     code="unknown_chapter",
-                    message=f"Chapter {config.chapter_id} is not in volume index",
+                    message=(
+                        f"{config.chapter_id!r} is not in the volume index; "
+                        f"available: {', '.join(sorted(chapter_ids))}"
+                    ),
                     path="chapter_id",
                 )
             ]
@@ -208,6 +212,105 @@ def run_dialogue(
         review_required=review_required,
         skipped=False,
     )
+
+
+@dataclass(frozen=True)
+class DialogueVolumeConfig:
+    """Configuration for running dialogue attribution across a whole volume."""
+
+    series: SeriesId
+    volume: VolumeId
+    data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
+    force: bool = False
+    workers: int = 4
+
+
+@dataclass(frozen=True)
+class ChapterOutcome:
+    """Outcome of one chapter within a volume dialogue run."""
+
+    chapter_id: ChapterId
+    result: DialogueResult | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class DialogueVolumeResult:
+    """Aggregate result of a volume dialogue run, in volume order."""
+
+    outcomes: tuple[ChapterOutcome, ...]
+
+    @property
+    def written(self) -> int:
+        """Return the number of chapters (re)generated this run."""
+        return sum(
+            1
+            for outcome in self.outcomes
+            if outcome.result is not None and not outcome.result.skipped
+        )
+
+    @property
+    def skipped(self) -> int:
+        """Return the number of chapters skipped because their file already existed."""
+        return sum(
+            1 for outcome in self.outcomes if outcome.result is not None and outcome.result.skipped
+        )
+
+    @property
+    def failed(self) -> int:
+        """Return the number of chapters that raised during attribution."""
+        return sum(1 for outcome in self.outcomes if outcome.error is not None)
+
+
+def run_dialogue_volume(
+    config: DialogueVolumeConfig,
+    *,
+    attribute_fn: AttributeFn | None = None,
+) -> DialogueVolumeResult:
+    """Run dialogue attribution for every chapter in a volume, in parallel.
+
+    Each chapter is processed by `run_dialogue`; an existing dialogue file is
+    skipped unless `config.force`. A per-chapter failure is isolated and
+    reported rather than aborting the whole volume.
+
+    Args:
+        config: Volume-level dialogue configuration.
+        attribute_fn: Optional attribution seam shared by every chapter.
+
+    Returns:
+        Per-chapter outcomes in volume order.
+    """
+    volume_index = load_json_contract(
+        paths.volume_index_path(config.data_root, config.series, config.volume),
+        VolumeIndex,
+    )
+    chapter_ids = [chapter.chapter_id for chapter in volume_index.chapters]
+    logger.info(
+        "dialogue: dispatching %d chapter(s) over %d worker(s)",
+        len(chapter_ids),
+        config.workers,
+    )
+
+    def _run_one(chapter_id: ChapterId) -> ChapterOutcome:
+        chapter_config = DialogueConfig(
+            series=config.series,
+            volume=config.volume,
+            chapter_id=chapter_id,
+            data_root=config.data_root,
+            force=config.force,
+        )
+        # Each chapter is a separate external model call; isolate a per-chapter
+        # failure so one bad chapter does not abort the rest of the volume.
+        try:
+            result = run_dialogue(chapter_config, attribute_fn=attribute_fn)
+        except Exception as exc:
+            logger.warning("dialogue: chapter %s failed: %s", chapter_id, exc)
+            return ChapterOutcome(chapter_id=chapter_id, error=str(exc))
+        return ChapterOutcome(chapter_id=chapter_id, result=result)
+
+    with ThreadPoolExecutor(max_workers=max(1, config.workers)) as executor:
+        outcomes = tuple(executor.map(_run_one, chapter_ids))
+    return DialogueVolumeResult(outcomes=outcomes)
 
 
 def _roster(registry: CharacterRegistry) -> tuple[str, ...]:

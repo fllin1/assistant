@@ -66,3 +66,55 @@ def test_cli_generic_error_exit_1(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert result == 1
     assert "missing characters.json" in captured.err
+
+
+def test_cli_runs_whole_volume_when_chapter_omitted(monkeypatch, capsys):
+    class _Inner:
+        skipped = False
+        dialogue_path = Path("/tmp/x/dialogue/chapter_01.json")
+
+    class _Outcome:
+        chapter_id = "chapter_01"
+        error = None
+        result = _Inner()
+
+    class _VolumeResult:
+        outcomes = (_Outcome(),)
+        written = 1
+        skipped = 0
+        failed = 0
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.__main__.run_dialogue_volume",
+        lambda config: _VolumeResult(),
+    )
+
+    result = main(["--series", "series-a", "--volume", "v1"])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "chapter_01.json" in captured.out
+    assert "1 written" in captured.out
+
+
+def test_cli_volume_returns_1_when_a_chapter_fails(monkeypatch, capsys):
+    class _Outcome:
+        chapter_id = "chapter_02"
+        error = "boom"
+        result = None
+
+    class _VolumeResult:
+        outcomes = (_Outcome(),)
+        written = 0
+        skipped = 0
+        failed = 1
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.__main__.run_dialogue_volume",
+        lambda config: _VolumeResult(),
+    )
+
+    result = main(["--series", "series-a", "--volume", "v1"])
+
+    assert result == 1
+    assert "boom" in capsys.readouterr().err

@@ -83,12 +83,27 @@ Two validators run before any write (mirroring transform): a stage-local
 ## CLI
 
 ```text
+# whole volume (default): attribute every chapter in volume_index.json
+python -m automations.ln_voice_over_v2.stages.dialogue \
+  --series <series> --volume <volume> [--workers N] [--data-root DIR] [--force]
+
+# one chapter
 python -m automations.ln_voice_over_v2.stages.dialogue \
   --series <series> --volume <volume> --chapter <chapter_id> [--data-root DIR] [--force]
 ```
 
-Prints the written dialogue path on success (exit 0). A
-`ContractValidationError` prints each problem and exits 2; other errors exit 1.
+`--chapter` is optional. Omit it to run the whole volume, dispatching `--workers`
+chapters concurrently (default 4); each chapter is a separate `codex` call.
+Chapter ids come from `volume_index.json` (`chapter_01`, `chapter_07_1`,
+`chapter_00` for front matter); you do not need to know them for a whole-volume
+run, and an unknown `--chapter` error lists the available ids.
+
+Single-chapter mode prints the written dialogue path (exit 0). Whole-volume mode
+prints one line per chapter (path, `skipped (exists)`, or `error: …`) and a
+`written / skipped / failed` summary, exiting 1 if any chapter failed. In both
+modes a `ContractValidationError` prints each problem and exits 2. Existing
+dialogue files are skipped unless `--force`, so a whole-volume re-run only fills
+in missing chapters and never clobbers reviewed ones.
 
 ## Implementation Notes
 
