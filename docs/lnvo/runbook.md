@@ -107,8 +107,8 @@ The override file shares the `StoryProfile` shape; only `rules.chapter_headings`
 ## Stage 3 — dialogue
 
 Detects spoken dialogue, assigns speakers, and resolves chapter perspective via
-one `codex` attribution call per chapter. The model proposes; the runner
-canonicalises names and writes the artifact.
+one or more `codex` attribution calls per chapter. The model proposes; the
+runner canonicalises names and writes the artifact.
 
 Prerequisite: Stage 2 produced `volume_index.json` + `segments/`, and
 `<data_root>/<series>/config/characters.json` exists (**required, no fallback** —
@@ -121,13 +121,17 @@ Canonical invocation:
 python -m automations.ln_voice_over_v2.stages.dialogue \
     --series classroom-of-the-elite-year-2 \
     --volume v4 \
-    --workers 4
+    --workers 4 \
+    --timeout 600 \
+    --max-candidates-per-chunk 300
 
 # single chapter
 python -m automations.ln_voice_over_v2.stages.dialogue \
     --series classroom-of-the-elite-year-2 \
     --volume v4 \
-    --chapter chapter_01
+    --chapter chapter_01 \
+    --timeout 600 \
+    --max-candidates-per-chunk 300
 ```
 
 Notes:
@@ -135,9 +139,12 @@ Notes:
 - `--chapter` is optional; omit it to run every chapter, `--workers` at a time
   (default 4). Chapter ids are `chapter_01`, `chapter_07_1`, `chapter_00`
   (front matter) — not bare numbers. An unknown `--chapter` lists the valid ids.
-- `--timeout SECONDS` bounds each chapter's single `codex` call (default 600). A
-  long chapter that reports `codex dialogue timed out after <N>s` just needs a
-  higher `--timeout`; a re-run re-attempts only the missing chapters.
+- `--timeout SECONDS` bounds each `codex` attribution call (default 600). A long
+  chunk that reports `codex dialogue timed out after <N>s` just needs a higher
+  `--timeout`; a re-run re-attempts only the missing chapters.
+- `--max-candidates-per-chunk N` chunks a chapter whose candidate count exceeds
+  the integer cap (default 300). Each chunk is a separate `codex` call and the
+  partial proposals are merged before assembly.
 - Existing `dialogue/<chapter>.json` files are **skipped unless `--force`** (the
   file is the working review surface; a re-run only fills missing chapters).
 - Whole-volume mode prints per-chapter lines + a `written / skipped / failed`

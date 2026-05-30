@@ -17,6 +17,7 @@ from automations.ln_voice_over_v2.stages.dialogue.agent import (
     CandidateDecision,
     DialogueProposal,
 )
+from automations.ln_voice_over_v2.stages.dialogue.context import ChapterPayload
 from automations.ln_voice_over_v2.stages.dialogue.contracts import DialogueChapter
 from automations.ln_voice_over_v2.stages.dialogue.runner import (
     DialogueConfig,
@@ -272,6 +273,50 @@ def test_run_dialogue_threads_timeout_to_codex(tmp_path: Path, monkeypatch) -> N
     assert captured["timeout_seconds"] == 42
 
 
+def test_default_dialogue_attribution_chunks_large_payload(tmp_path: Path, monkeypatch) -> None:
+    candidate_ids = write_chunking_fixture_tree(tmp_path, candidate_count=5)
+    seen_chunks: list[ChapterPayload] = []
+    max_candidates_per_chunk = 2
+
+    def fake_run_codex_dialogue(prompt: str, *, timeout_seconds: int) -> DialogueProposal:
+        chunk_json = prompt.rsplit("Chapter payload JSON:\n", maxsplit=1)[1]
+        chunk = ChapterPayload.model_validate_json(chunk_json)
+        seen_chunks.append(chunk)
+        return proposal(
+            decisions=[
+                decision(segment_id, speaker_raw="Alice") for segment_id in chunk.candidate_ids
+            ]
+        )
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.runner.run_codex_dialogue",
+        fake_run_codex_dialogue,
+    )
+
+    result = run_dialogue(
+        DialogueConfig(
+            series=SERIES,
+            volume=VOLUME,
+            chapter_id=CHAPTER,
+            data_root=tmp_path,
+            max_candidates_per_chunk=max_candidates_per_chunk,
+        ),
+    )
+
+    assert [row.segment_id for row in result.dialogue.dialogues] == list(candidate_ids)
+    assert result.dialogue.rejected_candidates == ()
+    assert not any(
+        rejected.reason == "model_omitted" for rejected in result.dialogue.rejected_candidates
+    )
+    assert (
+        len(seen_chunks)
+        == (len(candidate_ids) + max_candidates_per_chunk - 1) // max_candidates_per_chunk
+    )
+    assert [segment_id for chunk in seen_chunks for segment_id in chunk.candidate_ids] == list(
+        candidate_ids
+    )
+
+
 def config(tmp_path: Path) -> DialogueConfig:
     return DialogueConfig(
         series=SERIES,
@@ -364,6 +409,53 @@ def write_fixture_tree(
             ),
         ),
     )
+
+
+def write_chunking_fixture_tree(tmp_path: Path, *, candidate_count: int) -> tuple[str, ...]:
+    candidate_ids = tuple(f"seg_{index + 1:06d}" for index in range(candidate_count))
+
+    save_json_contract(
+        paths.volume_index_path(tmp_path, SERIES, VOLUME),
+        VolumeIndex(
+            series=SERIES,
+            volume=VOLUME,
+            chapters=(
+                ChapterIndexEntry(
+                    chapter_id=CHAPTER,
+                    order=0,
+                    segments_file=f"segments/{CHAPTER}.json",
+                    display_name="Chunked Chapter",
+                ),
+            ),
+        ),
+    )
+    save_json_contract(
+        paths.segment_file_path(tmp_path, SERIES, VOLUME, CHAPTER),
+        SegmentFile(
+            series=SERIES,
+            volume=VOLUME,
+            chapter_id=CHAPTER,
+            segments=tuple(
+                Segment(
+                    segment_id=segment_id,
+                    order=index,
+                    text=f'"Line {index + 1}," Alice said.',
+                    parser_hints={"quote_candidate": True},
+                )
+                for index, segment_id in enumerate(candidate_ids)
+            ),
+        ),
+    )
+    save_json_contract(
+        paths.characters_config_path(tmp_path, SERIES),
+        CharacterRegistry(
+            characters=(
+                Character(name="Alice", aliases=("Al",)),
+                Character(name="Bob", aliases=("Bobby",)),
+            ),
+        ),
+    )
+    return candidate_ids
 
 
 CHAPTER_TWO = "chapter_02"

@@ -85,18 +85,22 @@ Two validators run before any write (mirroring transform): a stage-local
 ```text
 # whole volume (default): attribute every chapter in volume_index.json
 python -m automations.ln_voice_over_v2.stages.dialogue \
-  --series <series> --volume <volume> [--workers N] [--timeout SECONDS] [--data-root DIR] [--force]
+  --series <series> --volume <volume> [--workers N] [--timeout SECONDS] \
+  [--max-candidates-per-chunk N] [--data-root DIR] [--force]
 
 # one chapter
 python -m automations.ln_voice_over_v2.stages.dialogue \
-  --series <series> --volume <volume> --chapter <chapter_id> [--timeout SECONDS] [--data-root DIR] [--force]
+  --series <series> --volume <volume> --chapter <chapter_id> [--timeout SECONDS] \
+  [--max-candidates-per-chunk N] [--data-root DIR] [--force]
 ```
 
 `--chapter` is optional. Omit it to run the whole volume, dispatching `--workers`
-chapters concurrently (default 4); each chapter is a separate `codex` call.
-`--timeout` bounds that single per-chapter `codex` call in seconds (default
-600); raise it for unusually long chapters that otherwise time out, or lower it
-to fail fast.
+chapters concurrently (default 4); each chapter is attributed independently.
+`--timeout` bounds each `codex` attribution call in seconds (default 600); raise
+it for unusually long chunks that otherwise time out, or lower it to fail fast.
+`--max-candidates-per-chunk N` chunks a chapter whose candidate count exceeds
+the integer cap (default 300); each chunk is a separate `codex` call and the
+partial proposals are merged before assembly.
 Chapter ids come from `volume_index.json` (`chapter_01`, `chapter_07_1`,
 `chapter_00` for front matter); you do not need to know them for a whole-volume
 run, and an unknown `--chapter` error lists the available ids.
@@ -110,9 +114,9 @@ in missing chapters and never clobbers reviewed ones.
 
 ## Implementation Notes
 
-Unlike transform, dialogue is **not** byte-deterministic: it makes one LLM call
-per chapter. Idempotency comes from skip-existing plus validate-before-write,
-not reproducibility.
+Unlike transform, dialogue is **not** byte-deterministic: it makes one or more
+LLM calls per chapter. Idempotency comes from skip-existing plus
+validate-before-write, not reproducibility.
 
 ### Model boundary
 
@@ -126,6 +130,26 @@ returns only an internal `DialogueProposal` (per-candidate `is_dialogue` /
 `speaker_raw` / `reason`, plus `narrator_raw` and `review_notes`); it never emits
 the persisted `DialogueChapter`. The runner accepts an injectable `attribute_fn`
 seam so tests never spawn `codex`.
+
+### Chunking
+
+Most chapters use one attribution call. Chunking triggers only when the chapter
+has more candidates than `max_candidates_per_chunk` (default 300). Oversized
+chapters are split into contiguous segment windows with at most that many owned
+candidates per window; each window keeps the surrounding narration needed to
+read those candidates in context.
+
+Each window after the first carries a small lead-in overlap from the previous
+window. Those carried segments use the payload role `"context"`, which is
+background only: the prompt tells the model not to classify `"context"` segments.
+Every window is attributed in its own `codex` call, then the partial
+`DialogueProposal`s are merged into one proposal before the existing assembly
+step runs.
+
+The merge is conservative: first-seen wins per `segment_id`; identical duplicate
+decisions are ignored; conflicting cross-chunk decisions keep the first decision
+and add a `review_notes` entry naming the segment. `narrator_raw` is resolved by
+majority vote across chunks.
 
 ### Assembly and review state
 
@@ -177,19 +201,19 @@ Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
   found no exact name/alias — fix `config/characters.json`, not the code.
 - **Model call:** `stages/dialogue/agent.py::run_codex_dialogue`; prompt in
   `prompts.py`. A refusal / malformed JSON raises `ContractValidationError`
-  (`dialogue_malformed`); a non-zero `codex` exit or a per-chapter timeout
+  (`dialogue_malformed`); a non-zero `codex` exit or a per-call timeout
   (default 600s, override with `--timeout`) raises `RuntimeError`. To inspect a
   single chapter, run with `--chapter <id>` and read stderr.
 - Stage 3 is **not** byte-deterministic; idempotency is skip-existing + `--force`.
 
-### Known open issues (from code review — NOT yet fixed)
-1. **Silent duplicate-decision drop.** Two model decisions for the same candidate
-   collapse last-wins with no review flag (`runner.py`, `decision_by_id`).
-   Contradictory output is accepted clean instead of flagged.
-2. **`narrator_hint` is dead context.** `build_chapter_payload` puts
-   `story_profile.rules.default_narrator` into the payload, but `DIALOGUE_PROMPT`
-   never tells the model to use it — weakens narrator detection.
-3. **First-person precedence.** `names.canonical_speaker` resolves `I`/`me`
+### Known issues (from code review)
+1. **Resolved — duplicate-decision conflicts are flagged.** Cross-chunk merge
+   keeps the first decision for a segment and adds a `review_notes` entry when a
+   later chunk disagrees, so contradictory output is no longer silently dropped.
+2. **Resolved — `narrator_hint` is consumed by the prompt.** `DIALOGUE_PROMPT`
+   treats `story_profile.rules.default_narrator` as the default narrator unless
+   in-chapter evidence overrides it.
+3. **Open — first-person precedence.** `names.canonical_speaker` resolves `I`/`me`
    through the narrator *before* the registry lookup, so a character literally
    named `I`/`me` would be shadowed (low likelihood, but reversed precedence).
 
@@ -203,4 +227,5 @@ Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
 
 ## Design History
 
-- **2026-05-30 — Stage 3 designed via ralplan consensus and implemented by Codex agents** (`.omc/plans/lnvo-v2-dialogue-stage3.md`). Architect raised a blocker: v2 `CharacterRegistry` had only `has_character` (exact, no aliases), so alias normalization had no backing code. Resolved by user decision **R1** — added an additive `CharacterRegistry.resolve(name) -> str | None` (exact name + alias, no fuzzy). Other consensus refinements folded in: model proposes an internal `DialogueProposal` (runner assembles the trusted artifact); per-chapter single call (Option A; per-candidate Option B deferred); omitted/stray candidates become explicit `RejectedCandidate`s; rows sorted by segment order; skip-existing unless `--force`; series-shared `load_character_registry`.
+- **2026-05-30 — Stage 3 designed via ralplan consensus and implemented by Codex agents** (`.omc/plans/lnvo-v2-dialogue-stage3.md`). Architect raised a blocker: v2 `CharacterRegistry` had only `has_character` (exact, no aliases), so alias normalization had no backing code. Resolved by user decision **R1** — added an additive `CharacterRegistry.resolve(name) -> str | None` (exact name + alias, no fuzzy). Other consensus refinements folded in: model proposes an internal `DialogueProposal` (runner assembles the trusted artifact); normal chapters use a per-chapter single call (Option A; per-candidate Option B deferred); omitted/stray candidates become explicit `RejectedCandidate`s; rows sorted by segment order; skip-existing unless `--force`; series-shared `load_character_registry`.
+- **2026-05-30 — Oversized dialogue chapters chunked** (`.omc/plans/lnvo-v2-dialogue-chunking.md`). Added `max_candidates_per_chunk` (default 300), lead-in `"context"` overlap, per-chunk `codex` calls, and merge-before-assembly semantics. This also resolved duplicate-decision conflict visibility and `narrator_hint` prompt usage.

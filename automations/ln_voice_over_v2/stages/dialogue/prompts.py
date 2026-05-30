@@ -11,12 +11,17 @@ Return exactly this DialogueProposal shape:
 {"decisions":[{"segment_id":str,"is_dialogue":bool,"speaker_raw":str|null,"reason":str}],"narrator_raw":str|null,"review_notes":[str]}
 
 Rules:
-- Only classify segments whose role is "candidate".
+- Only classify segments whose role is "candidate". Segments with role
+  "narration" or "context" are background for turn-taking and continuity only;
+  never emit a decision for them.
 - Set is_dialogue=true only for true spoken dialogue.
 - Set is_dialogue=false for quoted narration, titles, labels, thoughts that are
   not spoken aloud, sound effects, or other non-dialogue; include a short reason.
 - speaker_raw must be one of the provided roster names or aliases, otherwise null.
 - narrator_raw must be one of the provided roster names or aliases, otherwise null.
+- If the payload includes a narrator_hint, treat it as the default narrator
+  unless explicit in-chapter evidence overrides it; still return narrator_raw as
+  a roster name/alias or null.
 - Never invent names, aliases, speakers, narrators, or segment IDs.
 - Use mechanical structured-attribution framing: base decisions on explicit
   attribution, turn-taking, local context, and provided roster evidence.

@@ -10,6 +10,7 @@ from pathlib import Path
 from ...common import paths
 from ...common.errors import ContractValidationError
 from .agent import DEFAULT_DIALOGUE_TIMEOUT_SECONDS
+from .chunking import DEFAULT_MAX_CANDIDATES_PER_CHUNK
 from .runner import (
     DialogueConfig,
     DialogueVolumeConfig,
@@ -52,6 +53,7 @@ def _run_single_chapter(args: argparse.Namespace) -> int:
         data_root=args.data_root,
         force=args.force,
         timeout_seconds=args.timeout,
+        max_candidates_per_chunk=args.max_candidates_per_chunk,
     )
     try:
         result = run_dialogue(config)
@@ -74,6 +76,7 @@ def _run_volume(args: argparse.Namespace) -> int:
         force=args.force,
         workers=args.workers,
         timeout_seconds=args.timeout,
+        max_candidates_per_chunk=args.max_candidates_per_chunk,
     )
     try:
         result = run_dialogue_volume(config)
@@ -128,6 +131,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Codex subprocess timeout in seconds per chapter "
             f"(default {DEFAULT_DIALOGUE_TIMEOUT_SECONDS})."
+        ),
+    )
+    parser.add_argument(
+        "--max-candidates-per-chunk",
+        type=int,
+        default=DEFAULT_MAX_CANDIDATES_PER_CHUNK,
+        help=(
+            "Maximum dialogue candidates per Codex attribution chunk "
+            f"(default {DEFAULT_MAX_CANDIDATES_PER_CHUNK})."
         ),
     )
     return parser

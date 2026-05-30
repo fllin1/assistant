@@ -47,6 +47,36 @@ def test_cli_passes_timeout_to_config(monkeypatch):
     assert captured["config"].timeout_seconds == 600
 
 
+def test_cli_passes_max_candidates_per_chunk_to_config(monkeypatch):
+    captured = {}
+
+    def fake_run_dialogue(config):
+        captured["config"] = config
+        return SimpleNamespace(dialogue_path=Path("/tmp/x/dialogue/chapter_01.json"))
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.__main__.run_dialogue",
+        fake_run_dialogue,
+    )
+
+    main(
+        [
+            "--series",
+            "s",
+            "--volume",
+            "v1",
+            "--chapter",
+            "chapter_01",
+            "--max-candidates-per-chunk",
+            "12",
+        ]
+    )
+    assert captured["config"].max_candidates_per_chunk == 12
+
+    main(["--series", "s", "--volume", "v1", "--chapter", "chapter_01"])
+    assert captured["config"].max_candidates_per_chunk == 300
+
+
 def test_cli_volume_passes_timeout_to_config(monkeypatch):
     captured = {}
 
@@ -69,6 +99,35 @@ def test_cli_volume_passes_timeout_to_config(monkeypatch):
 
     assert result == 0
     assert captured["config"].timeout_seconds == 77
+
+
+def test_cli_volume_passes_max_candidates_per_chunk_to_config(monkeypatch):
+    captured = {}
+
+    class _VolumeResult:
+        outcomes = ()
+        written = 0
+        skipped = 0
+        failed = 0
+
+    def fake_run_volume(config):
+        captured["config"] = config
+        return _VolumeResult()
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.__main__.run_dialogue_volume",
+        fake_run_volume,
+    )
+
+    result = main(["--series", "s", "--volume", "v1", "--max-candidates-per-chunk", "17"])
+
+    assert result == 0
+    assert captured["config"].max_candidates_per_chunk == 17
+
+    result = main(["--series", "s", "--volume", "v1"])
+
+    assert result == 0
+    assert captured["config"].max_candidates_per_chunk == 300
 
 
 def test_cli_contract_error_exit_2(monkeypatch, capsys):

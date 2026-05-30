@@ -21,6 +21,7 @@ from .agent import (
     DialogueProposal,
     run_codex_dialogue,
 )
+from .chunking import DEFAULT_MAX_CANDIDATES_PER_CHUNK, attribute_with_chunking
 from .config import (
     load_character_registry,
     load_story_profile,
@@ -47,6 +48,7 @@ class DialogueConfig:
     data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
     force: bool = False
     timeout_seconds: int = DEFAULT_DIALOGUE_TIMEOUT_SECONDS
+    max_candidates_per_chunk: int = DEFAULT_MAX_CANDIDATES_PER_CHUNK
 
 
 @dataclass(frozen=True)
@@ -123,11 +125,19 @@ def run_dialogue(
     candidate_id_set = set(candidate_ids)
 
     if attribute_fn is None:
+        roster = _roster(registry)
 
         def attribute_fn(payload: ChapterPayload) -> DialogueProposal:
-            return run_codex_dialogue(
-                build_prompt(payload, _roster(registry)),
-                timeout_seconds=config.timeout_seconds,
+            def attribute_chunk(chunk: ChapterPayload) -> DialogueProposal:
+                return run_codex_dialogue(
+                    build_prompt(chunk, roster),
+                    timeout_seconds=config.timeout_seconds,
+                )
+
+            return attribute_with_chunking(
+                payload,
+                attribute_chunk=attribute_chunk,
+                max_candidates_per_chunk=config.max_candidates_per_chunk,
             )
 
     proposal = attribute_fn(payload)
@@ -232,6 +242,7 @@ class DialogueVolumeConfig:
     force: bool = False
     workers: int = 4
     timeout_seconds: int = DEFAULT_DIALOGUE_TIMEOUT_SECONDS
+    max_candidates_per_chunk: int = DEFAULT_MAX_CANDIDATES_PER_CHUNK
 
 
 @dataclass(frozen=True)
@@ -308,6 +319,7 @@ def run_dialogue_volume(
             data_root=config.data_root,
             force=config.force,
             timeout_seconds=config.timeout_seconds,
+            max_candidates_per_chunk=config.max_candidates_per_chunk,
         )
         # Each chapter is a separate external model call; isolate a per-chapter
         # failure so one bad chapter does not abort the rest of the volume.

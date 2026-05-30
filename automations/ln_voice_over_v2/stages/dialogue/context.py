@@ -15,7 +15,7 @@ class PayloadSegment(ContractModel):
 
     segment_id: SegmentId
     text: str
-    role: Literal["candidate", "narration"]
+    role: Literal["candidate", "narration", "context"]
 
 
 class ChapterPayload(ContractModel):
