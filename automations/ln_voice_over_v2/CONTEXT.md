@@ -20,6 +20,14 @@ quote-like candidates, and resolves chapter perspective.
 adapted narration beats, dialogue beats, and visual choices.
 
 **Generation** records audio and visual media output contracts from final scenes.
+Spoken narration resolves to the beat speaker when present; otherwise it uses
+the reserved `Narrator` voice key. For Classroom of the Elite, `Narrator`
+defaults to Ayanokouji's voice, but chapters with another detected narrator
+should use that character's voice.
+
+Provider credentials stay outside LNVO v2 runtime artifacts. Hume voices require
+`HUME_API_KEY` in the Voice Tuning environment; LNVO references accepted voice
+keys and engine ids, but does not store or print provider secrets.
 
 ## Canonical Data
 
