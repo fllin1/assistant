@@ -15,6 +15,19 @@ def series_root(data_root: Path, series: SeriesId) -> Path:
     return data_root / series
 
 
+def characters_config_path(data_root: Path, series: SeriesId) -> Path:
+    """Return the series character registry config path.
+
+    Args:
+        data_root: Runtime data root containing all series data.
+        series: Series identifier.
+
+    Returns:
+        Path to the series `characters.json` config file.
+    """
+    return series_root(data_root, series) / "config" / "characters.json"
+
+
 def volume_root(data_root: Path, series: SeriesId, volume: VolumeId) -> Path:
     """Return the runtime volume root."""
     return series_root(data_root, series) / volume
