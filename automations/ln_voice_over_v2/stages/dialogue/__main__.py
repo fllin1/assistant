@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ...common import paths
 from ...common.errors import ContractValidationError
+from .agent import DEFAULT_DIALOGUE_TIMEOUT_SECONDS
 from .runner import (
     DialogueConfig,
     DialogueVolumeConfig,
@@ -50,6 +51,7 @@ def _run_single_chapter(args: argparse.Namespace) -> int:
         chapter_id=args.chapter,
         data_root=args.data_root,
         force=args.force,
+        timeout_seconds=args.timeout,
     )
     try:
         result = run_dialogue(config)
@@ -71,6 +73,7 @@ def _run_volume(args: argparse.Namespace) -> int:
         data_root=args.data_root,
         force=args.force,
         workers=args.workers,
+        timeout_seconds=args.timeout,
     )
     try:
         result = run_dialogue_volume(config)
@@ -117,6 +120,15 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=4,
         help="Concurrent chapters when running the whole volume (default 4).",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_DIALOGUE_TIMEOUT_SECONDS,
+        help=(
+            "Codex subprocess timeout in seconds per chapter "
+            f"(default {DEFAULT_DIALOGUE_TIMEOUT_SECONDS})."
+        ),
     )
     return parser
 

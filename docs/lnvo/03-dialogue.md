@@ -85,15 +85,18 @@ Two validators run before any write (mirroring transform): a stage-local
 ```text
 # whole volume (default): attribute every chapter in volume_index.json
 python -m automations.ln_voice_over_v2.stages.dialogue \
-  --series <series> --volume <volume> [--workers N] [--data-root DIR] [--force]
+  --series <series> --volume <volume> [--workers N] [--timeout SECONDS] [--data-root DIR] [--force]
 
 # one chapter
 python -m automations.ln_voice_over_v2.stages.dialogue \
-  --series <series> --volume <volume> --chapter <chapter_id> [--data-root DIR] [--force]
+  --series <series> --volume <volume> --chapter <chapter_id> [--timeout SECONDS] [--data-root DIR] [--force]
 ```
 
 `--chapter` is optional. Omit it to run the whole volume, dispatching `--workers`
 chapters concurrently (default 4); each chapter is a separate `codex` call.
+`--timeout` bounds that single per-chapter `codex` call in seconds (default
+600); raise it for unusually long chapters that otherwise time out, or lower it
+to fail fast.
 Chapter ids come from `volume_index.json` (`chapter_01`, `chapter_07_1`,
 `chapter_00` for front matter); you do not need to know them for a whole-volume
 run, and an unknown `--chapter` error lists the available ids.
@@ -157,6 +160,46 @@ seeds a narrator hint) and resolves via the shared transform resolver.
 The dialogue JSON is the working review file. A re-run **skips** an existing file
 unless `--force`; validate-before-write means a bad run never corrupts an existing
 good file.
+
+## Debugging & Known Issues
+
+Branch: `feat/lnvo-v2-dialogue-stage3` (implemented 2026-05-30; not merged/pushed).
+Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
+
+### Where to look
+- **The artifact is the review file.** Open `<volume>/dialogue/<chapter>.json`:
+  `status` (`accepted`/`needs_review`), `review_required`, `perspective`,
+  `dialogues[]`, `rejected_candidates[]` (with `reason`), `review_notes[]`.
+- **Reject reasons** are diagnostic: `model_omitted` (model returned no decision
+  for a candidate), `model_stray_segment` (model classified a non-candidate),
+  or the model's own free-text reason for a genuine reject.
+- **`Unknown` speaker or `null` narrator** means `CharacterRegistry.resolve`
+  found no exact name/alias — fix `config/characters.json`, not the code.
+- **Model call:** `stages/dialogue/agent.py::run_codex_dialogue`; prompt in
+  `prompts.py`. A refusal / malformed JSON raises `ContractValidationError`
+  (`dialogue_malformed`); a non-zero `codex` exit or a per-chapter timeout
+  (default 600s, override with `--timeout`) raises `RuntimeError`. To inspect a
+  single chapter, run with `--chapter <id>` and read stderr.
+- Stage 3 is **not** byte-deterministic; idempotency is skip-existing + `--force`.
+
+### Known open issues (from code review — NOT yet fixed)
+1. **Silent duplicate-decision drop.** Two model decisions for the same candidate
+   collapse last-wins with no review flag (`runner.py`, `decision_by_id`).
+   Contradictory output is accepted clean instead of flagged.
+2. **`narrator_hint` is dead context.** `build_chapter_payload` puts
+   `story_profile.rules.default_narrator` into the payload, but `DIALOGUE_PROMPT`
+   never tells the model to use it — weakens narrator detection.
+3. **First-person precedence.** `names.canonical_speaker` resolves `I`/`me`
+   through the narrator *before* the registry lookup, so a character literally
+   named `I`/`me` would be shadowed (low likelihood, but reversed precedence).
+
+### Orchestration gotchas (when fixing via the `codex` CLI)
+- Use `codex exec --sandbox workspace-write` for writes; `resume` defaults to
+  read-only (override with `-c sandbox_mode=workspace-write`).
+- The PostToolUse `ruff --fix` hook strips a just-added import if its first use
+  lands in a *later* edit — add the import and its usage in the same change.
+- `codex exec` sometimes ends a turn after narrating intent without applying
+  patches; re-run or resume, and verify with `ruff` + `pytest` yourself.
 
 ## Design History
 

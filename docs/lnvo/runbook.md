@@ -2,7 +2,7 @@ Runbook collects the commands that produce real artifacts at each functional sta
 
 Run them in order; each stage reads what the previous stage wrote.
 
-Stages 3 (dialogue), 4 (scenes), and 5 (generation) are not yet runnable — contracts exist but no runner is wired. Only Stages 1 and 2 produce artifacts today.
+Stages 1, 2, and 3 (dialogue) are runnable today. Stages 4 (scenes) and 5 (generation) are not yet wired — contracts exist but no runner.
 
 ## Defaults
 
@@ -104,6 +104,67 @@ cp automations/ln_voice_over_v2/series/templates/story_profile.default.json \
 
 The override file shares the `StoryProfile` shape; only `rules.chapter_headings` (list of Python regex strings) and `rules.subchapters` (bool) are read by Stage 2 today.
 
-## Stages 3-5
+## Stage 3 — dialogue
 
-Not yet implemented. The contracts live at `automations/ln_voice_over_v2/stages/{dialogue,scenes,generation}/contracts.py`. Adding a runner is the next pipeline slice.
+Detects spoken dialogue, assigns speakers, and resolves chapter perspective via
+one `codex` attribution call per chapter. The model proposes; the runner
+canonicalises names and writes the artifact.
+
+Prerequisite: Stage 2 produced `volume_index.json` + `segments/`, and
+`<data_root>/<series>/config/characters.json` exists (**required, no fallback** —
+canonical character names + aliases). `codex` CLI signed in.
+
+Canonical invocation:
+
+```bash
+# whole volume (default): every chapter in volume_index.json
+python -m automations.ln_voice_over_v2.stages.dialogue \
+    --series classroom-of-the-elite-year-2 \
+    --volume v4 \
+    --workers 4
+
+# single chapter
+python -m automations.ln_voice_over_v2.stages.dialogue \
+    --series classroom-of-the-elite-year-2 \
+    --volume v4 \
+    --chapter chapter_01
+```
+
+Notes:
+
+- `--chapter` is optional; omit it to run every chapter, `--workers` at a time
+  (default 4). Chapter ids are `chapter_01`, `chapter_07_1`, `chapter_00`
+  (front matter) — not bare numbers. An unknown `--chapter` lists the valid ids.
+- `--timeout SECONDS` bounds each chapter's single `codex` call (default 600). A
+  long chapter that reports `codex dialogue timed out after <N>s` just needs a
+  higher `--timeout`; a re-run re-attempts only the missing chapters.
+- Existing `dialogue/<chapter>.json` files are **skipped unless `--force`** (the
+  file is the working review surface; a re-run only fills missing chapters).
+- Whole-volume mode prints per-chapter lines + a `written / skipped / failed`
+  summary and exits 1 if any chapter failed; per-chapter failures are isolated.
+
+Outputs:
+
+```text
+~/.assistant/ln_voice_over_v2/projects/<series>/<volume>/
+└── dialogue/
+    ├── chapter_00.json
+    ├── chapter_01.json
+    └── ...
+```
+
+See `docs/lnvo/03-dialogue.md` for the contract, review semantics
+(`status` / `review_required` / `rejected_candidates` reasons), and the
+"Debugging & Known Issues" section.
+
+Smoke-test:
+
+```bash
+pytest tests/automations/ln_voice_over_v2/stages/dialogue/ -q
+```
+
+## Stages 4-5
+
+Not yet implemented. The contracts live at
+`automations/ln_voice_over_v2/stages/{scenes,generation}/contracts.py`. Adding a
+runner is the next pipeline slice.

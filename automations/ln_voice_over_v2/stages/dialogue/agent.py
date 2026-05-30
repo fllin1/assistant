@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from ...common.errors import ContractValidationError, ValidationProblem
 from ...common.ids import SegmentId
 
+# Default per-chapter codex attribution timeout in seconds. Shared by the config
+# and CLI defaults so the value never drifts across the call chain.
+DEFAULT_DIALOGUE_TIMEOUT_SECONDS = 600
+
 
 class CandidateDecision(BaseModel):
     """Dialogue classification decision for one candidate segment."""
@@ -34,7 +38,7 @@ def run_codex_dialogue(
     *,
     model: str = "gpt-5.5",
     executable: str = "codex",
-    timeout_seconds: int = 180,
+    timeout_seconds: int = DEFAULT_DIALOGUE_TIMEOUT_SECONDS,
 ) -> DialogueProposal:
     """Run Codex in text-only mode and parse a dialogue proposal."""
     argv = [
@@ -58,8 +62,12 @@ def run_codex_dialogue(
             timeout=timeout_seconds,
             check=True,
         )
+    # `from None` suppresses the chained subprocess error: its `cmd`/`argv`
+    # carries the full prompt, which must not leak into a printed traceback.
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"codex dialogue timed out after {timeout_seconds}s") from None
     except subprocess.CalledProcessError as err:
-        raise RuntimeError(f"codex dialogue failed: {err.stderr}") from err
+        raise RuntimeError(f"codex dialogue failed: {err.stderr}") from None
 
     try:
         return DialogueProposal.model_validate_json(completed.stdout.strip())

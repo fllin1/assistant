@@ -241,6 +241,37 @@ def test_resolved_alias_does_not_trigger_unknown_review(tmp_path: Path) -> None:
     assert result.dialogue.status is ReviewStatus.ACCEPTED
 
 
+def test_run_dialogue_threads_timeout_to_codex(tmp_path: Path, monkeypatch) -> None:
+    write_fixture_tree(tmp_path)
+    captured = {}
+
+    def fake_run_codex_dialogue(prompt: str, *, timeout_seconds: int) -> DialogueProposal:
+        captured["timeout_seconds"] = timeout_seconds
+        return proposal(
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Bob"),
+            ]
+        )
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.runner.run_codex_dialogue",
+        fake_run_codex_dialogue,
+    )
+
+    run_dialogue(
+        DialogueConfig(
+            series=SERIES,
+            volume=VOLUME,
+            chapter_id=CHAPTER,
+            data_root=tmp_path,
+            timeout_seconds=42,
+        ),
+    )
+
+    assert captured["timeout_seconds"] == 42
+
+
 def config(tmp_path: Path) -> DialogueConfig:
     return DialogueConfig(
         series=SERIES,
@@ -464,3 +495,30 @@ def test_run_dialogue_volume_isolates_per_chapter_failure(tmp_path: Path) -> Non
     assert "boom" in by_id[CHAPTER_TWO].error
     assert result.written == 1
     assert result.failed == 1
+
+
+def test_run_dialogue_volume_threads_timeout_to_codex(tmp_path: Path, monkeypatch) -> None:
+    write_multi_chapter_tree(tmp_path)
+    seen = []
+
+    def fake_run_codex_dialogue(prompt: str, *, timeout_seconds: int) -> DialogueProposal:
+        seen.append(timeout_seconds)
+        return _accept_both(None)
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.runner.run_codex_dialogue",
+        fake_run_codex_dialogue,
+    )
+
+    run_dialogue_volume(
+        DialogueVolumeConfig(
+            series=SERIES,
+            volume=VOLUME,
+            data_root=tmp_path,
+            workers=2,
+            timeout_seconds=99,
+        ),
+    )
+
+    assert len(seen) == 2
+    assert all(value == 99 for value in seen)

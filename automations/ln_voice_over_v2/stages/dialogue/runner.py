@@ -16,7 +16,11 @@ from ...common.json_io import load_json_contract, save_json_contract
 from ...pipeline.validators import UNKNOWN_SPEAKER, validate_dialogue_against_segments
 from ...series.contracts import CharacterRegistry
 from ..transform.contracts import SegmentFile, VolumeIndex
-from .agent import DialogueProposal, run_codex_dialogue
+from .agent import (
+    DEFAULT_DIALOGUE_TIMEOUT_SECONDS,
+    DialogueProposal,
+    run_codex_dialogue,
+)
 from .config import (
     load_character_registry,
     load_story_profile,
@@ -42,6 +46,7 @@ class DialogueConfig:
     chapter_id: ChapterId
     data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
     force: bool = False
+    timeout_seconds: int = DEFAULT_DIALOGUE_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -120,7 +125,10 @@ def run_dialogue(
     if attribute_fn is None:
 
         def attribute_fn(payload: ChapterPayload) -> DialogueProposal:
-            return run_codex_dialogue(build_prompt(payload, _roster(registry)))
+            return run_codex_dialogue(
+                build_prompt(payload, _roster(registry)),
+                timeout_seconds=config.timeout_seconds,
+            )
 
     proposal = attribute_fn(payload)
 
@@ -223,6 +231,7 @@ class DialogueVolumeConfig:
     data_root: Path = paths.DEFAULT_PROJECT_DATA_ROOT
     force: bool = False
     workers: int = 4
+    timeout_seconds: int = DEFAULT_DIALOGUE_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -298,6 +307,7 @@ def run_dialogue_volume(
             chapter_id=chapter_id,
             data_root=config.data_root,
             force=config.force,
+            timeout_seconds=config.timeout_seconds,
         )
         # Each chapter is a separate external model call; isolate a per-chapter
         # failure so one bad chapter does not abort the rest of the volume.

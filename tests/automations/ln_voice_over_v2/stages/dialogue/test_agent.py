@@ -84,8 +84,36 @@ def test_run_codex_dialogue_process_failure_raises_runtime_error(monkeypatch):
         fake_run,
     )
 
-    with pytest.raises(RuntimeError, match="codex dialogue failed: boom"):
-        run_codex_dialogue("prompt")
+    with pytest.raises(RuntimeError, match="codex dialogue failed: boom") as exc_info:
+        run_codex_dialogue("secret-prompt-text")
+
+    # The prompt-bearing CalledProcessError is suppressed from the chain
+    # (`from None`), so a printed traceback cannot surface argv via __cause__.cmd.
+    err = exc_info.value
+    assert "secret-prompt-text" not in str(err)
+    assert err.__cause__ is None
+    assert err.__suppress_context__ is True
+
+
+def test_run_codex_dialogue_timeout_raises_clean_runtime_error(monkeypatch):
+    def fake_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    monkeypatch.setattr(
+        "automations.ln_voice_over_v2.stages.dialogue.agent.subprocess.run",
+        fake_run,
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        run_codex_dialogue("secret-prompt-text", timeout_seconds=5)
+
+    err = exc_info.value
+    assert "timed out after 5s" in str(err)
+    # Prompt must not leak: message is clean and the prompt-bearing TimeoutExpired
+    # (whose `cmd` is the full argv) is suppressed from the chain (`from None`).
+    assert "secret-prompt-text" not in str(err)
+    assert err.__cause__ is None
+    assert err.__suppress_context__ is True
 
 
 def test_build_prompt_includes_roster_and_payload_json():
