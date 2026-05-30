@@ -1,0 +1,31 @@
+"""Prompt construction for LNVO dialogue attribution."""
+
+from .context import ChapterPayload
+
+DIALOGUE_PROMPT: str = """You are the dialogue attribution stage for light novel voice-over.
+
+Read the chapter payload and return STRICT JSON ONLY. Do not include markdown,
+comments, code fences, prose, or any text outside the JSON object.
+
+Return exactly this DialogueProposal shape:
+{"decisions":[{"segment_id":str,"is_dialogue":bool,"speaker_raw":str|null,"reason":str}],"narrator_raw":str|null,"review_notes":[str]}
+
+Rules:
+- Only classify segments whose role is "candidate".
+- Set is_dialogue=true only for true spoken dialogue.
+- Set is_dialogue=false for quoted narration, titles, labels, thoughts that are
+  not spoken aloud, sound effects, or other non-dialogue; include a short reason.
+- speaker_raw must be one of the provided roster names or aliases, otherwise null.
+- narrator_raw must be one of the provided roster names or aliases, otherwise null.
+- Never invent names, aliases, speakers, narrators, or segment IDs.
+- Use mechanical structured-attribution framing: base decisions on explicit
+  attribution, turn-taking, local context, and provided roster evidence.
+"""
+
+
+def build_prompt(payload: ChapterPayload, roster: tuple[str, ...]) -> str:
+    """Build the model prompt for dialogue attribution."""
+    roster_lines = "\n".join(f"- {name}" for name in roster)
+    roster_display = roster_lines if roster_lines else "- <empty>"
+    roster_block = f"\n\nRoster names and aliases:\n{roster_display}\n\nChapter payload JSON:\n"
+    return DIALOGUE_PROMPT + roster_block + payload.model_dump_json()
