@@ -1,0 +1,333 @@
+"""Tests for the dialogue runner."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from automations.ln_voice_over_v2.common import paths
+from automations.ln_voice_over_v2.common.enums import (
+    PerspectiveStatus,
+    ReviewStatus,
+)
+from automations.ln_voice_over_v2.common.errors import ContractValidationError
+from automations.ln_voice_over_v2.common.json_io import load_json_contract, save_json_contract
+from automations.ln_voice_over_v2.series.contracts import Character, CharacterRegistry
+from automations.ln_voice_over_v2.stages.dialogue.agent import (
+    CandidateDecision,
+    DialogueProposal,
+)
+from automations.ln_voice_over_v2.stages.dialogue.contracts import DialogueChapter
+from automations.ln_voice_over_v2.stages.dialogue.runner import (
+    DialogueConfig,
+    run_dialogue,
+)
+from automations.ln_voice_over_v2.stages.transform.contracts import (
+    ChapterIndexEntry,
+    Segment,
+    SegmentFile,
+    VolumeIndex,
+)
+
+SERIES = "series-a"
+VOLUME = "v01"
+CHAPTER = "chapter_01"
+
+
+def test_valid_dialogue_file_round_trips(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            narrator_raw="Alice",
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Bob"),
+            ],
+        ),
+    )
+
+    saved = load_json_contract(result.dialogue_path, DialogueChapter)
+    assert result.skipped is False
+    assert result.accepted_count == 2
+    assert result.rejected_count == 0
+    assert saved == result.dialogue
+    assert saved.status is ReviewStatus.ACCEPTED
+    assert saved.review_required is False
+    assert [row.speaker for row in saved.dialogues] == ["Alice", "Bob"]
+    assert saved.perspective.narrator == "Alice"
+    assert saved.perspective.status is PerspectiveStatus.DETECTED
+
+
+def test_rejected_quote_candidate_records_reason(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", is_dialogue=False, reason="thought"),
+            ],
+        ),
+    )
+
+    assert [(row.segment_id, row.reason) for row in result.dialogue.rejected_candidates] == [
+        ("seg_000002", "thought")
+    ]
+
+
+def test_unknown_speaker_requires_review(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Mystery"),
+            ],
+        ),
+    )
+
+    assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Unknown"]
+    assert result.review_required is True
+    assert result.dialogue.status is ReviewStatus.NEEDS_REVIEW
+
+
+def test_alias_normalization(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            narrator_raw="Al",
+            decisions=[
+                decision("seg_000001", speaker_raw="Al"),
+                decision("seg_000002", speaker_raw="Bobby"),
+            ],
+        ),
+    )
+
+    assert result.dialogue.perspective.narrator == "Alice"
+    assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Bob"]
+
+
+def test_invalid_segment_reference_fails_before_write(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path, segment_chapter_id="chapter_02")
+    dialogue_path = paths.dialogue_chapter_path(tmp_path, SERIES, VOLUME, CHAPTER)
+
+    with pytest.raises(ContractValidationError):
+        run_dialogue(
+            config(tmp_path),
+            attribute_fn=lambda _: proposal(
+                decisions=[
+                    decision("seg_000001", speaker_raw="Alice"),
+                    decision("seg_000002", speaker_raw="Bob"),
+                ]
+            ),
+        )
+
+    assert not dialogue_path.exists()
+
+
+def test_unresolved_narrator_requires_review(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            narrator_raw=None,
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Bob"),
+            ],
+        ),
+    )
+
+    assert result.dialogue.perspective.status is PerspectiveStatus.UNSET
+    assert result.dialogue.perspective.narrator is None
+    assert result.review_required is True
+    assert result.dialogue.status is ReviewStatus.NEEDS_REVIEW
+
+
+def test_unknown_chapter_fails_before_model_call(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    def fail_if_called(_):
+        raise AssertionError("attribute_fn should not be called")
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        run_dialogue(
+            DialogueConfig(
+                series=SERIES,
+                volume=VOLUME,
+                chapter_id="chapter_99",
+                data_root=tmp_path,
+            ),
+            attribute_fn=fail_if_called,
+        )
+
+    assert exc_info.value.problems[0].code == "unknown_chapter"
+
+
+def test_omitted_candidate_is_rejected_and_requires_review(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(decisions=[decision("seg_000001", speaker_raw="Alice")]),
+    )
+
+    assert [(row.segment_id, row.reason) for row in result.dialogue.rejected_candidates] == [
+        ("seg_000002", "model_omitted")
+    ]
+    assert result.review_required is True
+
+
+def test_skip_existing_preserves_bytes_and_force_regenerates(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+    first = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Bob"),
+            ],
+        ),
+    )
+    original_bytes = first.dialogue_path.read_bytes()
+
+    skipped = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(review_notes=("should not run",)),
+    )
+    assert skipped.skipped is True
+    assert first.dialogue_path.read_bytes() == original_bytes
+
+    forced = run_dialogue(
+        DialogueConfig(SERIES, VOLUME, CHAPTER, data_root=tmp_path, force=True),
+        attribute_fn=lambda _: proposal(
+            review_notes=("forced",),
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw="Bob"),
+            ],
+        ),
+    )
+    assert forced.skipped is False
+    assert forced.dialogue.review_notes == ("forced",)
+    assert forced.dialogue_path.read_bytes() != original_bytes
+
+
+def test_resolved_alias_does_not_trigger_unknown_review(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            narrator_raw="Al",
+            decisions=[
+                decision("seg_000001", speaker_raw="Al"),
+                decision("seg_000002", speaker_raw="Bobby"),
+            ],
+        ),
+    )
+
+    assert result.review_required is False
+    assert result.dialogue.status is ReviewStatus.ACCEPTED
+
+
+def config(tmp_path: Path) -> DialogueConfig:
+    return DialogueConfig(
+        series=SERIES,
+        volume=VOLUME,
+        chapter_id=CHAPTER,
+        data_root=tmp_path,
+    )
+
+
+def proposal(
+    *,
+    narrator_raw: str | None = "Alice",
+    decisions: list[CandidateDecision] | None = None,
+    review_notes: tuple[str, ...] = (),
+) -> DialogueProposal:
+    return DialogueProposal(
+        narrator_raw=narrator_raw,
+        decisions=tuple(decisions or ()),
+        review_notes=review_notes,
+    )
+
+
+def decision(
+    segment_id: str,
+    *,
+    speaker_raw: str | None = None,
+    is_dialogue: bool = True,
+    reason: str = "",
+) -> CandidateDecision:
+    return CandidateDecision(
+        segment_id=segment_id,
+        is_dialogue=is_dialogue,
+        speaker_raw=speaker_raw,
+        reason=reason,
+    )
+
+
+def write_fixture_tree(
+    tmp_path: Path,
+    *,
+    segment_chapter_id: str = CHAPTER,
+) -> None:
+    volume_index_path = paths.volume_index_path(tmp_path, SERIES, VOLUME)
+    segment_path = paths.segment_file_path(tmp_path, SERIES, VOLUME, CHAPTER)
+    characters_path = paths.characters_config_path(tmp_path, SERIES)
+
+    save_json_contract(
+        volume_index_path,
+        VolumeIndex(
+            series=SERIES,
+            volume=VOLUME,
+            chapters=(
+                ChapterIndexEntry(
+                    chapter_id=CHAPTER,
+                    order=0,
+                    segments_file=f"segments/{CHAPTER}.json",
+                    display_name="Chapter 1",
+                ),
+            ),
+        ),
+    )
+    save_json_contract(
+        segment_path,
+        SegmentFile(
+            series=SERIES,
+            volume=VOLUME,
+            chapter_id=segment_chapter_id,
+            segments=(
+                Segment(
+                    segment_id="seg_000001",
+                    order=0,
+                    text='"Hello," Alice said.',
+                    parser_hints={"quote_candidate": True},
+                ),
+                Segment(
+                    segment_id="seg_000002",
+                    order=1,
+                    text='"Hi," Bob said.',
+                    parser_hints={"quote_candidate": True},
+                ),
+            ),
+        ),
+    )
+    save_json_contract(
+        characters_path,
+        CharacterRegistry(
+            characters=(
+                Character(name="Alice", aliases=("Al",)),
+                Character(name="Bob", aliases=("Bobby",)),
+            ),
+        ),
+    )
