@@ -45,7 +45,7 @@ class ChapterSplit:
 class _HeadingMatch:
     unit_index: int
     line_start: int
-    line_text: str
+    display_text: str
     num: str | None
 
 
@@ -53,6 +53,8 @@ class _HeadingMatch:
 class _MatchResult:
     matched: bool
     num: str | None = None
+    start: int = 0
+    display_text: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,8 +94,8 @@ def detect_chapters(
         )
         return (_build_fallback_chapter(text_units),)
 
-    patterns = _compile_patterns(story_profile)
     subchapters_enabled = bool(story_profile.rules.get("subchapters", False))
+    patterns = _compile_patterns(story_profile, subchapters_enabled=subchapters_enabled)
     matches = _collect_matches(text_units, patterns)
 
     if not matches:
@@ -106,11 +108,18 @@ def detect_chapters(
     return _build_chapter_splits(text_units, matches, patterns, subchapters_enabled)
 
 
-def _compile_patterns(profile: StoryProfile) -> list[re.Pattern[str]]:
+def _compile_patterns(
+    profile: StoryProfile,
+    *,
+    subchapters_enabled: bool,
+) -> list[re.Pattern[str]]:
     raw_patterns = profile.rules.get("chapter_headings", [])
     if not isinstance(raw_patterns, list):
         raise ValueError("story_profile.rules.chapter_headings must be a list of regex strings")
-    return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in raw_patterns]
+    compiled = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in raw_patterns]
+    if subchapters_enabled:
+        compiled.append(re.compile(r"(?:^|[^0-9])(?P<num>\d+\.\d+)(?:\s+|$)"))
+    return compiled
 
 
 def _collect_matches(
@@ -126,8 +135,8 @@ def _collect_matches(
             matches.append(
                 _HeadingMatch(
                     unit_index=unit_index,
-                    line_start=line_start,
-                    line_text=line_text,
+                    line_start=line_start + result.start,
+                    display_text=result.display_text,
                     num=result.num,
                 )
             )
@@ -140,8 +149,36 @@ def _try_match(patterns: list[re.Pattern[str]], line: str) -> _MatchResult:
         if match is None:
             continue
         groupdict = match.groupdict() or {}
-        return _MatchResult(matched=True, num=groupdict.get("num"))
+        num = groupdict.get("num")
+        start = _heading_start(match, num)
+        display_text = _heading_display_text(line, match, start, num)
+        return _MatchResult(
+            matched=True,
+            num=num,
+            start=start,
+            display_text=display_text,
+        )
     return _MatchResult(matched=False)
+
+
+def _heading_start(match: re.Match[str], num: str | None) -> int:
+    """Return the offset where the heading should split the source text."""
+    if match.start() == 0 or num is None:
+        return match.start()
+    return match.start("num")
+
+
+def _heading_display_text(
+    line: str,
+    match: re.Match[str],
+    start: int,
+    num: str | None,
+) -> str:
+    """Return compact index display text for a heading match."""
+    raw_display = unicodedata.normalize("NFC", line[start:]).strip()
+    if num is not None and "." in num and not raw_display.casefold().startswith("chapter"):
+        return num
+    return raw_display
 
 
 def _iter_lines(text: str) -> Iterator[tuple[int, str]]:
@@ -244,7 +281,7 @@ def _derive_display_name(
     match: _HeadingMatch,
     patterns: list[re.Pattern[str]],
 ) -> str:
-    display_name = unicodedata.normalize("NFC", match.line_text).strip()
+    display_name = unicodedata.normalize("NFC", match.display_text).strip()
     if not display_name.endswith(":"):
         return display_name
 

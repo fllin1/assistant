@@ -33,6 +33,18 @@ def _unit(index: int, text: str, *, needs_review: bool = False) -> PreparedTextU
     )
 
 
+def _subchapter_profile(*, enabled: bool = True) -> StoryProfile:
+    return StoryProfile(
+        schema_version=1,
+        profile_id="subchapter-story",
+        display_name="Subchapter Story",
+        rules={
+            "chapter_headings": ["^\\s*Chapter\\s+(?P<num>\\d+(?:\\.\\d+)?)\\b"],
+            "subchapters": enabled,
+        },
+    )
+
+
 def test_heading_at_page_top_assigns_whole_page_to_new_chapter(
     default_profile: StoryProfile,
 ) -> None:
@@ -123,6 +135,76 @@ def test_subchapter_numbering_from_fractional_num(
     assert len(splits) == 1
     assert splits[0].index_entry.chapter_id == "chapter_07_1"
     assert splits[0].index_entry.display_name == "Chapter 7.1"
+
+
+def test_subchapters_enabled_detects_bare_numeric_markers() -> None:
+    """A story profile can split bare numeric subchapter markers."""
+    units = (
+        _unit(
+            0,
+            (
+                "Chapter 5: Under Siege\nOpening narration.\n"
+                "5.1\nKiriyama section.\n"
+                "5.2\nKouenji section."
+            ),
+        ),
+    )
+
+    splits = detect_chapters(units, _subchapter_profile())
+
+    assert [split.index_entry.chapter_id for split in splits] == [
+        "chapter_05",
+        "chapter_05_1",
+        "chapter_05_2",
+    ]
+    assert [split.index_entry.display_name for split in splits] == [
+        "Chapter 5: Under Siege",
+        "5.1",
+        "5.2",
+    ]
+    assert splits[1].slices[0].text == "5.1\nKiriyama section.\n"
+
+
+def test_subchapters_enabled_detects_ocr_glued_numeric_markers() -> None:
+    """OCR/page-source glue before a marker does not hide the subchapter split."""
+    units = (
+        _unit(
+            0,
+            (
+                "Chapter 6: Each and Every Calculation\nOpening narration. "
+                "Page 159 Goldenagato | mp4directs.com6.2  "
+                "I NOTICED SOMETHING UNUSUAL around seven o'clock."
+            ),
+        ),
+    )
+
+    splits = detect_chapters(units, _subchapter_profile())
+
+    assert [split.index_entry.chapter_id for split in splits] == [
+        "chapter_06",
+        "chapter_06_2",
+    ]
+    assert splits[1].index_entry.display_name == "6.2"
+    assert splits[0].slices[0].text.endswith("Page 159 Goldenagato | mp4directs.com")
+    assert splits[1].slices[0].text.startswith("6.2  I NOTICED")
+
+
+def test_bare_numeric_markers_ignored_when_subchapters_disabled() -> None:
+    """Bare numeric markers are opt-in to avoid accidental decimal splits."""
+    units = (
+        _unit(
+            0,
+            (
+                "Chapter 6: Each and Every Calculation\nOpening narration. "
+                "Page 159 Goldenagato | mp4directs.com6.2  "
+                "I NOTICED SOMETHING UNUSUAL around seven o'clock."
+            ),
+        ),
+    )
+
+    splits = detect_chapters(units, _subchapter_profile(enabled=False))
+
+    assert [split.index_entry.chapter_id for split in splits] == ["chapter_06"]
 
 
 def test_display_name_appends_subtitle_when_heading_ends_with_colon(

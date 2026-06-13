@@ -102,7 +102,7 @@ cp automations/ln_voice_over_v2/series/templates/story_profile.default.json \
 # Then edit rules.chapter_headings in the copied file.
 ```
 
-The override file shares the `StoryProfile` shape; only `rules.chapter_headings` (list of Python regex strings) and `rules.subchapters` (bool) are read by Stage 2 today.
+The override file shares the `StoryProfile` shape; only `rules.chapter_headings` (list of Python regex strings) and `rules.subchapters` (bool) are read by Stage 2 today. Set `rules.subchapters` to `true` for books where markers such as `5.1` or `6.2` should become separate `chapter_XX_N` artifacts.
 
 ## Stage 3 — dialogue
 
