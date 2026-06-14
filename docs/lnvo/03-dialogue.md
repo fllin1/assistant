@@ -60,10 +60,10 @@ Sufficient handoff: Scenes can treat accepted dialogue rows as spoken beats and 
 | `dialogues` | yes | accepted or proposed spoken dialogue rows. |
 | `dialogues[].segment_id` | yes | referenced segment id. |
 | `dialogues[].speaker` | yes | canonical character name or `Unknown`. |
-| `dialogues[].speaker_raw` | no | unresolved in-text speaker label, used only when `speaker` is `Unknown`. |
+| `dialogues[].speaker_raw` | no | unresolved in-text speaker or stable role label, used only when `speaker` is `Unknown`. |
 | `dialogues[].speaker_gender` | no | `male`, `female`, or `unknown`; used only as fallback metadata for unresolved speakers. |
 | `rejected_candidates` | yes | quote-like segments rejected as dialogue. |
-| `review_notes` | yes | concise review notes. |
+| `review_notes` | yes | actionable review blockers only. |
 
 Review edits update this file directly until `status: accepted`.
 
@@ -134,6 +134,7 @@ returns only an internal `DialogueProposal` (per-candidate `is_dialogue` /
 `speaker_raw` / `speaker_gender` / `reason`, plus `narrator_raw` and
 `review_notes`); it never emits the persisted `DialogueChapter`. The runner
 accepts an injectable `attribute_fn` seam so tests never spawn `codex`.
+The prompt asks the model to leave `review_notes` empty for normal rationale.
 
 ### Chunking
 
@@ -165,9 +166,9 @@ assembles rows in segment order:
 - accepted candidates become `DialogueRow`s with a canonicalized speaker.
 
 `review_required` is computed from the **canonicalized** speakers and is `true`
-when any accepted speaker is `Unknown`, the narrator is unresolved, a candidate
-was omitted, or any review note exists. `status` is `needs_review` iff
-`review_required`, else `accepted`.
+when any accepted `Unknown` speaker lacks `speaker_raw`, the narrator is
+unresolved, a candidate was omitted, or any review note exists. `status` is
+`needs_review` iff `review_required`, else `accepted`.
 
 ### Name normalization
 
@@ -204,9 +205,13 @@ Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
 - **Reject reasons** are diagnostic: `model_omitted` (model returned no decision
   for a candidate), `model_stray_segment` (model classified a non-candidate),
   or the model's own free-text reason for a genuine reject.
+- **Review notes** are blockers, not rationale. Any note keeps the chapter in
+  `needs_review`.
 - **`Unknown` speaker or `null` narrator** means `CharacterRegistry.resolve`
   found no exact name/alias. For unresolved speakers, inspect `speaker_raw` and
   `speaker_gender`; add real recurring characters to `config/characters.json`.
+  `Unknown` with `speaker_raw` is acceptable fallback metadata; `Unknown`
+  without `speaker_raw` keeps the chapter in `needs_review`.
 - **Model call:** `stages/dialogue/agent.py::run_codex_dialogue`; prompt in
   `prompts.py`. A refusal / malformed JSON raises `ContractValidationError`
   (`dialogue_malformed`); a non-zero `codex` exit or a per-call timeout

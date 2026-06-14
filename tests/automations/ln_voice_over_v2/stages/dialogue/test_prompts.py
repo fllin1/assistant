@@ -27,3 +27,12 @@ def test_dialogue_prompt_requests_gender_for_unregistered_speakers() -> None:
     assert '"unknown"' in DIALOGUE_PROMPT
     assert "Infer speaker_gender only from textual evidence" in DIALOGUE_PROMPT
     assert "absent from the" in DIALOGUE_PROMPT
+    assert "stable surrounding role" in DIALOGUE_PROMPT
+    assert "walkie-talkie contact" in DIALOGUE_PROMPT
+
+
+def test_dialogue_prompt_keeps_review_notes_actionable() -> None:
+    """The prompt keeps review notes for blockers instead of normal rationale."""
+    assert "review_notes must be empty for ordinary rationale" in DIALOGUE_PROMPT
+    assert "actionable review blocker" in DIALOGUE_PROMPT
+    assert 'reason=""' in DIALOGUE_PROMPT

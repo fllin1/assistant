@@ -81,7 +81,7 @@ def test_rejected_quote_candidate_records_reason(tmp_path: Path) -> None:
     ]
 
 
-def test_unknown_speaker_requires_review(tmp_path: Path) -> None:
+def test_unknown_speaker_with_fallback_metadata_can_be_accepted(tmp_path: Path) -> None:
     write_fixture_tree(tmp_path)
 
     result = run_dialogue(
@@ -97,6 +97,25 @@ def test_unknown_speaker_requires_review(tmp_path: Path) -> None:
     assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Unknown"]
     assert result.dialogue.dialogues[1].speaker_raw == "Mystery"
     assert result.dialogue.dialogues[1].speaker_gender == "female"
+    assert result.review_required is False
+    assert result.dialogue.status is ReviewStatus.ACCEPTED
+
+
+def test_unknown_speaker_without_fallback_metadata_requires_review(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            decisions=[
+                decision("seg_000001", speaker_raw="Alice"),
+                decision("seg_000002", speaker_raw=None),
+            ],
+        ),
+    )
+
+    assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Unknown"]
+    assert result.dialogue.dialogues[1].speaker_raw is None
     assert result.review_required is True
     assert result.dialogue.status is ReviewStatus.NEEDS_REVIEW
 

@@ -205,7 +205,7 @@ def run_dialogue(
 
     review_notes = tuple((*proposal.review_notes, *stray_notes))
     review_required = (
-        any(row.speaker == UNKNOWN_SPEAKER for row in dialogues)
+        any(_dialogue_row_requires_review(row) for row in dialogues)
         or narrator is None
         or omitted_candidate
         or bool(review_notes)
@@ -356,3 +356,8 @@ def _roster(registry: CharacterRegistry) -> tuple[str, ...]:
         names.append(character.name)
         names.extend(character.aliases)
     return tuple(names)
+
+
+def _dialogue_row_requires_review(row: DialogueRow) -> bool:
+    """Return whether a dialogue row lacks enough speaker metadata to proceed."""
+    return row.speaker == UNKNOWN_SPEAKER and row.speaker_raw is None
