@@ -134,7 +134,7 @@ def test_merge_proposals_unions_identical_duplicates_and_conflicts() -> None:
         narrator_raw="Bob",
         decisions=[
             decision("seg_000001", speaker_raw="Alice", reason="same is fine"),
-            decision("seg_000002", speaker_raw="Alice"),
+            decision("seg_000002", speaker_raw="Bob", speaker_gender="female"),
             decision("seg_000003", is_dialogue=False, reason="thought"),
         ],
         review_notes=("duplicate-note", "later"),
@@ -328,6 +328,7 @@ def decision(
     segment_id: str,
     *,
     speaker_raw: str | None = None,
+    speaker_gender: str = "unknown",
     is_dialogue: bool = True,
     reason: str = "",
 ) -> CandidateDecision:
@@ -335,5 +336,6 @@ def decision(
         segment_id=segment_id,
         is_dialogue=is_dialogue,
         speaker_raw=speaker_raw,
+        speaker_gender=speaker_gender,
         reason=reason,
     )

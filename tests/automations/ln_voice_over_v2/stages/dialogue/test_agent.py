@@ -19,7 +19,8 @@ def test_run_codex_dialogue_uses_text_only_argv(monkeypatch):
     prompt = "classify this"
     expected = (
         '{"decisions":[{"segment_id":"seg_000001","is_dialogue":true,'
-        '"speaker_raw":"Ann","reason":"spoken"}],"narrator_raw":null,'
+        '"speaker_raw":"Ann","speaker_gender":"female","reason":"spoken"}],'
+        '"narrator_raw":null,'
         '"review_notes":[]}'
     )
 
@@ -61,6 +62,7 @@ def test_run_codex_dialogue_uses_text_only_argv(monkeypatch):
     assert isinstance(proposal, DialogueProposal)
     assert proposal.decisions[0].segment_id == "seg_000001"
     assert proposal.decisions[0].speaker_raw == "Ann"
+    assert proposal.decisions[0].speaker_gender == "female"
 
 
 def test_run_codex_dialogue_malformed_stdout_raises_contract_error(monkeypatch):

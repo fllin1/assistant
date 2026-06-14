@@ -35,7 +35,9 @@ Sufficient handoff: Scenes can treat accepted dialogue rows as spoken beats and 
   "dialogues": [
     {
       "segment_id": "seg_000012",
-      "speaker": "Horikita Suzune"
+      "speaker": "Horikita Suzune",
+      "speaker_raw": null,
+      "speaker_gender": "unknown"
     }
   ],
   "rejected_candidates": [
@@ -58,6 +60,8 @@ Sufficient handoff: Scenes can treat accepted dialogue rows as spoken beats and 
 | `dialogues` | yes | accepted or proposed spoken dialogue rows. |
 | `dialogues[].segment_id` | yes | referenced segment id. |
 | `dialogues[].speaker` | yes | canonical character name or `Unknown`. |
+| `dialogues[].speaker_raw` | no | unresolved in-text speaker label, used only when `speaker` is `Unknown`. |
+| `dialogues[].speaker_gender` | no | `male`, `female`, or `unknown`; used only as fallback metadata for unresolved speakers. |
 | `rejected_candidates` | yes | quote-like segments rejected as dialogue. |
 | `review_notes` | yes | concise review notes. |
 
@@ -127,9 +131,9 @@ parse, `RuntimeError` on non-zero exit, `ContractValidationError` on malformed
 output) but is text-only (no `-i` image flag). The chapter payload and character
 roster are built by `prompts.build_prompt` and appended to the prompt. The model
 returns only an internal `DialogueProposal` (per-candidate `is_dialogue` /
-`speaker_raw` / `reason`, plus `narrator_raw` and `review_notes`); it never emits
-the persisted `DialogueChapter`. The runner accepts an injectable `attribute_fn`
-seam so tests never spawn `codex`.
+`speaker_raw` / `speaker_gender` / `reason`, plus `narrator_raw` and
+`review_notes`); it never emits the persisted `DialogueChapter`. The runner
+accepts an injectable `attribute_fn` seam so tests never spawn `codex`.
 
 ### Chunking
 
@@ -170,7 +174,10 @@ was omitted, or any review note exists. `status` is `needs_review` iff
 Speaker and narrator labels resolve through `CharacterRegistry.resolve` (exact
 canonical name or alias match, **no fuzzy matching**). A first-person speaker tag
 (`I`/`me`/...) resolves through the chapter narrator. Unresolved speakers become
-`Unknown`; unresolved narrators become `null`. No invented characters.
+`Unknown`; unresolved narrators become `null`. When a speaker is unresolved but
+the chapter supplies a stable name or role label, the dialogue row may retain it
+as `speaker_raw` with `speaker_gender` inferred from textual evidence. No
+invented characters.
 
 ### Inputs and config
 
@@ -198,7 +205,8 @@ Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
   for a candidate), `model_stray_segment` (model classified a non-candidate),
   or the model's own free-text reason for a genuine reject.
 - **`Unknown` speaker or `null` narrator** means `CharacterRegistry.resolve`
-  found no exact name/alias — fix `config/characters.json`, not the code.
+  found no exact name/alias. For unresolved speakers, inspect `speaker_raw` and
+  `speaker_gender`; add real recurring characters to `config/characters.json`.
 - **Model call:** `stages/dialogue/agent.py::run_codex_dialogue`; prompt in
   `prompts.py`. A refusal / malformed JSON raises `ContractValidationError`
   (`dialogue_malformed`); a non-zero `codex` exit or a per-call timeout

@@ -89,14 +89,35 @@ def test_unknown_speaker_requires_review(tmp_path: Path) -> None:
         attribute_fn=lambda _: proposal(
             decisions=[
                 decision("seg_000001", speaker_raw="Alice"),
-                decision("seg_000002", speaker_raw="Mystery"),
+                decision("seg_000002", speaker_raw="Mystery", speaker_gender="female"),
             ],
         ),
     )
 
     assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Unknown"]
+    assert result.dialogue.dialogues[1].speaker_raw == "Mystery"
+    assert result.dialogue.dialogues[1].speaker_gender == "female"
     assert result.review_required is True
     assert result.dialogue.status is ReviewStatus.NEEDS_REVIEW
+
+
+def test_resolved_alias_drops_fallback_speaker_metadata(tmp_path: Path) -> None:
+    write_fixture_tree(tmp_path)
+
+    result = run_dialogue(
+        config(tmp_path),
+        attribute_fn=lambda _: proposal(
+            narrator_raw="Al",
+            decisions=[
+                decision("seg_000001", speaker_raw="Al", speaker_gender="female"),
+                decision("seg_000002", speaker_raw="Bobby", speaker_gender="male"),
+            ],
+        ),
+    )
+
+    assert [row.speaker for row in result.dialogue.dialogues] == ["Alice", "Bob"]
+    assert all(row.speaker_raw is None for row in result.dialogue.dialogues)
+    assert all(row.speaker_gender == "unknown" for row in result.dialogue.dialogues)
 
 
 def test_alias_normalization(tmp_path: Path) -> None:
@@ -343,6 +364,7 @@ def decision(
     segment_id: str,
     *,
     speaker_raw: str | None = None,
+    speaker_gender: str = "unknown",
     is_dialogue: bool = True,
     reason: str = "",
 ) -> CandidateDecision:
@@ -350,6 +372,7 @@ def decision(
         segment_id=segment_id,
         is_dialogue=is_dialogue,
         speaker_raw=speaker_raw,
+        speaker_gender=speaker_gender,
         reason=reason,
     )
 

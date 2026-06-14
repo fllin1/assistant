@@ -53,3 +53,33 @@ def canonical_narrator(raw: str | None, registry: CharacterRegistry) -> str | No
         return None
 
     return registry.resolve(candidate)
+
+
+def unregistered_speaker_raw(
+    raw: str | None, registry: CharacterRegistry, narrator: str | None = None
+) -> str | None:
+    """Return a non-canonical speaker label only when it is useful fallback metadata.
+
+    Args:
+        raw: Raw model-proposed speaker label.
+        registry: Series character registry used for exact name and alias lookup.
+        narrator: Already-canonical narrator name used for first-person tags.
+
+    Returns:
+        A stripped unresolved label when it is neither empty, first-person
+        narrator shorthand, nor a known registry name or alias. Otherwise
+        returns `None`.
+    """
+    if raw is None:
+        return None
+
+    candidate = raw.strip()
+    if not candidate:
+        return None
+    if candidate.casefold() in FIRST_PERSON_TAGS:
+        return None
+    if narrator is not None and candidate == narrator:
+        return None
+    if registry.resolve(candidate) is not None:
+        return None
+    return candidate

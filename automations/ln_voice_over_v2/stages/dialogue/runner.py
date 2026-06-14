@@ -29,7 +29,7 @@ from .config import (
 )
 from .context import ChapterPayload, build_chapter_payload
 from .contracts import DialogueChapter, DialogueRow, Perspective, RejectedCandidate
-from .names import canonical_narrator, canonical_speaker
+from .names import canonical_narrator, canonical_speaker, unregistered_speaker_raw
 from .prompts import build_prompt
 from .validation import validate_dialogue_artifact
 
@@ -172,14 +172,27 @@ def run_dialogue(
             omitted_candidate = True
             rejected.append(RejectedCandidate(segment_id=segment_id, reason="model_omitted"))
         elif decision.is_dialogue:
+            speaker = canonical_speaker(
+                decision.speaker_raw,
+                registry,
+                narrator=narrator,
+            )
+            speaker_raw = None
+            speaker_gender = "unknown"
+            if speaker == UNKNOWN_SPEAKER:
+                speaker_raw = unregistered_speaker_raw(
+                    decision.speaker_raw,
+                    registry,
+                    narrator=narrator,
+                )
+                if speaker_raw is not None:
+                    speaker_gender = decision.speaker_gender
             dialogues.append(
                 DialogueRow(
                     segment_id=segment_id,
-                    speaker=canonical_speaker(
-                        decision.speaker_raw,
-                        registry,
-                        narrator=narrator,
-                    ),
+                    speaker=speaker,
+                    speaker_raw=speaker_raw,
+                    speaker_gender=speaker_gender,
                 )
             )
         else:

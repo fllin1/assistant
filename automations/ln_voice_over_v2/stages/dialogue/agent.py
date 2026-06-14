@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ...common.errors import ContractValidationError, ValidationProblem
 from ...common.ids import SegmentId
+from .contracts import SpeakerGender
 
 # Default per-chapter codex attribution timeout in seconds. Shared by the config
 # and CLI defaults so the value never drifts across the call chain.
@@ -20,6 +21,7 @@ class CandidateDecision(BaseModel):
     segment_id: SegmentId
     is_dialogue: bool
     speaker_raw: str | None = None
+    speaker_gender: SpeakerGender = "unknown"
     reason: str = ""
 
 

@@ -7,6 +7,7 @@ from automations.ln_voice_over_v2.series.contracts import Character, CharacterRe
 from automations.ln_voice_over_v2.stages.dialogue.names import (
     canonical_narrator,
     canonical_speaker,
+    unregistered_speaker_raw,
 )
 
 
@@ -50,6 +51,17 @@ def test_canonical_narrator_resolves_alias_and_miss() -> None:
     assert canonical_narrator("Mystery Student", registry) is None
     assert canonical_narrator(None, registry) is None
     assert canonical_narrator("  ", registry) is None
+
+
+def test_unregistered_speaker_raw_keeps_only_unresolved_labels() -> None:
+    """Fallback labels are retained only when they are not registry-resolvable."""
+    registry = _registry()
+
+    assert unregistered_speaker_raw("Mystery Student", registry) == "Mystery Student"
+    assert unregistered_speaker_raw(" Horikita ", registry) is None
+    assert unregistered_speaker_raw("I", registry, narrator="Ayanokouji Kiyotaka") is None
+    assert unregistered_speaker_raw(None, registry) is None
+    assert unregistered_speaker_raw("  ", registry) is None
 
 
 def _registry() -> CharacterRegistry:

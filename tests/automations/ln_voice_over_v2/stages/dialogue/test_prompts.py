@@ -17,3 +17,13 @@ def test_dialogue_prompt_uses_narrator_hint_as_default_narrator() -> None:
     assert "narrator_hint" in DIALOGUE_PROMPT
     assert "default narrator" in DIALOGUE_PROMPT
     assert "explicit in-chapter evidence overrides" in DIALOGUE_PROMPT
+
+
+def test_dialogue_prompt_requests_gender_for_unregistered_speakers() -> None:
+    """The prompt asks for bounded gender fallback metadata."""
+    assert "speaker_gender" in DIALOGUE_PROMPT
+    assert '"male"' in DIALOGUE_PROMPT
+    assert '"female"' in DIALOGUE_PROMPT
+    assert '"unknown"' in DIALOGUE_PROMPT
+    assert "Infer speaker_gender only from textual evidence" in DIALOGUE_PROMPT
+    assert "absent from the" in DIALOGUE_PROMPT

@@ -76,6 +76,7 @@ def merge_proposals(proposals: list[DialogueProposal]) -> DialogueProposal:
             if (
                 previous.is_dialogue != decision.is_dialogue
                 or previous.speaker_raw != decision.speaker_raw
+                or previous.speaker_gender != decision.speaker_gender
             ):
                 conflict_notes.append(
                     f"conflicting decisions across chunks for {decision.segment_id}; kept first"
