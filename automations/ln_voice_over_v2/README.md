@@ -96,7 +96,7 @@ segments/
 
 **Story-profile resolution:** `<data_root>/<series>/config/story_profile.json` wins when present; otherwise the packaged template `automations/ln_voice_over_v2/series/templates/story_profile.default.json` is used. The runner logs the resolved file at `INFO` so re-runs can be replicated.
 
-Set `rules.subchapters` to `true` in a per-series story profile when bare numeric markers such as `5.1` or OCR-glued markers such as `mp4directs.com6.2` should produce separate `chapter_XX_N` segment files.
+Bare numeric markers such as `5.1` or OCR-glued markers such as `mp4directs.com6.2` automatically produce separate `chapter_XX_N` segment files when they match a preceding numbered chapter heading.
 
 **Re-run flags:**
 

@@ -131,7 +131,6 @@ def test_per_series_override_wins_over_packaged_template(tmp_path: Path) -> None
                 "display_name": "Override Story Profile",
                 "rules": {
                     "chapter_headings": ["^### Section\\b"],
-                    "subchapters": False,
                 },
             }
         ),

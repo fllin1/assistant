@@ -7,7 +7,6 @@
       "^\\s*(?:Prologue|Epilogue|Afterword|Interlude)\\b",
       "^\\s*Chapter\\s+(?P<num>\\d+(?:\\.\\d+)?)\\b",
       "^\\s*第\\s*\\d+\\s*章"
-    ],
-    "subchapters": false
+    ]
   }
 }

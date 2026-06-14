@@ -33,14 +33,13 @@ def _unit(index: int, text: str, *, needs_review: bool = False) -> PreparedTextU
     )
 
 
-def _subchapter_profile(*, enabled: bool = True) -> StoryProfile:
+def _subchapter_profile() -> StoryProfile:
     return StoryProfile(
         schema_version=1,
         profile_id="subchapter-story",
         display_name="Subchapter Story",
         rules={
             "chapter_headings": ["^\\s*Chapter\\s+(?P<num>\\d+(?:\\.\\d+)?)\\b"],
-            "subchapters": enabled,
         },
     )
 
@@ -137,8 +136,8 @@ def test_subchapter_numbering_from_fractional_num(
     assert splits[0].index_entry.display_name == "Chapter 7.1"
 
 
-def test_subchapters_enabled_detects_bare_numeric_markers() -> None:
-    """A story profile can split bare numeric subchapter markers."""
+def test_detects_bare_numeric_subchapter_markers_automatically() -> None:
+    """Bare numeric markers split automatically inside their chapter scope."""
     units = (
         _unit(
             0,
@@ -165,7 +164,7 @@ def test_subchapters_enabled_detects_bare_numeric_markers() -> None:
     assert splits[1].slices[0].text == "5.1\nKiriyama section.\n"
 
 
-def test_subchapters_enabled_detects_ocr_glued_numeric_markers() -> None:
+def test_detects_ocr_glued_numeric_subchapter_markers_automatically() -> None:
     """OCR/page-source glue before a marker does not hide the subchapter split."""
     units = (
         _unit(
@@ -189,22 +188,38 @@ def test_subchapters_enabled_detects_ocr_glued_numeric_markers() -> None:
     assert splits[1].slices[0].text.startswith("6.2  I NOTICED")
 
 
-def test_bare_numeric_markers_ignored_when_subchapters_disabled() -> None:
-    """Bare numeric markers are opt-in to avoid accidental decimal splits."""
+def test_bare_numeric_markers_ignored_without_matching_chapter_anchor() -> None:
+    """Automatic numeric markers must match a preceding numbered chapter."""
     units = (
         _unit(
             0,
             (
                 "Chapter 6: Each and Every Calculation\nOpening narration. "
-                "Page 159 Goldenagato | mp4directs.com6.2  "
-                "I NOTICED SOMETHING UNUSUAL around seven o'clock."
+                "This is version 7.2 of the school document, not a subchapter."
             ),
         ),
     )
 
-    splits = detect_chapters(units, _subchapter_profile(enabled=False))
+    splits = detect_chapters(units, _subchapter_profile())
 
     assert [split.index_entry.chapter_id for split in splits] == ["chapter_06"]
+
+
+def test_bare_numeric_markers_ignored_after_different_chapter_anchor() -> None:
+    """A previous chapter base does not authorize later mismatched markers."""
+    units = (
+        _unit(
+            0,
+            (
+                "Chapter 6\nEarlier section.\n"
+                "Chapter 7\nLater section mentions legacy note 6.2 but stays chapter seven."
+            ),
+        ),
+    )
+
+    splits = detect_chapters(units, _subchapter_profile())
+
+    assert [split.index_entry.chapter_id for split in splits] == ["chapter_06", "chapter_07"]
 
 
 def test_display_name_appends_subtitle_when_heading_ends_with_colon(
@@ -438,7 +453,6 @@ def test_per_series_override_beats_packaged_template(tmp_path: Path) -> None:
                 "display_name": "Override Story Profile",
                 "rules": {
                     "chapter_headings": ["^### Section\\b"],
-                    "subchapters": False,
                 },
             }
         ),

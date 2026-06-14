@@ -79,9 +79,7 @@ def test_persisted_artifacts_round_trip() -> None:
 def test_series_profiles_round_trip() -> None:
     """Series-level config contracts round-trip as JSON."""
     profiles = [
-        StoryProfile(
-            profile_id="classroom", display_name="Classroom", rules={"subchapters": True}
-        ),
+        StoryProfile(profile_id="classroom", display_name="Classroom", rules={}),
         _registry(),
         VoiceMapping(
             entries={
