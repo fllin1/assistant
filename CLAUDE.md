@@ -25,6 +25,10 @@ Automation sub-projects are self-contained. Apply only the relevant
 `AGENTS.md` / `CLAUDE.md` files and the files they explicitly name. Ignore
 conventions from sibling automations or unrelated repo docs.
 
+Use standard branch names for delegated work: `feat/short-description` for
+features and `fix/short-description` for fixes. Do not create branches named
+after Codex, Claude, or any other agent/tool.
+
 ## Claude Responsibilities
 
 - clarify goals, scope, acceptance criteria, and review gates;

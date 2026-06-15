@@ -27,6 +27,8 @@ A Python-based computer control agent. The project has two layers:
 - `main` is always deployable.
 - Create a feature branch for each new feature: `feat/short-description`.
 - Fix branches: `fix/short-description`.
+- Branch names describe product scope, not the tool or agent doing the work.
+  Do not create `codex/...`, `claude/...`, or other agent-named branches.
 
 ### Documentation
 
