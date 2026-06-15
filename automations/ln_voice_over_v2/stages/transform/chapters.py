@@ -45,20 +45,30 @@ class ChapterSplit:
 class _HeadingMatch:
     unit_index: int
     line_start: int
-    line_text: str
+    display_text: str
     num: str | None
+    auto_subchapter: bool = False
 
 
 @dataclass(frozen=True)
 class _MatchResult:
     matched: bool
     num: str | None = None
+    start: int = 0
+    display_text: str = ""
+    auto_subchapter: bool = False
 
 
 @dataclass(frozen=True)
 class _NumberedAnchor:
     match_index: int
     base: int
+
+
+@dataclass(frozen=True)
+class _HeadingPattern:
+    pattern: re.Pattern[str]
+    auto_subchapter: bool = False
 
 
 def resolve_story_profile_path(data_root: Path, series: SeriesId) -> Path:
@@ -93,7 +103,6 @@ def detect_chapters(
         return (_build_fallback_chapter(text_units),)
 
     patterns = _compile_patterns(story_profile)
-    subchapters_enabled = bool(story_profile.rules.get("subchapters", False))
     matches = _collect_matches(text_units, patterns)
 
     if not matches:
@@ -103,19 +112,30 @@ def detect_chapters(
         )
         return (_build_fallback_chapter(text_units),)
 
-    return _build_chapter_splits(text_units, matches, patterns, subchapters_enabled)
+    matches = _filter_auto_subchapter_matches(matches)
+    return _build_chapter_splits(text_units, matches, patterns)
 
 
-def _compile_patterns(profile: StoryProfile) -> list[re.Pattern[str]]:
+def _compile_patterns(profile: StoryProfile) -> list[_HeadingPattern]:
     raw_patterns = profile.rules.get("chapter_headings", [])
     if not isinstance(raw_patterns, list):
         raise ValueError("story_profile.rules.chapter_headings must be a list of regex strings")
-    return [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in raw_patterns]
+    compiled = [
+        _HeadingPattern(re.compile(pattern, re.IGNORECASE | re.MULTILINE))
+        for pattern in raw_patterns
+    ]
+    compiled.append(
+        _HeadingPattern(
+            re.compile(r"(?:^|[^0-9])(?P<num>\d+\.\d+)(?:\s+|$)"),
+            auto_subchapter=True,
+        )
+    )
+    return compiled
 
 
 def _collect_matches(
     text_units: tuple[PreparedTextUnit, ...],
-    patterns: list[re.Pattern[str]],
+    patterns: list[_HeadingPattern],
 ) -> list[_HeadingMatch]:
     matches: list[_HeadingMatch] = []
     for unit_index, unit in enumerate(text_units):
@@ -126,22 +146,52 @@ def _collect_matches(
             matches.append(
                 _HeadingMatch(
                     unit_index=unit_index,
-                    line_start=line_start,
-                    line_text=line_text,
+                    line_start=line_start + result.start,
+                    display_text=result.display_text,
                     num=result.num,
+                    auto_subchapter=result.auto_subchapter,
                 )
             )
     return matches
 
 
-def _try_match(patterns: list[re.Pattern[str]], line: str) -> _MatchResult:
+def _try_match(patterns: list[_HeadingPattern], line: str) -> _MatchResult:
     for pattern in patterns:
-        match = pattern.search(line)
+        match = pattern.pattern.search(line)
         if match is None:
             continue
         groupdict = match.groupdict() or {}
-        return _MatchResult(matched=True, num=groupdict.get("num"))
+        num = groupdict.get("num")
+        start = _heading_start(match, num)
+        display_text = _heading_display_text(line, match, start, num)
+        return _MatchResult(
+            matched=True,
+            num=num,
+            start=start,
+            display_text=display_text,
+            auto_subchapter=pattern.auto_subchapter,
+        )
     return _MatchResult(matched=False)
+
+
+def _heading_start(match: re.Match[str], num: str | None) -> int:
+    """Return the offset where the heading should split the source text."""
+    if match.start() == 0 or num is None:
+        return match.start()
+    return match.start("num")
+
+
+def _heading_display_text(
+    line: str,
+    match: re.Match[str],
+    start: int,
+    num: str | None,
+) -> str:
+    """Return compact index display text for a heading match."""
+    raw_display = unicodedata.normalize("NFC", line[start:]).strip()
+    if num is not None and "." in num and not raw_display.casefold().startswith("chapter"):
+        return num
+    return raw_display
 
 
 def _iter_lines(text: str) -> Iterator[tuple[int, str]]:
@@ -155,6 +205,26 @@ def _iter_lines(text: str) -> Iterator[tuple[int, str]]:
             return
         yield pos, text[pos:nl]
         pos = nl + 1
+
+
+def _filter_auto_subchapter_matches(matches: list[_HeadingMatch]) -> list[_HeadingMatch]:
+    """Keep inferred numeric subchapters only inside a matching chapter scope."""
+    filtered: list[_HeadingMatch] = []
+    active_chapter_base: int | None = None
+
+    for match in matches:
+        if not match.auto_subchapter:
+            filtered.append(match)
+            if match.num is not None:
+                active_chapter_base = _num_base_int(match.num)
+            continue
+
+        if match.num is None:
+            continue
+        if _num_base_int(match.num) == active_chapter_base:
+            filtered.append(match)
+
+    return filtered
 
 
 def _build_fallback_chapter(
@@ -182,10 +252,9 @@ def _build_fallback_chapter(
 def _build_chapter_splits(
     text_units: tuple[PreparedTextUnit, ...],
     matches: list[_HeadingMatch],
-    patterns: list[re.Pattern[str]],
-    subchapters_enabled: bool,
+    patterns: list[_HeadingPattern],
 ) -> tuple[ChapterSplit, ...]:
-    chapter_ids = _derive_chapter_ids(matches, subchapters_enabled)
+    chapter_ids = _derive_chapter_ids(matches)
     splits: list[ChapterSplit] = []
     last_unit_index = len(text_units) - 1
     eof_offset = len(text_units[last_unit_index].text)
@@ -242,9 +311,9 @@ def _build_chapter_splits(
 def _derive_display_name(
     text_units: tuple[PreparedTextUnit, ...],
     match: _HeadingMatch,
-    patterns: list[re.Pattern[str]],
+    patterns: list[_HeadingPattern],
 ) -> str:
-    display_name = unicodedata.normalize("NFC", match.line_text).strip()
+    display_name = unicodedata.normalize("NFC", match.display_text).strip()
     if not display_name.endswith(":"):
         return display_name
 
@@ -305,10 +374,7 @@ def _collect_front_matter_slices(
     return tuple(slices)
 
 
-def _derive_chapter_ids(
-    matches: list[_HeadingMatch],
-    subchapters_enabled: bool,
-) -> tuple[str, ...]:
+def _derive_chapter_ids(matches: list[_HeadingMatch]) -> tuple[str, ...]:
     numbered_anchors = [
         _NumberedAnchor(match_index=i, base=_num_base_int(match.num))
         for i, match in enumerate(matches)
@@ -322,9 +388,7 @@ def _derive_chapter_ids(
 
     for i, match in enumerate(matches):
         if match.num is not None:
-            chapter_ids.append(
-                _derive_numbered_chapter_id(match.num, seen_bases, subchapters_enabled)
-            )
+            chapter_ids.append(_derive_numbered_chapter_id(match.num, seen_bases))
             continue
 
         ordinal_1_indexed = i + 1
@@ -379,10 +443,9 @@ def _derive_non_numbered_chapter_id(
         return f"chapter_{_two_digit_chapter_num(chapter_num)}"
 
     suffix = between_matter_counts.get(previous_anchor.match_index, 0) + 1
-    # Recurrent numbered subchapter suffixes also use `_N` when subchapters
-    # are enabled. If a recurrent `Chapter N` and an interlude both occupy the
-    # same gap, their ids can theoretically collide; the stage-local validator
-    # surfaces that rare duplicate instead of silently renumbering.
+    # If a recurrent `Chapter N` and an interlude both occupy the same gap,
+    # their ids can theoretically collide; the stage-local validator surfaces
+    # that rare duplicate instead of silently renumbering.
     return f"chapter_{_two_digit_chapter_num(previous_anchor.base)}_{suffix}"
 
 
@@ -431,7 +494,6 @@ def _collect_slices(
 def _derive_numbered_chapter_id(
     num: str | None,
     seen_bases: dict[str, int],
-    subchapters_enabled: bool,
 ) -> str:
     if num is None:
         raise ValueError("numbered chapter id derivation requires a captured num")
@@ -440,7 +502,7 @@ def _derive_numbered_chapter_id(
         return f"chapter_{_two_digit_chapter_num(int(base_int))}_{int(sub_int)}"
     base = _two_digit_chapter_num(int(num))
     seen_bases[base] = seen_bases.get(base, 0) + 1
-    if subchapters_enabled and seen_bases[base] > 1:
+    if seen_bases[base] > 1:
         return f"chapter_{base}_{seen_bases[base]}"
     return f"chapter_{base}"
 

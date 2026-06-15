@@ -35,7 +35,9 @@ Sufficient handoff: Scenes can treat accepted dialogue rows as spoken beats and 
   "dialogues": [
     {
       "segment_id": "seg_000012",
-      "speaker": "Horikita Suzune"
+      "speaker": "Horikita Suzune",
+      "speaker_raw": null,
+      "speaker_gender": "unknown"
     }
   ],
   "rejected_candidates": [
@@ -58,8 +60,10 @@ Sufficient handoff: Scenes can treat accepted dialogue rows as spoken beats and 
 | `dialogues` | yes | accepted or proposed spoken dialogue rows. |
 | `dialogues[].segment_id` | yes | referenced segment id. |
 | `dialogues[].speaker` | yes | canonical character name or `Unknown`. |
+| `dialogues[].speaker_raw` | no | unresolved in-text speaker or stable role label, used only when `speaker` is `Unknown`. |
+| `dialogues[].speaker_gender` | no | `male`, `female`, or `unknown`; used only as fallback metadata for unresolved speakers. |
 | `rejected_candidates` | yes | quote-like segments rejected as dialogue. |
-| `review_notes` | yes | concise review notes. |
+| `review_notes` | yes | actionable review blockers only. |
 
 Review edits update this file directly until `status: accepted`.
 
@@ -70,3 +74,171 @@ Review edits update this file directly until `status: accepted`.
 - every speaker is canonical or `Unknown`;
 - detected `perspective.narrator` is canonical or `null`;
 - downstream stages require `status: accepted`.
+
+Two validators run before any write (mirroring transform): a stage-local
+`validate_dialogue_artifact` and the cross-artifact
+`validate_dialogue_against_segments`.
+
+| Validator | Checks |
+| --- | --- |
+| stage-local (`stages/dialogue/validation.py`) | every `quote_candidate` segment is classified into `dialogues` xor `rejected_candidates` (`uncovered_candidate`); no id in both (`candidate_in_both`); `status == needs_review` iff `review_required` (`status_mismatch`). |
+| cross-artifact (`pipeline/validators.py`) | `segment_id` resolution, no duplicate dialogue segment, speaker canonical-or-`Unknown`, detected narrator canonical-or-`null`. |
+
+## CLI
+
+```text
+# whole volume (default): attribute every chapter in volume_index.json
+python -m automations.ln_voice_over_v2.stages.dialogue \
+  --series <series> --volume <volume> [--workers N] [--timeout SECONDS] \
+  [--max-candidates-per-chunk N] [--data-root DIR] [--force]
+
+# one chapter
+python -m automations.ln_voice_over_v2.stages.dialogue \
+  --series <series> --volume <volume> --chapter <chapter_id> [--timeout SECONDS] \
+  [--max-candidates-per-chunk N] [--data-root DIR] [--force]
+```
+
+`--chapter` is optional. Omit it to run the whole volume, dispatching `--workers`
+chapters concurrently (default 4); each chapter is attributed independently.
+`--timeout` bounds each `codex` attribution call in seconds (default 600); raise
+it for unusually long chunks that otherwise time out, or lower it to fail fast.
+`--max-candidates-per-chunk N` chunks a chapter whose candidate count exceeds
+the integer cap (default 300); each chunk is a separate `codex` call and the
+partial proposals are merged before assembly.
+Chapter ids come from `volume_index.json` (`chapter_01`, `chapter_07_1`,
+`chapter_00` for front matter); you do not need to know them for a whole-volume
+run, and an unknown `--chapter` error lists the available ids.
+
+Single-chapter mode prints the written dialogue path (exit 0). Whole-volume mode
+prints one line per chapter (path, `skipped (exists)`, or `error: …`) and a
+`written / skipped / failed` summary, exiting 1 if any chapter failed. In both
+modes a `ContractValidationError` prints each problem and exits 2. Existing
+dialogue files are skipped unless `--force`, so a whole-volume re-run only fills
+in missing chapters and never clobbers reviewed ones.
+
+## Implementation Notes
+
+Unlike transform, dialogue is **not** byte-deterministic: it makes one or more
+LLM calls per chapter. Idempotency comes from skip-existing plus
+validate-before-write, not reproducibility.
+
+### Model boundary
+
+The model proposes; the runner decides. `stages/dialogue/agent.py::run_codex_dialogue`
+mirrors the prepare-stage `run_codex_ocr` boundary (a `codex exec` subprocess with
+`--ignore-user-config --ephemeral --skip-git-repo-check -s read-only`, strict JSON
+parse, `RuntimeError` on non-zero exit, `ContractValidationError` on malformed
+output) but is text-only (no `-i` image flag). The chapter payload and character
+roster are built by `prompts.build_prompt` and appended to the prompt. The model
+returns only an internal `DialogueProposal` (per-candidate `is_dialogue` /
+`speaker_raw` / `speaker_gender` / `reason`, plus `narrator_raw` and
+`review_notes`); it never emits the persisted `DialogueChapter`. The runner
+accepts an injectable `attribute_fn` seam so tests never spawn `codex`.
+The prompt asks the model to leave `review_notes` empty for normal rationale.
+
+### Chunking
+
+Most chapters use one attribution call. Chunking triggers only when the chapter
+has more candidates than `max_candidates_per_chunk` (default 300). Oversized
+chapters are split into contiguous segment windows with at most that many owned
+candidates per window; each window keeps the surrounding narration needed to
+read those candidates in context.
+
+Each window after the first carries a small lead-in overlap from the previous
+window. Those carried segments use the payload role `"context"`, which is
+background only: the prompt tells the model not to classify `"context"` segments.
+Every window is attributed in its own `codex` call, then the partial
+`DialogueProposal`s are merged into one proposal before the existing assembly
+step runs.
+
+The merge is conservative: first-seen wins per `segment_id`; identical duplicate
+decisions are ignored; conflicting cross-chunk decisions keep the first decision
+and add a `review_notes` entry naming the segment. `narrator_raw` is resolved by
+majority vote across chunks.
+
+### Assembly and review state
+
+The runner restricts decisions to the chapter's `quote_candidate` segments and
+assembles rows in segment order:
+
+- a candidate the model omitted becomes `RejectedCandidate(reason="model_omitted")`;
+- a non-candidate id the model returned becomes `RejectedCandidate(reason="model_stray_segment")` when it resolves to a real segment, otherwise it is dropped with a review note;
+- accepted candidates become `DialogueRow`s with a canonicalized speaker.
+
+`review_required` is computed from the **canonicalized** speakers and is `true`
+when any accepted `Unknown` speaker lacks `speaker_raw`, the narrator is
+unresolved, a candidate was omitted, or any review note exists. `status` is
+`needs_review` iff `review_required`, else `accepted`.
+
+### Name normalization
+
+Speaker and narrator labels resolve through `CharacterRegistry.resolve` (exact
+canonical name or alias match, **no fuzzy matching**). A first-person speaker tag
+(`I`/`me`/...) resolves through the chapter narrator. Unresolved speakers become
+`Unknown`; unresolved narrators become `null`. When a speaker is unresolved but
+the chapter supplies a stable name or role label, the dialogue row may retain it
+as `speaker_raw` with `speaker_gender` inferred from textual evidence. No
+invented characters.
+
+### Inputs and config
+
+`config/characters.json` is **required and has no packaged fallback** (character
+lists are series content); a missing file raises before any model call.
+`config/story_profile.json` is optional context (its `rules.default_narrator`
+seeds a narrator hint) and resolves via the shared transform resolver.
+
+### Reviewer safety
+
+The dialogue JSON is the working review file. A re-run **skips** an existing file
+unless `--force`; validate-before-write means a bad run never corrupts an existing
+good file.
+
+## Debugging & Known Issues
+
+Branch: `feat/lnvo-v2-dialogue-stage3` (implemented 2026-05-30; not merged/pushed).
+Model boundary: `gpt-5.5` via `codex exec` (text-only, strict JSON).
+
+### Where to look
+- **The artifact is the review file.** Open `<volume>/dialogue/<chapter>.json`:
+  `status` (`accepted`/`needs_review`), `review_required`, `perspective`,
+  `dialogues[]`, `rejected_candidates[]` (with `reason`), `review_notes[]`.
+- **Reject reasons** are diagnostic: `model_omitted` (model returned no decision
+  for a candidate), `model_stray_segment` (model classified a non-candidate),
+  or the model's own free-text reason for a genuine reject.
+- **Review notes** are blockers, not rationale. Any note keeps the chapter in
+  `needs_review`.
+- **`Unknown` speaker or `null` narrator** means `CharacterRegistry.resolve`
+  found no exact name/alias. For unresolved speakers, inspect `speaker_raw` and
+  `speaker_gender`; add real recurring characters to `config/characters.json`.
+  `Unknown` with `speaker_raw` is acceptable fallback metadata; `Unknown`
+  without `speaker_raw` keeps the chapter in `needs_review`.
+- **Model call:** `stages/dialogue/agent.py::run_codex_dialogue`; prompt in
+  `prompts.py`. A refusal / malformed JSON raises `ContractValidationError`
+  (`dialogue_malformed`); a non-zero `codex` exit or a per-call timeout
+  (default 600s, override with `--timeout`) raises `RuntimeError`. To inspect a
+  single chapter, run with `--chapter <id>` and read stderr.
+- Stage 3 is **not** byte-deterministic; idempotency is skip-existing + `--force`.
+
+### Known issues (from code review)
+1. **Resolved — duplicate-decision conflicts are flagged.** Cross-chunk merge
+   keeps the first decision for a segment and adds a `review_notes` entry when a
+   later chunk disagrees, so contradictory output is no longer silently dropped.
+2. **Resolved — `narrator_hint` is consumed by the prompt.** `DIALOGUE_PROMPT`
+   treats `story_profile.rules.default_narrator` as the default narrator unless
+   in-chapter evidence overrides it.
+3. **Open — first-person precedence.** `names.canonical_speaker` resolves `I`/`me`
+   through the narrator *before* the registry lookup, so a character literally
+   named `I`/`me` would be shadowed (low likelihood, but reversed precedence).
+
+### Orchestration gotchas (when fixing via the `codex` CLI)
+- Use `codex exec --sandbox workspace-write` for writes; `resume` defaults to
+  read-only (override with `-c sandbox_mode=workspace-write`).
+- The PostToolUse `ruff --fix` hook strips a just-added import if its first use
+  lands in a *later* edit — add the import and its usage in the same change.
+- `codex exec` sometimes ends a turn after narrating intent without applying
+  patches; re-run or resume, and verify with `ruff` + `pytest` yourself.
+
+## Design History
+
+- **2026-05-30 — Stage 3 designed via ralplan consensus and implemented by Codex agents** (`.omc/plans/lnvo-v2-dialogue-stage3.md`). Architect raised a blocker: v2 `CharacterRegistry` had only `has_character` (exact, no aliases), so alias normalization had no backing code. Resolved by user decision **R1** — added an additive `CharacterRegistry.resolve(name) -> str | None` (exact name + alias, no fuzzy). Other consensus refinements folded in: model proposes an internal `DialogueProposal` (runner assembles the trusted artifact); normal chapters use a per-chapter single call (Option A; per-candidate Option B deferred); omitted/stray candidates become explicit `RejectedCandidate`s; rows sorted by segment order; skip-existing unless `--force`; series-shared `load_character_registry`.
+- **2026-05-30 — Oversized dialogue chapters chunked** (`.omc/plans/lnvo-v2-dialogue-chunking.md`). Added `max_candidates_per_chunk` (default 300), lead-in `"context"` overlap, per-chunk `codex` calls, and merge-before-assembly semantics. This also resolved duplicate-decision conflict visibility and `narrator_hint` prompt usage.

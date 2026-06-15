@@ -39,6 +39,24 @@ class CharacterRegistry(ContractModel):
         """Return whether a canonical character name exists."""
         return any(character.name == name for character in self.characters)
 
+    def resolve(self, name: str) -> str | None:
+        """Resolve an exact character name or alias to its canonical name.
+
+        Args:
+            name: Raw character name or alias to resolve.
+
+        Returns:
+            The canonical character name when `name` exactly matches a
+            character name or alias after trimming; otherwise `None`.
+        """
+        candidate = name.strip()
+        for character in self.characters:
+            if character.name == candidate:
+                return character.name
+            if candidate in character.aliases:
+                return character.name
+        return None
+
 
 class VoiceMappingEntry(ContractModel):
     """Accepted TTS voice configuration for one voice key."""

@@ -31,5 +31,7 @@ skills-lock.json
 .omc/state/
 .omc/sessions/
 .omc/project-memory.json
+# Transient advisor (/ask) outputs — regenerated per run, never durable handoff.
+.omc/artifacts/
 
 .DS_Store

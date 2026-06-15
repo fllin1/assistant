@@ -34,8 +34,9 @@ They are external parameters: human-led, AI-assisted, stable before volume proce
 Stage 2 (Transform) conventionally reads `rules.chapter_headings: list[str]`,
 an ordered list of Python regex patterns where the first match on a line wins
 and an optional `(?P<num>\d+(?:\.\d+)?)` capture group enables subchapter
-detection, plus `rules.subchapters: bool` (default `false`), which allows
-`chapter_XX_N` suffixes even without a fractional `num` capture when `true`.
+detection. Transform also automatically detects bare numeric markers such as
+`5.1` and OCR-glued markers such as `mp4directs.com6.2` when the marker base
+matches a preceding numbered chapter heading, emitting `chapter_XX_N` ids.
 When no per-series override exists, defaults come from
 `automations/ln_voice_over_v2/series/templates/story_profile.default.json`.
 

@@ -14,16 +14,20 @@ implementers.
 
 ## Project Map
 
-| Area | Role |
-| --- | --- |
-| `src/assistant/` | reusable library code. |
-| `automations/` | self-contained personal automations. |
-| `docs/lnvo/` | repo-tracked LNVO reference docs, viewable from Obsidian. |
-| package `CONTEXT.md` | local vocabulary and execution context for one package. |
+| Area                 | Role                                                      |
+| -------------------- | --------------------------------------------------------- |
+| `src/assistant/`     | reusable library code.                                    |
+| `automations/`       | self-contained personal automations.                      |
+| `docs/lnvo/`         | repo-tracked LNVO reference docs, viewable from Obsidian. |
+| package `CONTEXT.md` | local vocabulary and execution context for one package.   |
 
 Automation sub-projects are self-contained. Apply only the relevant
 `AGENTS.md` / `CLAUDE.md` files and the files they explicitly name. Ignore
 conventions from sibling automations or unrelated repo docs.
+
+Use standard branch names for delegated work: `feat/short-description` for
+features and `fix/short-description` for fixes. Do not create branches named
+after Codex, Claude, or any other agent/tool.
 
 ## Claude Responsibilities
 
@@ -60,10 +64,6 @@ required keys.
 ## Documentation Model
 
 `docs/lnvo/` is the canonical Markdown source for LNVO reference material.
-Obsidian is the editing and canvas surface for those files.
-
-External Obsidian notes and Canvas sketches are working material. Promote only
-stable reference docs into the repo.
 
 README files are user-facing entry points. `CONTEXT.md` files are agent-facing
 local context.

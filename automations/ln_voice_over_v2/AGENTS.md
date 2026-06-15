@@ -18,6 +18,10 @@ This sub-project is self-contained. Follow the root rule files, this file, and
 the local context/reference files this file names; ignore conventions from
 sibling automations or unrelated repo docs.
 
+Branch names for this package must describe the LNVO v2 feature or fix scope,
+such as `feat/lnvo-v2-dialogue` or `fix/lnvo-v2-transform`. Do not use
+agent/tool prefixes such as `codex/...` or `claude/...`.
+
 ## Boundaries
 
 - This slice owns contracts, validation, path conventions, and orchestration data.

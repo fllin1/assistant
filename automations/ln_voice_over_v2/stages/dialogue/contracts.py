@@ -8,6 +8,8 @@ from ...common.artifacts import ContractModel, PersistedArtifact
 from ...common.enums import ArtifactKind, PerspectiveStatus, ReviewStatus
 from ...common.ids import ChapterId, SegmentId
 
+SpeakerGender = Literal["male", "female", "unknown"]
+
 
 class Perspective(ContractModel):
     """Chapter narrator perspective decision."""
@@ -21,6 +23,8 @@ class DialogueRow(ContractModel):
 
     segment_id: SegmentId
     speaker: str
+    speaker_raw: str | None = None
+    speaker_gender: SpeakerGender = "unknown"
 
 
 class RejectedCandidate(ContractModel):
